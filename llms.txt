@@ -1,0 +1,34 @@
+# mimo
+> Nitro（nitropack）服务端项目：启动时构建 skills 索引，并提供搜索 API。索引/检索基于 Orama，中文分词使用 Mandarin tokenizer + stopwords，并对结果做高亮摘要。
+
+## 本仓库关键入口（先看这些）
+- `server/plugins/skillsIndex.ts`：Nitro 插件；启动阶段 eager 构建索引并挂到 `useNitroApp().skillsIndex`。
+- `server/routes/api/skills/search.ts`：搜索接口（`/api/skills/search?q=...&limit=...`）。
+- `server/utils/skillsIndex/orama.ts`：Orama DB 构建（Mandarin tokenizer + stopwords）。
+- `server/utils/skillsIndex/search.ts`：Orama `search` + 高亮片段处理。
+- `server/utils/skillsIndex/loader.ts`：扫描 `SKILLS_DIR/*/SKILL.md` 并抽取 frontmatter / 正文。
+- `docs/skills/README.md`：skills 文档与写法速查。
+
+## AI-SDK
+- `https://ai-sdk.dev/llms.txt`：AI SDK 官网自身提供的 `llms.txt`（用于观察一个真实站点如何组织对外文档入口；不是通用规范）。
+
+## Nitro / nitropack（框架）
+- `https://nitro.build/guide`：Nitro Guide（概览与用法入口）。
+- `https://nitro.build/guide/routing`：路由约定与 `server/routes/*` 机制。
+- `https://nitro.build/config`：`nitro.config.*` 配置参考。
+
+## h3（HTTP 工具库）
+- `https://h3.unjs.io/`：h3 文档入口（`eventHandler`、`getQuery` 等）。
+- `https://github.com/unjs/h3`：h3 源码（查具体 API 行为与类型定义）。
+
+## Orama（搜索引擎与相关包）
+- `https://github.com/oramasearch/orama`：Orama 源码与示例（核心 `create/search`、schema、组件机制等）。
+- `https://www.npmjs.com/package/@orama/orama`：`@orama/orama` 包信息与版本。
+- `https://www.npmjs.com/package/@orama/tokenizers`：`@orama/tokenizers`（本仓库使用 `@orama/tokenizers/mandarin`）。
+- `https://www.npmjs.com/package/@orama/stopwords`：`@orama/stopwords`（本仓库使用 `@orama/stopwords/mandarin`）。
+- `https://www.npmjs.com/package/@orama/highlight`：`@orama/highlight`（高亮实现）。
+
+## 检索/排序参考（BM25 等）
+- `https://nlp.stanford.edu/IR-book/`：Stanford IR Book（信息检索经典教材；BM25/倒排/评分等）。
+- `https://en.wikipedia.org/wiki/Okapi_BM25`：Okapi BM25 概览（公式与术语快速回忆）。
+- `https://dl.acm.org/doi/10.1145/253495.253505`：Okapi at TREC-3（BM25/Okapi 早期权威出处之一）。
