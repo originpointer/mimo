@@ -28,6 +28,12 @@
 - `https://www.npmjs.com/package/@orama/stopwords`：`@orama/stopwords`（本仓库使用 `@orama/stopwords/mandarin`）。
 - `https://www.npmjs.com/package/@orama/highlight`：`@orama/highlight`（高亮实现）。
 
+## Vitest（第三方参考：测试框架文档索引）
+- `.sources/vitest/docs/index.md`：Vitest 文档首页（导航入口，指向 Guide/Features/Why）。
+- `.sources/vitest/docs/guide/index.md`：Guide 首页（Getting Started）。
+- `.sources/vitest/docs/config/index.md`：配置总览（如何配置 Vitest / `vitest.config.*` / 与 Vite 配置关系）。
+- `.sources/vitest/docs/api/index.md`：Test API Reference（`test`/`describe` 等 API 参考入口）。
+
 ## 检索/排序参考（BM25 等）
 - `https://nlp.stanford.edu/IR-book/`：Stanford IR Book（信息检索经典教材；BM25/倒排/评分等）。
 - `https://en.wikipedia.org/wiki/Okapi_BM25`：Okapi BM25 概览（公式与术语快速回忆）。

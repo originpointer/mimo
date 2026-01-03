@@ -1,15 +1,24 @@
 {
   "name": "mimo",
   "private": true,
+  "type": "module",
   "scripts": {
     "build": "nitro build",
     "dev": "nitro dev",
-    "preview": "node .output/server/index.mjs"
+    "preview": "node .output/server/index.mjs",
+    "sources:sync": "tsx sources/sources-sync.ts",
+    "sources:sync:force": "tsx sources/sources-sync.ts --force",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "h3": "^1.15.4",
-    "nitropack": "^2.12.4"
+    "nitropack": "^2.12.4",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8",
+    "vite-tsconfig-paths": "^5.1.4",
+    "yaml": "^2.8.0"
   },
   "dependencies": {
     "@orama/highlight": "^0.1.9",
