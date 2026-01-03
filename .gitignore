@@ -1,8 +1,38 @@
-node_modules
-dist
-.data
-.nitro
-.cache
-.output
+# dependencies
+node_modules/
+
+# build output / runtime artifacts (Nitro)
+dist/
+.output/
+.nitro/
+
+# caches / local data
+.cache/
+.data/
+
+# environment files (do not commit secrets)
 .env
 .env.local
+.env.*
+!.env.example
+
+# IDE / editor (per-user)
+.vscode/
+.idea/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# test coverage
+coverage/
+.nyc_output/
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
+
+# OS files
+.DS_Store
