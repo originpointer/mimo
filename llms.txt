@@ -34,6 +34,16 @@
 - `.sources/vitest/docs/config/index.md`：配置总览（如何配置 Vitest / `vitest.config.*` / 与 Vite 配置关系）。
 - `.sources/vitest/docs/api/index.md`：Test API Reference（`test`/`describe` 等 API 参考入口）。
 
+## MetaGPT（第三方参考：多智能体框架文档入口）
+- `.sources/MetaGPT/README.md`：MetaGPT 英文首页与总览入口（含安装/配置指引与外部官方文档链接）。
+- `.sources/MetaGPT/docs/FAQ-EN.md`：英文 FAQ 与资源链接聚合。
+- `.sources/MetaGPT/docs/install/cli_install.md`：英文 CLI 安装（传统命令行安装）。
+- `.sources/MetaGPT/docs/install/docker_install.md`：英文 Docker 安装。
+- `.sources/MetaGPT/docs/tutorial/usage.md`：英文 Usage（CLI 用法与参数说明）。
+- `.sources/MetaGPT/docs/ROADMAP.md`：路线图（Roadmap）。
+- `.sources/MetaGPT/docs/NEWS.md`：项目动态（News）。
+- `.sources/MetaGPT/docs/ACADEMIC_WORK.md`：论文/学术工作汇总。
+
 ## 检索/排序参考（BM25 等）
 - `https://nlp.stanford.edu/IR-book/`：Stanford IR Book（信息检索经典教材；BM25/倒排/评分等）。
 - `https://en.wikipedia.org/wiki/Okapi_BM25`：Okapi BM25 概览（公式与术语快速回忆）。

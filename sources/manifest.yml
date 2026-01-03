@@ -31,4 +31,9 @@ sources:
     shallow: true
     # Optional: human notes.
     notes: "Used as reference only"
+  - name: MetaGPT
+    repo: git@github.com:FoundationAgents/MetaGPT.git
+    ref: main
+    shallow: true
+    notes: "Used as reference only"
 
