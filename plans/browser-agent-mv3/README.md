@@ -29,7 +29,7 @@
 
 ---
 
-### 入口（单文件版本）
+### 归档（单文件版本）
 
-如果你还在看最初的单文件版：`/Users/sodaabe/codes/opensources/MetaGPT/mimo/plans/browser-agent-mv3-design.md`。
-本目录是其“按主题拆分 + 补齐 MV3 细节”的结构化版本。
+- 单文件历史版本：`/Users/sodaabe/codes/opensources/MetaGPT/mimo/plans/browser-agent-mv3-design.md`（已停止维护）
+- 本目录（`plans/browser-agent-mv3/`）是当前**唯一维护入口**，请以这里为准。
