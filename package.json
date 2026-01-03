@@ -1,0 +1,20 @@
+{
+  "name": "mimo",
+  "private": true,
+  "scripts": {
+    "build": "nitro build",
+    "dev": "nitro dev",
+    "preview": "node .output/server/index.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "h3": "^1.15.4",
+    "nitropack": "^2.12.4"
+  },
+  "dependencies": {
+    "@orama/highlight": "^0.1.9",
+    "@orama/orama": "^3.1.18",
+    "@orama/stopwords": "^3.1.18",
+    "@orama/tokenizers": "^3.1.18"
+  }
+}

@@ -1,0 +1,560 @@
+{
+  "meta": {
+    "generatedAt": "2026-01-03T11:06:43.834Z",
+    "sourceDir": "docs/orama",
+    "count": 41
+  },
+  "docs": [
+    {
+      "id": "01-introduction",
+      "file": "01-introduction.md",
+      "title": "orama-js: Introduction",
+      "headings": [
+        "Requirements",
+        "Installation",
+        "Basic usage",
+        "CommonJS Imports",
+        "TypeScript"
+      ],
+      "excerpt": "orama js: Introduction URL: /docs/orama js Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/index.mdx A complete search engine and RAG pipeline in your…",
+      "bytes": 2667
+    },
+    {
+      "id": "02-usage-create-a-new-orama-instance",
+      "file": "02-usage-create-a-new-orama-instance.md",
+      "title": "orama-js: Create a new Orama instance",
+      "headings": [
+        "Schema properties and types",
+        "Nested properties",
+        "Vector properties",
+        "Instance ID"
+      ],
+      "excerpt": "orama js: Create a new Orama instance URL: /docs/orama js/usage/create Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/usage/create.mdx Create a new Or…",
+      "bytes": 5368
+    },
+    {
+      "id": "03-usage-insert-data",
+      "file": "03-usage-insert-data.md",
+      "title": "orama-js: Insert Data",
+      "headings": [
+        "Insert",
+        "Validation rules",
+        "Custom document IDs",
+        "Remote document storing"
+      ],
+      "excerpt": "orama js: Insert Data URL: /docs/orama js/usage/insert Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/usage/insert.mdx Insert data into an Orama datab…",
+      "bytes": 7029
+    },
+    {
+      "id": "04-usage-remove-data",
+      "file": "04-usage-remove-data.md",
+      "title": "orama-js: Remove data",
+      "headings": [
+        "Batch removal"
+      ],
+      "excerpt": "orama js: Remove data URL: /docs/orama js/usage/remove Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/usage/remove.mdx Learn how to remove data from a…",
+      "bytes": 3513
+    },
+    {
+      "id": "05-usage-update-data",
+      "file": "05-usage-update-data.md",
+      "title": "orama-js: Update data",
+      "headings": [],
+      "excerpt": "orama js: Update data URL: /docs/orama js/usage/update Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/usage/update.mdx Learn how to update data in Ora…",
+      "bytes": 661
+    },
+    {
+      "id": "06-usage-utility-functions-for-orama",
+      "file": "06-usage-utility-functions-for-orama.md",
+      "title": "orama-js: Utility functions for Orama",
+      "headings": [
+        "`getByID`",
+        "`count`"
+      ],
+      "excerpt": "orama js: Utility functions for Orama URL: /docs/orama js/usage/utilities Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/usage/utilities.mdx Learn how…",
+      "bytes": 1033
+    },
+    {
+      "id": "07-search-introduction-to-search",
+      "file": "07-search-introduction-to-search.md",
+      "title": "orama-js: Introduction to search",
+      "headings": [
+        "Searching with Orama",
+        "What does the `search` method return?",
+        "Search on specific properties",
+        "Exact match",
+        "Typo tolerance",
+        "Results limits",
+        "Results offset",
+        "Distinct",
+        "`elapsed` property customization",
+        "Caveats"
+      ],
+      "excerpt": "orama js: Introduction to search URL: /docs/orama js/search Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/index.mdx Learn how to search throug…",
+      "bytes": 8668
+    },
+    {
+      "id": "08-search-changing-default-search-algorithm",
+      "file": "08-search-changing-default-search-algorithm.md",
+      "title": "orama-js: Changing Default Search Algorithm",
+      "headings": [
+        "BM25, QPS, and PT15: A Comparison",
+        "BM25 (Best Matching 25)",
+        "QPS (Quantum Proximity Scoring)",
+        "PT15 (Positional Token 15)",
+        "How to choose"
+      ],
+      "excerpt": "orama js: Changing Default Search Algorithm URL: /docs/orama js/search/changing default search algorithm Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama j…",
+      "bytes": 7485
+    },
+    {
+      "id": "09-search-vector-search",
+      "file": "09-search-vector-search.md",
+      "title": "orama-js: Vector Search",
+      "headings": [
+        "Performing Vector Search"
+      ],
+      "excerpt": "orama js: Vector Search URL: /docs/orama js/search/vector search Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/vector search.mdx Learn how to…",
+      "bytes": 4007
+    },
+    {
+      "id": "10-search-hybrid-search",
+      "file": "10-search-hybrid-search.md",
+      "title": "orama-js: Hybrid Search",
+      "headings": [
+        "Performing Hybrid Search",
+        "Custom hybrid weights"
+      ],
+      "excerpt": "orama js: Hybrid Search URL: /docs/orama js/search/hybrid search Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/hybrid search.mdx Learn how to…",
+      "bytes": 5007
+    },
+    {
+      "id": "11-search-fields-boosting",
+      "file": "11-search-fields-boosting.md",
+      "title": "orama-js: Fields Boosting",
+      "headings": [],
+      "excerpt": "orama js: Fields Boosting URL: /docs/orama js/search/fields boosting Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/fields boosting.mdx Learn h…",
+      "bytes": 1132
+    },
+    {
+      "id": "12-search-facets",
+      "file": "12-search-facets.md",
+      "title": "orama-js: Facets",
+      "headings": [
+        "String facets",
+        "Number facets",
+        "Boolean facets",
+        "Enum facets",
+        "How facets works on array fields"
+      ],
+      "excerpt": "orama js: Facets URL: /docs/orama js/search/facets Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/facets.mdx Learn how to use facets in Orama s…",
+      "bytes": 6153
+    },
+    {
+      "id": "13-search-filters",
+      "file": "13-search-filters.md",
+      "title": "orama-js: Filters",
+      "headings": [
+        "String operators",
+        "Number operators",
+        "Boolean operators",
+        "String\\[] | Number\\[] | Boolean\\[] operators",
+        "Enum operators",
+        "Enum\\[] operators",
+        "Geosearch"
+      ],
+      "excerpt": "orama js: Filters URL: /docs/orama js/search/filters Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/filters.mdx Learn how to use filters in Ora…",
+      "bytes": 5341
+    },
+    {
+      "id": "14-search-geosearch",
+      "file": "14-search-geosearch.md",
+      "title": "orama-js: Geosearch",
+      "headings": [
+        "What are geopoints",
+        "Inserting documents with geopoints",
+        "Performing geosearch queries",
+        "Filtering by distance (radius)",
+        "Supported units of measurement",
+        "Filtering by bounding polygon",
+        "High Precision Geosearch"
+      ],
+      "excerpt": "orama js: Geosearch URL: /docs/orama js/search/geosearch Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/geosearch.mdx Learn how to perform geos…",
+      "bytes": 7073
+    },
+    {
+      "id": "15-search-sorting",
+      "file": "15-search-sorting.md",
+      "title": "orama-js: Sorting",
+      "headings": [
+        "Reverse order",
+        "Memory optimization",
+        "Custom sort",
+        "Disable sort"
+      ],
+      "excerpt": "orama js: Sorting URL: /docs/orama js/search/sorting Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/sorting.mdx Learn how to sort the search re…",
+      "bytes": 2793
+    },
+    {
+      "id": "16-search-grouping",
+      "file": "16-search-grouping.md",
+      "title": "orama-js: Grouping",
+      "headings": [
+        "Simple usage",
+        "Custom reducer"
+      ],
+      "excerpt": "orama js: Grouping URL: /docs/orama js/search/grouping Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/grouping.mdx Learn how to group search re…",
+      "bytes": 5027
+    },
+    {
+      "id": "17-search-threshold",
+      "file": "17-search-threshold.md",
+      "title": "orama-js: Threshold",
+      "headings": [
+        "The problem",
+        "Using the `threshold` property",
+        "Setting the threshold to `1` (default)",
+        "Setting the threshold to `0`",
+        "Setting the threshold to a value between `0` and `1`"
+      ],
+      "excerpt": "orama js: Threshold URL: /docs/orama js/search/threshold Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/threshold.mdx The threshold property is…",
+      "bytes": 3786
+    },
+    {
+      "id": "18-search-preflight-search",
+      "file": "18-search-preflight-search.md",
+      "title": "orama-js: Preflight Search",
+      "headings": [
+        "Usage",
+        "How is that useful?",
+        "Scenarios"
+      ],
+      "excerpt": "orama js: Preflight Search URL: /docs/orama js/search/preflight Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/preflight.mdx Preflight search i…",
+      "bytes": 3265
+    },
+    {
+      "id": "19-search-bm25",
+      "file": "19-search-bm25.md",
+      "title": "orama-js: BM25 Algorithm",
+      "headings": [],
+      "excerpt": "orama js: BM25 Algorithm URL: /docs/orama js/search/bm25 Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/search/bm25.mdx Learn how Orama uses the BM25…",
+      "bytes": 2378
+    },
+    {
+      "id": "20-result-pinning",
+      "file": "20-result-pinning.md",
+      "title": "orama-js: Results Pinning (Merchandising)",
+      "headings": [
+        "Creating a Pinning Rule",
+        "Using Multiple Conditions",
+        "Condition Anchoring Options",
+        "`is` - Exact Match.",
+        "`starts_with` - Prefix Match",
+        "`contains`: Substring Match",
+        "Combining Conditions",
+        "Consequence Options",
+        "Updating a Pinning Rule",
+        "Deleting a Pinning Rule",
+        "Listing All Pinning Rules",
+        "Get One Specific Pinning Rule",
+        "Errors"
+      ],
+      "excerpt": "orama js: Results Pinning (Merchandising) URL: /docs/orama js/results pinning Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/results pinning.mdx Pin s…",
+      "bytes": 8345
+    },
+    {
+      "id": "21-answer-engine",
+      "file": "21-answer-engine.md",
+      "title": "orama-js: Answer Engine",
+      "headings": [
+        "Getting Started",
+        "AnswerSession",
+        "RAG implementation",
+        "Prompt:"
+      ],
+      "excerpt": "orama js: Answer Engine URL: /docs/orama js/answer engine Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/answer engine.mdx Learn how to use Orama as a…",
+      "bytes": 7569
+    },
+    {
+      "id": "22-officially-supported-languages",
+      "file": "22-officially-supported-languages.md",
+      "title": "orama-js: Officially Supported Languages",
+      "headings": [
+        "Latin Alphabet",
+        "Cyrillic Alphabet",
+        "Greek Alphabet",
+        "Devanagari Script",
+        "Arabic Script",
+        "Armenian Alphabet",
+        "Tamil Script",
+        "Chinese Characters (Logographic Script)"
+      ],
+      "excerpt": "orama js: Officially Supported Languages URL: /docs/orama js/supported languages Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/supported languages/in…",
+      "bytes": 4411
+    },
+    {
+      "id": "23-using-chinese-with-orama",
+      "file": "23-using-chinese-with-orama.md",
+      "title": "orama-js: Using Chinese with Orama",
+      "headings": [],
+      "excerpt": "orama js: Using Chinese with Orama URL: /docs/orama js/supported languages/using chinese with orama Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/sup…",
+      "bytes": 2272
+    },
+    {
+      "id": "24-components",
+      "file": "24-components.md",
+      "title": "orama-js: Components",
+      "headings": [
+        "Providing your own components",
+        "Supported components",
+        "`tokenizer`",
+        "`index`",
+        "`documentsStore`",
+        "`sorter`",
+        "General purpose components",
+        "`validateSchema`",
+        "`getDocumentIndexId`",
+        "`getDocumentProperties`",
+        "`formatElapsedTime`",
+        "Internal components",
+        "Documents IDs mapper",
+        "Extending Orama",
+        "Step 1: Define a new interface",
+        "Step 2: Define and store data in the database",
+        "Step 3: Define your component default implementation",
+        "Step 4: Update the `create` method",
+        "Step 5: Have fun!"
+      ],
+      "excerpt": "orama js: Components URL: /docs/orama js/internals/components Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/internals/components.mdx Learn how to cus…",
+      "bytes": 23451
+    },
+    {
+      "id": "25-utilities",
+      "file": "25-utilities.md",
+      "title": "orama-js: Utilities",
+      "headings": [
+        "`boundedLevenshtein`",
+        "`formatBytes`",
+        "`formatNanoseconds`",
+        "`getNanosecondsTime`",
+        "`uniqueId`"
+      ],
+      "excerpt": "orama js: Utilities URL: /docs/orama js/internals/utilities Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/internals/utilities.mdx Orama exposes some…",
+      "bytes": 2225
+    },
+    {
+      "id": "26-plugin-system",
+      "file": "26-plugin-system.md",
+      "title": "orama-js: Plugin system",
+      "headings": [],
+      "excerpt": "orama js: Plugin system URL: /docs/orama js/plugins Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/index.mdx Learn how to extend Orama with pl…",
+      "bytes": 1293
+    },
+    {
+      "id": "27-writing-your-own-plugins",
+      "file": "27-writing-your-own-plugins.md",
+      "title": "orama-js: Writing your own plugins",
+      "headings": [
+        "Creating a plugin",
+        "Plugin hooks",
+        "`beforeInsert`",
+        "`afterInsert`",
+        "`beforeRemove`",
+        "`afterRemove`",
+        "`beforeUpdate`",
+        "`afterUpdate`",
+        "`beforeSearch`",
+        "`afterSearch`",
+        "`beforeInsertMultiple`",
+        "`afterInsertMultiple`",
+        "`beforeRemoveMultiple`",
+        "`afterRemoveMultiple`",
+        "`beforeUpdateMultiple`",
+        "`afterUpdateMultiple`",
+        "Migrating from hooks to plugins"
+      ],
+      "excerpt": "orama js: Writing your own plugins URL: /docs/orama js/plugins/writing your own plugins Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/writing…",
+      "bytes": 11532
+    },
+    {
+      "id": "28-plugin-embeddings",
+      "file": "28-plugin-embeddings.md",
+      "title": "orama-js: Plugin Embeddings",
+      "headings": [
+        "Installation",
+        "Usage"
+      ],
+      "excerpt": "orama js: Plugin Embeddings URL: /docs/orama js/plugins/plugin embeddings Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin embeddings.mdx…",
+      "bytes": 3426
+    },
+    {
+      "id": "29-plugin-data-persistence",
+      "file": "29-plugin-data-persistence.md",
+      "title": "orama-js: Plugin Data Persistence",
+      "headings": [
+        "Installation",
+        "Usage",
+        "Persisting the database to disk (in-memory usage)",
+        "Restore the database from disk (in-memory usage)",
+        "Persisting the database to disk (server usage)",
+        "Restore the database from disk (server usage)",
+        "TypeScript"
+      ],
+      "excerpt": "orama js: Plugin Data Persistence URL: /docs/orama js/plugins/plugin data persistence Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin da…",
+      "bytes": 3610
+    },
+    {
+      "id": "30-plugin-qps",
+      "file": "30-plugin-qps.md",
+      "title": "orama-js: Plugin QPS",
+      "headings": [
+        "Installation",
+        "Usage",
+        "QPS vs BM25, pros and cons",
+        "QPS Pros",
+        "QPS Cons",
+        "How to choose"
+      ],
+      "excerpt": "orama js: Plugin QPS URL: /docs/orama js/plugins/plugin qps Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin qps.mdx Boost your search re…",
+      "bytes": 4034
+    },
+    {
+      "id": "31-plugin-pt15",
+      "file": "31-plugin-pt15.md",
+      "title": "orama-js: Plugin PT15",
+      "headings": [
+        "Installation",
+        "Usage",
+        "PT15 vs BM25, pros and cons",
+        "PT15 Pros",
+        "PT15 Cons",
+        "How to choose"
+      ],
+      "excerpt": "orama js: Plugin PT15 URL: /docs/orama js/plugins/plugin pt15 Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin pt15.mdx Boost your search…",
+      "bytes": 4306
+    },
+    {
+      "id": "32-plugin-docusaurus",
+      "file": "32-plugin-docusaurus.md",
+      "title": "orama-js: Plugin Docusaurus",
+      "headings": [
+        "Installation",
+        "Usage",
+        "Configuration",
+        "Orama Plugins",
+        "Analytics",
+        "Searchbox & Search Button"
+      ],
+      "excerpt": "orama js: Plugin Docusaurus URL: /docs/orama js/plugins/plugin docusaurus Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin docusaurus.mdx…",
+      "bytes": 2462
+    },
+    {
+      "id": "33-plugin-secure-proxy",
+      "file": "33-plugin-secure-proxy.md",
+      "title": "orama-js: Plugin Secure Proxy",
+      "headings": [
+        "Installation",
+        "Usage",
+        "Available models",
+        "Running queries",
+        "Specifying the vector property"
+      ],
+      "excerpt": "orama js: Plugin Secure Proxy URL: /docs/orama js/plugins/plugin secure proxy Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin secure pro…",
+      "bytes": 3487
+    },
+    {
+      "id": "34-plugin-vitepress",
+      "file": "34-plugin-vitepress.md",
+      "title": "orama-js: Plugin Vitepress",
+      "headings": [
+        "Installation",
+        "Usage"
+      ],
+      "excerpt": "orama js: Plugin Vitepress URL: /docs/orama js/plugins/plugin vitepress Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin vitepress.mdx Le…",
+      "bytes": 1070
+    },
+    {
+      "id": "35-plugin-analytics",
+      "file": "35-plugin-analytics.md",
+      "title": "orama-js: Plugin Analytics",
+      "headings": [
+        "Installation",
+        "Disabling Analytics"
+      ],
+      "excerpt": "orama js: Plugin Analytics URL: /docs/orama js/plugins/plugin analytics Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin analytics.mdx Le…",
+      "bytes": 1815
+    },
+    {
+      "id": "36-plugin-astro",
+      "file": "36-plugin-astro.md",
+      "title": "orama-js: Plugin Astro",
+      "headings": [
+        "Installation",
+        "Usage",
+        "Local development",
+        "Loading the DB on client-side"
+      ],
+      "excerpt": "orama js: Plugin Astro URL: /docs/orama js/plugins/plugin astro Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin astro.mdx Learn how to u…",
+      "bytes": 2925
+    },
+    {
+      "id": "37-plugin-nextra",
+      "file": "37-plugin-nextra.md",
+      "title": "orama-js: Plugin Nextra",
+      "headings": [
+        "Installation",
+        "Usage"
+      ],
+      "excerpt": "orama js: Plugin Nextra URL: /docs/orama js/plugins/plugin nextra Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin nextra.mdx Learn how t…",
+      "bytes": 1263
+    },
+    {
+      "id": "38-plugin-parsedoc",
+      "file": "38-plugin-parsedoc.md",
+      "title": "orama-js: Plugin Parsedoc",
+      "headings": [
+        "Installation",
+        "Usage",
+        "API Reference",
+        "`populateFromGlob`",
+        "`populate`",
+        "TypeScript"
+      ],
+      "excerpt": "orama js: Plugin Parsedoc URL: /docs/orama js/plugins/plugin parsedoc Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin parsedoc.mdx Learn…",
+      "bytes": 4259
+    },
+    {
+      "id": "39-plugin-match-highlight",
+      "file": "39-plugin-match-highlight.md",
+      "title": "orama-js: Plugin Match Highlight",
+      "headings": [
+        "Installation",
+        "Usage",
+        "TypeScript"
+      ],
+      "excerpt": "orama js: Plugin Match Highlight URL: /docs/orama js/plugins/plugin match highlight Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/plugins/plugin matc…",
+      "bytes": 3613
+    },
+    {
+      "id": "40-stemming",
+      "file": "40-stemming.md",
+      "title": "orama-js: Stemming",
+      "headings": [],
+      "excerpt": "orama js: Stemming URL: /docs/orama js/text analysis/stemming Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/text analysis/stemming.mdx Learn how to u…",
+      "bytes": 2447
+    },
+    {
+      "id": "41-stop-words",
+      "file": "41-stop-words.md",
+      "title": "orama-js: Stop-words",
+      "headings": [
+        "Enabling stop-words removal",
+        "Using the default stop-words list",
+        "Extending the default stop-words list",
+        "Supported languages"
+      ],
+      "excerpt": "orama js: Stop words URL: /docs/orama js/text analysis/stop words Source: https://raw.githubusercontent.com/oramasearch/docs/refs/heads/main/content/docs/orama js/text analysis/stop words.mdx Learn ho…",
+      "bytes": 2947
+    }
+  ]
+}
