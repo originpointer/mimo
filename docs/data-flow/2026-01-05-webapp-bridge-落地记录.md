@@ -111,4 +111,108 @@ pnpm dev
 - 增加事件订阅能力（`cdp.subscribe`）
 - 明确 tab/target 的选择策略（active tab、指定 tabId、多窗口场景）
 
+---
+
+## 2026-01-05 续：Phase 0-6 验证与 OOPIF 突破
+
+### 新增能力（Phase 0-6 实现）
+
+#### Phase 0-2: 事件流回传与 Session Registry
+
+| 文件 | 说明 |
+|------|------|
+| `server/routes/control/events.post.ts` | 接收扩展 CDP 事件回传 |
+| `server/routes/control/events.get.ts` | 查询最近事件 |
+| `server/utils/control/sessionRegistry.ts` | 服务端 session 注册表 |
+| `server/routes/control/sessions.get.ts` | 查询子 session（iframe/OOPIF） |
+
+**扩展侧增强**：`extension/background.js`
+- `chrome.debugger.onEvent` 监听并回传到服务端
+- Session Registry 自动维护（`Target.attachedToTarget`/`detachedFromTarget`）
+- 支持 `sessionId` 命令路由（用于子 iframe 操作）
+- 支持 `keepAttached` 选项（保持 debugger 连接）
+
+#### Phase 3: sessionId Multiplexer
+
+- 服务端自动追踪 `Target.attachedToTarget` 事件，维护子 session 列表
+- `POST /control/enqueue` 支持 `sessionId` 参数，可在子 iframe 中执行命令
+
+#### Phase 5: 等待/稳定性机制
+
+| 文件 | 说明 |
+|------|------|
+| `server/utils/control/waitHelpers.ts` | 等待工具函数 |
+| `server/routes/control/wait.post.ts` | 等待 API |
+
+- `waitForPageLoad()`, `waitForDomReady()`, `waitForNetworkIdle()`, `waitForStable()`
+- 基于 CDP 事件流判断页面状态
+
+#### Phase 6: DriverAdapter + Act/Extract API
+
+| 文件 | 说明 |
+|------|------|
+| `server/utils/control/driverAdapter.ts` | Stagehand 风格的驱动适配器 |
+| `server/routes/control/act.post.ts` | 简化版 act API |
+| `server/routes/control/extract.post.ts` | 简化版 extract API |
+
+**DriverAdapter 接口**：
+- `send(method, params)` - CDP 命令发送
+- `evaluate(expression)` - JS 执行
+- `navigate(url)`, `clickAt(x, y)`, `type(text)`, `press(key)`
+- `screenshot()`, `waitForLoad()`, `waitForStable()`
+- `getChildSessions()`, `findSessionByUrl()` - session 管理
+
+---
+
+### 🎉 关键验证结果：OOPIF 完全可操作
+
+**测试场景**：主页面嵌入 `<iframe src="https://example.com">`
+
+**验证日志**：
+```json
+{
+  "method": "Runtime.evaluate",
+  "sessionId": "0F0F5C1D0A33B10BACDBD41ABC29E3DE",
+  "response": {
+    "result": {
+      "type": "string",
+      "value": "Example Domain"  // ← 跨域 iframe 内的 document.title
+    }
+  }
+}
+```
+
+**结论**：
+
+| 能力 | 状态 |
+|------|------|
+| 检测跨域 iframe | ✅ `Target.attachedToTarget` 事件收到 |
+| 获取子 session ID | ✅ 自动注册到 sessionRegistry |
+| 在 OOPIF 中执行命令 | ✅ `Runtime.evaluate` 成功返回 |
+| 获取 iframe 内 DOM | ✅ `document.title = "Example Domain"` |
+
+**意义**：Stagehand 的 Frame/OOPIF 穿透逻辑可在扩展侧完整复现，无需降级策略。
+
+---
+
+### 验证文档清单
+
+| Phase | 文档 | 状态 |
+|-------|------|------|
+| Phase 0 | `verification/phase0-oopif-result.md` | ✅ 已验证通过 |
+| Phase 1 | `verification/phase1-tier1-cdp-coverage.md` | 📝 已创建，待填写 |
+| Phase 2 | `verification/phase2-event-subscription.md` | 📝 已创建 |
+| Phase 3 | `verification/phase3-session-multiplexer.md` | 📝 已创建 |
+| Phase 4 | `verification/phase4-frame-oopif.md` | ✅ 由 Phase 0 结果覆盖 |
+| Phase 5 | `verification/phase5-stability-wait.md` | 📝 已创建 |
+| Phase 6 | `verification/phase6-stagehand-integration.md` | 📝 已创建 |
+
+---
+
+### 下一步（更新后的优先级）
+
+1. **✅ OOPIF 验证已通过** - 无需降级策略
+2. **可选：批量 CDP 方法验证** - webapp 已有 Round 1-7 按钮，可逐个验证
+3. **推荐：集成 LLM 推理** - 基于 DriverAdapter 实现完整的 Stagehand act/extract
+4. **推荐：移植 Stagehand handler** - 复用 observeHandler/actHandler 的元素定位逻辑
 

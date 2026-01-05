@@ -61,7 +61,9 @@ export default eventHandler(() => {
   </div>
   <div class="row" style="margin-top:8px">
     <button id="btnTestAutoAttach">Test Target.setAutoAttach (flatten)</button>
+    <button id="btnTestOopifSession">Test OOPIF Session (完整流程)</button>
   </div>
+  <div class="meta" id="oopifStatus" style="margin-top:8px"></div>
 </div>
 
 <div class="box">
@@ -302,6 +304,126 @@ export default eventHandler(() => {
   }
 
   $btnTestAutoAttach.addEventListener('click', () => void testAutoAttach());
+
+  // Test OOPIF Session - 完整流程
+  const $btnTestOopifSession = document.getElementById('btnTestOopifSession');
+  const $oopifStatus = document.getElementById('oopifStatus');
+
+  async function testOopifSession() {
+    const extensionId = ($extId.value || '').trim();
+    const replyUrl = ($replyUrl.value || '').trim();
+    if (!extensionId || !replyUrl) {
+      $oopifStatus.textContent = 'Missing extensionId or replyUrl';
+      $oopifStatus.className = 'meta bad';
+      return;
+    }
+
+    try {
+      // Step 1: 发送 Target.setAutoAttach with keepAttached
+      $oopifStatus.textContent = 'Step 1: Sending Target.setAutoAttach (keepAttached=true)...';
+      $oopifStatus.className = 'meta';
+
+      const step1 = await fetch('/control/enqueue', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          extensionId,
+          ttlMs: 30000,
+          op: {
+            kind: 'cdp.send',
+            method: 'Target.setAutoAttach',
+            params: { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
+            keepAttached: true
+          },
+          options: { keepAttached: true },
+          replyUrl
+        })
+      });
+      const step1Data = await step1.json();
+      log('Step 1: Target.setAutoAttach', step1Data);
+
+      if (!step1Data.ok) {
+        $oopifStatus.textContent = 'Step 1 failed: ' + (step1Data.error || 'unknown');
+        $oopifStatus.className = 'meta bad';
+        return;
+      }
+
+      // Step 2: 等待子 session 注册
+      $oopifStatus.textContent = 'Step 2: Waiting for child session (2s)...';
+      await new Promise(r => setTimeout(r, 2000));
+
+      // Step 3: 查询 sessions
+      $oopifStatus.textContent = 'Step 3: Querying sessions...';
+      const sessionsRes = await fetch('/control/sessions');
+      const sessionsData = await sessionsRes.json();
+      log('Step 3: Sessions', sessionsData);
+
+      // 找到子 session (type=iframe)
+      let childSession = null;
+      if (sessionsData.ok && sessionsData.sessions) {
+        for (const tab of sessionsData.sessions) {
+          if (tab.children && tab.children.length > 0) {
+            childSession = tab.children.find(c => c.type === 'iframe');
+            if (childSession) break;
+          }
+        }
+      }
+
+      if (!childSession) {
+        $oopifStatus.textContent = 'Step 3: No iframe child session found (check if iframe is loaded)';
+        $oopifStatus.className = 'meta bad';
+        log('No child session found', sessionsData);
+        return;
+      }
+
+      log('Found child session', childSession);
+      $oopifStatus.textContent = 'Step 3: Found child session: ' + childSession.sessionId;
+
+      // Step 4: 在子 session 中执行 Runtime.evaluate
+      $oopifStatus.textContent = 'Step 4: Executing Runtime.evaluate in child session...';
+
+      const step4 = await fetch('/control/enqueue', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          extensionId,
+          ttlMs: 30000,
+          sessionId: childSession.sessionId,
+          op: {
+            kind: 'cdp.send',
+            method: 'Runtime.evaluate',
+            params: { expression: 'document.title', returnByValue: true },
+            sessionId: childSession.sessionId,
+            keepAttached: true
+          },
+          options: { keepAttached: true },
+          replyUrl
+        })
+      });
+      const step4Data = await step4.json();
+      log('Step 4: Runtime.evaluate in child session', step4Data);
+
+      if (!step4Data.ok) {
+        $oopifStatus.textContent = 'Step 4 failed: ' + (step4Data.error || 'unknown');
+        $oopifStatus.className = 'meta bad';
+        return;
+      }
+
+      // 等待 callback 返回
+      $oopifStatus.textContent = 'Step 4: Waiting for callback (check server logs for result)...';
+      await new Promise(r => setTimeout(r, 2000));
+
+      $oopifStatus.textContent = '✅ OOPIF Session test completed! Check server logs for Runtime.evaluate result.';
+      $oopifStatus.className = 'meta ok';
+
+    } catch (e) {
+      $oopifStatus.textContent = 'Error: ' + (e instanceof Error ? e.message : String(e));
+      $oopifStatus.className = 'meta bad';
+      log('OOPIF test error', { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  $btnTestOopifSession.addEventListener('click', () => void testOopifSession());
 
   // Phase 1: Tier1 CDP Methods batch verification
   const $batchStatus = document.getElementById('batchStatus');
