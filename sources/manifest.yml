@@ -36,4 +36,14 @@ sources:
     ref: main
     shallow: true
     notes: "Used as reference only"
+  - name: nanobrowser
+    repo: git@github.com:nanobrowser/nanobrowser.git
+    ref: master
+    shallow: true
+    notes: "Used as reference only"
+  - name: stagehand
+    repo: git@github.com:browserbase/stagehand.git
+    ref: main
+    shallow: true
+    notes: "Used as reference only"
 

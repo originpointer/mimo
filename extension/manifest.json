@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Mimo Control Driver",
+  "version": "0.0.1",
+  "description": "ControlServer/WebApp bridge to chrome.debugger (CDP) with JWS verification.",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["debugger", "storage", "tabs"],
+  "host_permissions": ["http://localhost/*", "https://localhost/*", "https://*/*"],
+  "externally_connectable": {
+    "matches": ["http://localhost/*", "https://localhost/*", "https://*/*"]
+  }
+}
+
+
