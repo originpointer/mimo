@@ -43,6 +43,24 @@ async function cdpSend(tabId, method, params) {
   }
 }
 
+// Serialize execution per tab to avoid concurrent chrome.debugger.attach conflicts.
+const tabQueue = new Map()
+
+function runExclusive(tabId, fn) {
+  const key = String(tabId)
+  const prev = tabQueue.get(key) || Promise.resolve()
+  const next = prev
+    .catch(() => {})
+    .then(fn)
+  tabQueue.set(
+    key,
+    next.finally(() => {
+      if (tabQueue.get(key) === next) tabQueue.delete(key)
+    })
+  )
+  return next
+}
+
 async function postCallback(url, token, body) {
   await fetch(url, {
     method: "POST",
@@ -92,13 +110,15 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       let status = "ok"
       let result
       let err
-      try {
-        const response = await cdpSend(tabId, op.method, op.params || {})
-        result = { kind: "cdp.send", tabId, method: op.method, response }
-      } catch (e) {
-        status = "error"
-        err = toErrorPayload(e)
-      }
+      await runExclusive(tabId, async () => {
+        try {
+          const response = await cdpSend(tabId, op.method, op.params || {})
+          result = { kind: "cdp.send", tabId, method: op.method, response }
+        } catch (e) {
+          status = "error"
+          err = toErrorPayload(e)
+        }
+      })
 
       const replyUrl = payload?.reply?.url
       const callbackToken = payload?.reply?.callbackToken

@@ -42,6 +42,7 @@ export default eventHandler(() => {
     <button id="btnConnect">Connect SSE</button>
     <button id="btnDisconnect">Disconnect</button>
     <button id="btnTestEnqueue">Test enqueue (Runtime.evaluate 1+1)</button>
+    <button id="btnTestRun">Test run (2 steps)</button>
   </div>
   <div class="meta" id="status"></div>
 </div>
@@ -59,6 +60,7 @@ export default eventHandler(() => {
   const $btnConnect = document.getElementById('btnConnect');
   const $btnDisconnect = document.getElementById('btnDisconnect');
   const $btnTestEnqueue = document.getElementById('btnTestEnqueue');
+  const $btnTestRun = document.getElementById('btnTestRun');
 
   const defaultExt = ${JSON.stringify(defaultExtensionId)};
   const defaultReply = ${JSON.stringify(defaultReplyUrl)};
@@ -202,9 +204,37 @@ export default eventHandler(() => {
     else setStatus('enqueue ok: ' + data.commandId, true);
   }
 
+  async function testRun() {
+    const extensionId = ($extId.value || '').trim();
+    const replyUrl = ($replyUrl.value || '').trim();
+    if (!extensionId) {
+      setStatus('Missing extensionId', false);
+      return;
+    }
+    if (!replyUrl) {
+      setStatus('Missing replyUrl', false);
+      return;
+    }
+    const body = {
+      extensionId,
+      replyUrl,
+      defaultTtlMs: 30000,
+      steps: [
+        { name: 'eval_1+1', op: { kind: 'cdp.send', method: 'Runtime.evaluate', params: { expression: '1+1', returnByValue: true } } },
+        { name: 'get_frame_tree', op: { kind: 'cdp.send', method: 'Page.getFrameTree', params: {} } }
+      ]
+    };
+    const res = await fetch('/control/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    log('run response', data);
+    if (!data.ok) setStatus('run failed', false);
+    else setStatus('run ok', true);
+  }
+
   $btnConnect.addEventListener('click', connect);
   $btnDisconnect.addEventListener('click', disconnect);
   $btnTestEnqueue.addEventListener('click', () => void testEnqueue());
+  $btnTestRun.addEventListener('click', () => void testRun());
 
   load();
 </script>

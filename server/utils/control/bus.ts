@@ -35,6 +35,7 @@ type Subscriber = (cmd: ControlCommandEnvelope) => void
 class ControlBus {
   private subscribers = new Map<string, Set<Subscriber>>() // extensionId -> subs
   private pending = new Map<string, PendingCommand>() // commandId -> pending
+  private waiters = new Map<string, Set<(cb: ExecutionCallback) => void>>() // commandId -> resolvers
 
   subscribe(extensionId: string, fn: Subscriber): () => void {
     const set = this.subscribers.get(extensionId) ?? new Set<Subscriber>()
@@ -79,6 +80,53 @@ class ControlBus {
     p.state = "done"
     p.lastCallback = cb
     this.pending.set(cb.commandId, p)
+
+    const ws = this.waiters.get(cb.commandId)
+    if (ws) {
+      for (const resolve of ws) {
+        try {
+          resolve(cb)
+        } catch {
+          // ignore
+        }
+      }
+      this.waiters.delete(cb.commandId)
+    }
+  }
+
+  waitForCallback(commandId: string, timeoutMs: number): Promise<ExecutionCallback> {
+    const existing = this.pending.get(commandId)
+    if (existing?.lastCallback) return Promise.resolve(existing.lastCallback)
+
+    return new Promise<ExecutionCallback>((resolve, reject) => {
+      const set = this.waiters.get(commandId) ?? new Set<(cb: ExecutionCallback) => void>()
+      let done = false
+
+      const cleanup = () => {
+        const current = this.waiters.get(commandId)
+        if (!current) return
+        current.delete(resolver)
+        if (current.size === 0) this.waiters.delete(commandId)
+      }
+
+      const resolver = (cb: ExecutionCallback) => {
+        if (done) return
+        done = true
+        clearTimeout(t)
+        cleanup()
+        resolve(cb)
+      }
+
+      set.add(resolver)
+      this.waiters.set(commandId, set)
+
+      const t = setTimeout(() => {
+        if (done) return
+        done = true
+        cleanup()
+        reject(new Error(`Timeout waiting callback: ${commandId}`))
+      }, Math.max(1, timeoutMs))
+    })
   }
 
   issueIds(): { commandId: string; traceId: string; callbackToken: string } {
