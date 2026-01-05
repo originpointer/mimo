@@ -473,7 +473,7 @@ export default eventHandler(() => {
 
   // Round 3: Input operations
   document.getElementById('btnRound3').addEventListener('click', () => void runBatch('Round 3', [
-    { method: 'Input.dispatchMouseEvent', params: { type: 'mouseMove', x: 100, y: 100 } },
+    { method: 'Input.dispatchMouseEvent', params: { type: 'mouseMoved', x: 100, y: 100 } },
     { method: 'Input.dispatchKeyEvent', params: { type: 'keyDown', key: 'Shift' } },
     { method: 'Input.dispatchKeyEvent', params: { type: 'keyUp', key: 'Shift' } }
   ]));

@@ -1,0 +1,215 @@
+[2026-01-05T09:26:08.451Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767605168358",
+  "commandId": "cmd_1ec64c649c919692e80c779c",
+  "traceId": "tr_7640f493910cea0477f3bd6b",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T09:26:08.443Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_586c14792bb1e3bb7349c2d2",
+  "traceId": "tr_d7e7b89a6bcc9978e4e849e5",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T09:26:08.443Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_84e7a9ce368ff885662a9b57",
+  "traceId": "tr_7b7b980f6b22d328e35b47d1",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T09:26:08.441Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_8adedc04fed358bb3d48a266",
+  "traceId": "tr_f059c7b3e516a05a3398764b",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T09:26:08.438Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_7a84f9ee5e8f95d51747bc48",
+  "traceId": "tr_565aa7f29d8349b5bc1de89e",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T09:26:08.361Z] Round 4 batch response
+{
+  "ok": true,
+  "issuedAt": 1767605168353,
+  "count": 5,
+  "results": [
+    {
+      "ok": true,
+      "commandId": "cmd_7a84f9ee5e8f95d51747bc48",
+      "traceId": "tr_565aa7f29d8349b5bc1de89e",
+      "method": "Accessibility.enable"
+    },
+    {
+      "ok": true,
+      "commandId": "cmd_8adedc04fed358bb3d48a266",
+      "traceId": "tr_f059c7b3e516a05a3398764b",
+      "method": "Accessibility.getFullAXTree"
+    },
+    {
+      "ok": true,
+      "commandId": "cmd_84e7a9ce368ff885662a9b57",
+      "traceId": "tr_7b7b980f6b22d328e35b47d1",
+      "method": "Overlay.enable"
+    },
+    {
+      "ok": true,
+      "commandId": "cmd_586c14792bb1e3bb7349c2d2",
+      "traceId": "tr_d7e7b89a6bcc9978e4e849e5",
+      "method": "Emulation.setDeviceMetricsOverride"
+    },
+    {
+      "ok": true,
+      "commandId": "cmd_1ec64c649c919692e80c779c",
+      "traceId": "tr_7640f493910cea0477f3bd6b",
+      "method": "Emulation.clearDeviceMetricsOverride"
+    }
+  ]
+}
+
+[2026-01-05T09:26:08.358Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767605168358",
+  "commandId": "cmd_1ec64c649c919692e80c779c",
+  "traceId": "tr_7640f493910cea0477f3bd6b",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzFlYzY0YzY0OWM5MTk2OTJlODBjNzc5YyIsInRyYWNlSWQiOiJ0cl83NjQwZjQ5MzkxMGNlYTA0NzdmM2JkNmIiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJFbXVsYXRpb24uY2xlYXJEZXZpY2VNZXRyaWNzT3ZlcnJpZGUiLCJwYXJhbXMiOnt9fSwicmVwbHkiOnsidXJsIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwL2NvbnRyb2wvY2FsbGJhY2siLCJjYWxsYmFja1Rva2VuIjoiY3RfMTk3ODhiMmIyNDVkMGZhYzg4MDRmOTRhZDk2Nzk5OGE4OWVlIn19.8RZppJkaEAhgpgGi2E7J5jM_enHiQPUaegq0d5pUj9DtdAAfITMyLrxQfsQpmk9WOVWEPQgLzLy1TQxD0rzJbA"
+}
+
+[2026-01-05T09:26:08.358Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_1ec64c649c919692e80c779c",
+  "traceId": "tr_7640f493910cea0477f3bd6b",
+  "issuedAt": 1767605168353,
+  "ttlMs": 60000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzFlYzY0YzY0OWM5MTk2OTJlODBjNzc5YyIsInRyYWNlSWQiOiJ0cl83NjQwZjQ5MzkxMGNlYTA0NzdmM2JkNmIiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJFbXVsYXRpb24uY2xlYXJEZXZpY2VNZXRyaWNzT3ZlcnJpZGUiLCJwYXJhbXMiOnt9fSwicmVwbHkiOnsidXJsIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwL2NvbnRyb2wvY2FsbGJhY2siLCJjYWxsYmFja1Rva2VuIjoiY3RfMTk3ODhiMmIyNDVkMGZhYzg4MDRmOTRhZDk2Nzk5OGE4OWVlIn19.8RZppJkaEAhgpgGi2E7J5jM_enHiQPUaegq0d5pUj9DtdAAfITMyLrxQfsQpmk9WOVWEPQgLzLy1TQxD0rzJbA"
+}
+
+[2026-01-05T09:26:08.357Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_586c14792bb1e3bb7349c2d2",
+  "traceId": "tr_d7e7b89a6bcc9978e4e849e5",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzU4NmMxNDc5MmJiMWUzYmI3MzQ5YzJkMiIsInRyYWNlSWQiOiJ0cl9kN2U3Yjg5YTZiY2M5OTc4ZTRlODQ5ZTUiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJFbXVsYXRpb24uc2V0RGV2aWNlTWV0cmljc092ZXJyaWRlIiwicGFyYW1zIjp7IndpZHRoIjoxOTIwLCJoZWlnaHQiOjEwODAsImRldmljZVNjYWxlRmFjdG9yIjoxLCJtb2JpbGUiOmZhbHNlfX0sInJlcGx5Ijp7InVybCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9jb250cm9sL2NhbGxiYWNrIiwiY2FsbGJhY2tUb2tlbiI6ImN0XzBmMTQ0ZDdlNmUwMmNkN2I0ZDRmNDU3MzExODc3ZGIzYWU3NCJ9fQ._DR8xy1o0NF3yhPw_FvVFFQPIEdgfNlVnKQyicOHUghZR_1J_rQjTItTE1hkdn64KqJY-ZJcCmYCufpyHwjRVQ"
+}
+
+[2026-01-05T09:26:08.357Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_586c14792bb1e3bb7349c2d2",
+  "traceId": "tr_d7e7b89a6bcc9978e4e849e5",
+  "issuedAt": 1767605168353,
+  "ttlMs": 60000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzU4NmMxNDc5MmJiMWUzYmI3MzQ5YzJkMiIsInRyYWNlSWQiOiJ0cl9kN2U3Yjg5YTZiY2M5OTc4ZTRlODQ5ZTUiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJFbXVsYXRpb24uc2V0RGV2aWNlTWV0cmljc092ZXJyaWRlIiwicGFyYW1zIjp7IndpZHRoIjoxOTIwLCJoZWlnaHQiOjEwODAsImRldmljZVNjYWxlRmFjdG9yIjoxLCJtb2JpbGUiOmZhbHNlfX0sInJlcGx5Ijp7InVybCI6Imh0dHA6Ly9sb2NhbGhvc3Q6MzAwMC9jb250cm9sL2NhbGxiYWNrIiwiY2FsbGJhY2tUb2tlbiI6ImN0XzBmMTQ0ZDdlNmUwMmNkN2I0ZDRmNDU3MzExODc3ZGIzYWU3NCJ9fQ._DR8xy1o0NF3yhPw_FvVFFQPIEdgfNlVnKQyicOHUghZR_1J_rQjTItTE1hkdn64KqJY-ZJcCmYCufpyHwjRVQ"
+}
+
+[2026-01-05T09:26:08.357Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_84e7a9ce368ff885662a9b57",
+  "traceId": "tr_7b7b980f6b22d328e35b47d1",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzg0ZTdhOWNlMzY4ZmY4ODU2NjJhOWI1NyIsInRyYWNlSWQiOiJ0cl83YjdiOTgwZjZiMjJkMzI4ZTM1YjQ3ZDEiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJPdmVybGF5LmVuYWJsZSIsInBhcmFtcyI6e319LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF83ZTVmN2IwN2M3ZDEzMWRlZDkzMDZlYzJkY2U1N2VkNDJkNjEifX0.1uaRkBSB8mSQJcn-xrBrk8pdUBd2Z7ZlmcyTj34t4G5foEkhDEwta3820BDMTV8aLQ2XftWYHDq3-HsIW4y2iw"
+}
+
+[2026-01-05T09:26:08.357Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_84e7a9ce368ff885662a9b57",
+  "traceId": "tr_7b7b980f6b22d328e35b47d1",
+  "issuedAt": 1767605168353,
+  "ttlMs": 60000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzg0ZTdhOWNlMzY4ZmY4ODU2NjJhOWI1NyIsInRyYWNlSWQiOiJ0cl83YjdiOTgwZjZiMjJkMzI4ZTM1YjQ3ZDEiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJPdmVybGF5LmVuYWJsZSIsInBhcmFtcyI6e319LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF83ZTVmN2IwN2M3ZDEzMWRlZDkzMDZlYzJkY2U1N2VkNDJkNjEifX0.1uaRkBSB8mSQJcn-xrBrk8pdUBd2Z7ZlmcyTj34t4G5foEkhDEwta3820BDMTV8aLQ2XftWYHDq3-HsIW4y2iw"
+}
+
+[2026-01-05T09:26:08.357Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_8adedc04fed358bb3d48a266",
+  "traceId": "tr_f059c7b3e516a05a3398764b",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzhhZGVkYzA0ZmVkMzU4YmIzZDQ4YTI2NiIsInRyYWNlSWQiOiJ0cl9mMDU5YzdiM2U1MTZhMDVhMzM5ODc2NGIiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJBY2Nlc3NpYmlsaXR5LmdldEZ1bGxBWFRyZWUiLCJwYXJhbXMiOnt9fSwicmVwbHkiOnsidXJsIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwL2NvbnRyb2wvY2FsbGJhY2siLCJjYWxsYmFja1Rva2VuIjoiY3RfMzE4MGQ5MTgxOGRlMTgwMWI1YmFhYjk1ODNkMzIxN2M3NWFkIn19.DrsGwFnF1spjMoMuVgd4kvtk1DwGr36zUNvHaGMk6Jei8rnM5G35mbBpc4_JnS2LT1FNpuTpDSukuPtPbusvdg"
+}
+
+[2026-01-05T09:26:08.357Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_8adedc04fed358bb3d48a266",
+  "traceId": "tr_f059c7b3e516a05a3398764b",
+  "issuedAt": 1767605168353,
+  "ttlMs": 60000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzhhZGVkYzA0ZmVkMzU4YmIzZDQ4YTI2NiIsInRyYWNlSWQiOiJ0cl9mMDU5YzdiM2U1MTZhMDVhMzM5ODc2NGIiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJBY2Nlc3NpYmlsaXR5LmdldEZ1bGxBWFRyZWUiLCJwYXJhbXMiOnt9fSwicmVwbHkiOnsidXJsIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwL2NvbnRyb2wvY2FsbGJhY2siLCJjYWxsYmFja1Rva2VuIjoiY3RfMzE4MGQ5MTgxOGRlMTgwMWI1YmFhYjk1ODNkMzIxN2M3NWFkIn19.DrsGwFnF1spjMoMuVgd4kvtk1DwGr36zUNvHaGMk6Jei8rnM5G35mbBpc4_JnS2LT1FNpuTpDSukuPtPbusvdg"
+}
+
+[2026-01-05T09:26:08.357Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767605168357",
+  "commandId": "cmd_7a84f9ee5e8f95d51747bc48",
+  "traceId": "tr_565aa7f29d8349b5bc1de89e",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzdhODRmOWVlNWU4Zjk1ZDUxNzQ3YmM0OCIsInRyYWNlSWQiOiJ0cl81NjVhYTdmMjlkODM0OWI1YmMxZGU4OWUiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJBY2Nlc3NpYmlsaXR5LmVuYWJsZSIsInBhcmFtcyI6e319LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF9kMmMxZTUwYjQxMDU2OTY2MjkxMDQ2OWFjNGI0ZGM0NjFmZmQifX0.rw64deo2z_zlHH1Vv1D0dH7Bpy7qGIO-5vD44pi71LEVQ2FA5XMEbDyO9pSkIEiEwKETI0f46dTq7CTabh8sgA"
+}
+
+[2026-01-05T09:26:08.357Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_7a84f9ee5e8f95d51747bc48",
+  "traceId": "tr_565aa7f29d8349b5bc1de89e",
+  "issuedAt": 1767605168353,
+  "ttlMs": 60000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6IkF6SFdBM3dVM1Fpc3VFVTlFZGVKd3F5TVZGV1RCWnRfaXIwLU5MVFZ1b3ciLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzdhODRmOWVlNWU4Zjk1ZDUxNzQ3YmM0OCIsInRyYWNlSWQiOiJ0cl81NjVhYTdmMjlkODM0OWI1YmMxZGU4OWUiLCJpc3N1ZWRBdCI6MTc2NzYwNTE2ODM1MywidHRsTXMiOjYwMDAwLCJ0YXJnZXQiOnt9LCJvcCI6eyJraW5kIjoiY2RwLnNlbmQiLCJtZXRob2QiOiJBY2Nlc3NpYmlsaXR5LmVuYWJsZSIsInBhcmFtcyI6e319LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF9kMmMxZTUwYjQxMDU2OTY2MjkxMDQ2OWFjNGI0ZGM0NjFmZmQifX0.rw64deo2z_zlHH1Vv1D0dH7Bpy7qGIO-5vD44pi71LEVQ2FA5XMEbDyO9pSkIEiEwKETI0f46dTq7CTabh8sgA"
+}
+
+[2026-01-05T09:25:37.807Z] sse ready

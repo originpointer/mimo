@@ -14,36 +14,36 @@
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `Page.enable` | `{}` | ✅ ok | [ ] |
-| `Runtime.enable` | `{}` | ✅ ok | [ ] |
-| `DOM.enable` | `{}` | ✅ ok | [ ] |
-| `Network.enable` | `{}` | ✅ ok | [ ] |
-| `DOM.getDocument` | `{}` | ✅ 返回 root nodeId | [ ] |
+| `Page.enable` | `{}` | ✅ ok | ✅ ok |
+| `Runtime.enable` | `{}` | ✅ ok | ✅ ok |
+| `DOM.enable` | `{}` | ✅ ok | ✅ ok |
+| `Network.enable` | `{}` | ✅ ok | ✅ ok |
+| `DOM.getDocument` | `{}` | ✅ 返回 root nodeId | ✅ nodeId=1, backendNodeId=1837 |
 
 ### Round 2: DOM operations
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `DOM.getDocument` | `{ depth: 0 }` | ✅ 返回 root | [ ] |
-| `Page.getFrameTree` | `{}` | ✅ 返回 frameTree | [ ] |
+| `DOM.getDocument` | `{ depth: 0 }` | ✅ 返回 root | ✅ nodeId=1, backendNodeId=1964 |
+| `Page.getFrameTree` | `{}` | ✅ 返回 frameTree | ✅ 含主frame + childFrames (oopifFrame) |
 
 ### Round 3: Input operations
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `Input.dispatchMouseEvent` | `{ type: 'mouseMove', x: 100, y: 100 }` | ✅ ok | [ ] |
-| `Input.dispatchKeyEvent` | `{ type: 'keyDown', key: 'Shift' }` | ✅ ok | [ ] |
-| `Input.dispatchKeyEvent` | `{ type: 'keyUp', key: 'Shift' }` | ✅ ok | [ ] |
+| `Input.dispatchMouseEvent` | `{ type: 'mouseMoved', x: 100, y: 100 }` | ✅ ok | ✅ ok |
+| `Input.dispatchKeyEvent` | `{ type: 'keyDown', key: 'Shift' }` | ✅ ok | ✅ ok |
+| `Input.dispatchKeyEvent` | `{ type: 'keyUp', key: 'Shift' }` | ✅ ok | ✅ ok |
 
 ### Round 4: Accessibility/Overlay/Emulation
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `Accessibility.enable` | `{}` | ✅ ok | [ ] |
-| `Accessibility.getFullAXTree` | `{}` | ✅ 返回 AX tree | [ ] |
-| `Overlay.enable` | `{}` | ✅ ok | [ ] |
-| `Emulation.setDeviceMetricsOverride` | viewport params | ✅ ok | [ ] |
-| `Emulation.clearDeviceMetricsOverride` | `{}` | ✅ ok | [ ] |
+| `Accessibility.enable` | `{}` | ✅ ok | ✅ ok |
+| `Accessibility.getFullAXTree` | `{}` | ✅ 返回 AX tree | ✅ 返回 AX tree |
+| `Overlay.enable` | `{}` | ✅ ok | ✅ ok |
+| `Emulation.setDeviceMetricsOverride` | viewport params | ✅ ok | ✅ ok |
+| `Emulation.clearDeviceMetricsOverride` | `{}` | ✅ ok | ✅ ok |
 
 ### Round 5: Page operations
 
