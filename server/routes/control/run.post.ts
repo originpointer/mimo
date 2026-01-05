@@ -20,6 +20,7 @@ export default eventHandler(async (event) => {
     extensionId: body.extensionId,
     replyUrl: body.replyUrl,
     defaultTtlMs: typeof body.defaultTtlMs === "number" ? body.defaultTtlMs : undefined,
+    keepAttached: body.keepAttached === true, // 传递 keepAttached
     steps: body.steps as any
   }
 

@@ -150,7 +150,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       
       // Extract session targeting options
       const sessionId = op.sessionId || payload?.target?.sessionId || null
-      const keepAttached = Boolean(op.keepAttached || payload?.options?.keepAttached)
+      const keepAttached = Boolean(op.keepAttached || payload?.target?.keepAttached || payload?.options?.keepAttached)
 
       // Respond to WebApp early (accepted) to avoid hanging external channel.
       sendResponse({ ok: true, requestId: req.requestId, commandId, traceId, data: { accepted: true } })

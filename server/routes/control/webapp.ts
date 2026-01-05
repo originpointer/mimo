@@ -80,6 +80,17 @@ export default eventHandler(() => {
   <div class="meta" id="batchStatus" style="margin-top:8px"></div>
 </div>
 
+<div class="box">
+  <div class="meta">Phase 1: 额外验证项（串行依赖测试）</div>
+  <div class="row" style="margin-top:8px;gap:4px;flex-wrap:wrap">
+    <button id="btnSeqDOM">DOM 依赖链 (querySelector/getBoxModel/scroll)</button>
+    <button id="btnSeqRuntime">Runtime 依赖链 (callFunctionOn)</button>
+    <button id="btnSeqPage">Page 操作 (navigate/reload)</button>
+    <button id="btnSeqOverlay">Overlay 高亮 (highlightNode)</button>
+  </div>
+  <div class="meta" id="seqStatus" style="margin-top:8px"></div>
+</div>
+
 <script>
   const $extId = document.getElementById('extId');
   const $replyUrl = document.getElementById('replyUrl');
@@ -504,6 +515,80 @@ export default eventHandler(() => {
   document.getElementById('btnRound7').addEventListener('click', () => void runBatch('Round 7', [
     { method: 'Target.getTargets', params: {} },
     { method: 'Target.setDiscoverTargets', params: { discover: true } }
+  ]));
+
+  // ---- 额外验证项：串行依赖测试 ----
+  const $seqStatus = document.getElementById('seqStatus');
+
+  async function runSeqTest(name, steps) {
+    const extensionId = ($extId.value || '').trim();
+    const replyUrl = ($replyUrl.value || '').trim();
+    if (!extensionId || !replyUrl) {
+      $seqStatus.textContent = 'Missing extensionId or replyUrl';
+      return;
+    }
+    $seqStatus.textContent = name + ' 执行中...';
+    try {
+      const res = await fetch('/control/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          extensionId,
+          replyUrl,
+          defaultTtlMs: 30000,
+          keepAttached: true, // Keep debugger attached for nodeId/objectId persistence
+          steps
+        })
+      });
+      const data = await res.json();
+      log(name + ' response', data);
+      if (data.ok) {
+        $seqStatus.textContent = name + ' ✅ 完成';
+      } else {
+        $seqStatus.textContent = name + ' ❌ 失败: ' + (data.error || 'unknown');
+      }
+    } catch (e) {
+      $seqStatus.textContent = name + ' ❌ 错误: ' + e.message;
+      log(name + ' error', { message: e.message });
+    }
+  }
+
+  // DOM 依赖链测试: getDocument -> querySelector -> getBoxModel -> scrollIntoViewIfNeeded
+  document.getElementById('btnSeqDOM').addEventListener('click', () => void runSeqTest('DOM 依赖链', [
+    { name: 'enable_dom', op: { kind: 'cdp.send', method: 'DOM.enable', params: {} } },
+    { name: 'get_document', op: { kind: 'cdp.send', method: 'DOM.getDocument', params: { depth: 0 } } },
+    { name: 'query_selector', op: { kind: 'cdp.send', method: 'DOM.querySelector', params: { nodeId: '{{get_document.root.nodeId}}', selector: 'body' } }, dependsOn: 'get_document' },
+    { name: 'get_box_model', op: { kind: 'cdp.send', method: 'DOM.getBoxModel', params: { nodeId: '{{query_selector.nodeId}}' } }, dependsOn: 'query_selector' },
+    { name: 'scroll_into_view', op: { kind: 'cdp.send', method: 'DOM.scrollIntoViewIfNeeded', params: { nodeId: '{{query_selector.nodeId}}' } }, dependsOn: 'query_selector' },
+    { name: 'describe_node', op: { kind: 'cdp.send', method: 'DOM.describeNode', params: { nodeId: '{{query_selector.nodeId}}' } }, dependsOn: 'query_selector' },
+    { name: 'get_node_for_location', op: { kind: 'cdp.send', method: 'DOM.getNodeForLocation', params: { x: 100, y: 100 } } }
+  ]));
+
+  // Runtime 依赖链测试: evaluate 获取 objectId -> callFunctionOn -> releaseObject
+  document.getElementById('btnSeqRuntime').addEventListener('click', () => void runSeqTest('Runtime 依赖链', [
+    { name: 'enable_runtime', op: { kind: 'cdp.send', method: 'Runtime.enable', params: {} } },
+    { name: 'evaluate', op: { kind: 'cdp.send', method: 'Runtime.evaluate', params: { expression: 'document.body', returnByValue: false } } },
+    { name: 'call_function', op: { kind: 'cdp.send', method: 'Runtime.callFunctionOn', params: { objectId: '{{evaluate.result.objectId}}', functionDeclaration: 'function() { return this.tagName; }', returnByValue: true } }, dependsOn: 'evaluate' },
+    { name: 'release_object', op: { kind: 'cdp.send', method: 'Runtime.releaseObject', params: { objectId: '{{evaluate.result.objectId}}' } }, dependsOn: 'evaluate' }
+  ]));
+
+  // Page 操作测试: navigate (会导航离开，谨慎使用)
+  document.getElementById('btnSeqPage').addEventListener('click', () => void runSeqTest('Page 操作', [
+    { name: 'enable_page', op: { kind: 'cdp.send', method: 'Page.enable', params: {} } },
+    { name: 'add_script', op: { kind: 'cdp.send', method: 'Page.addScriptToEvaluateOnNewDocument', params: { source: 'console.log("injected")' } } },
+    { name: 'get_frame_tree', op: { kind: 'cdp.send', method: 'Page.getFrameTree', params: {} } },
+    { name: 'create_isolated_world', op: { kind: 'cdp.send', method: 'Page.createIsolatedWorld', params: { frameId: '{{get_frame_tree.frameTree.frame.id}}', worldName: 'test-world' } }, dependsOn: 'get_frame_tree' }
+  ]));
+
+  // Overlay 高亮测试: enable -> highlightNode -> hideHighlight
+  document.getElementById('btnSeqOverlay').addEventListener('click', () => void runSeqTest('Overlay 高亮', [
+    { name: 'enable_dom', op: { kind: 'cdp.send', method: 'DOM.enable', params: {} } },
+    { name: 'enable_overlay', op: { kind: 'cdp.send', method: 'Overlay.enable', params: {} } },
+    { name: 'get_document', op: { kind: 'cdp.send', method: 'DOM.getDocument', params: { depth: 0 } } },
+    { name: 'query_selector', op: { kind: 'cdp.send', method: 'DOM.querySelector', params: { nodeId: '{{get_document.root.nodeId}}', selector: 'body' } }, dependsOn: 'get_document' },
+    { name: 'highlight_node', op: { kind: 'cdp.send', method: 'Overlay.highlightNode', params: { highlightConfig: { showInfo: true, contentColor: { r: 255, g: 0, b: 0, a: 0.3 } }, nodeId: '{{query_selector.nodeId}}' } }, dependsOn: 'query_selector' },
+    { name: 'wait', op: { kind: 'wait.fixed', durationMs: 1000 } },
+    { name: 'hide_highlight', op: { kind: 'cdp.send', method: 'Overlay.hideHighlight', params: {} } }
   ]));
 
   $btnConnect.addEventListener('click', connect);

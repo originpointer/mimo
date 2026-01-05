@@ -1,0 +1,206 @@
+[2026-01-05T10:05:28.340Z] DOM 依赖链 response
+{
+  "ok": false,
+  "traceId": "tr_run_1767607528265",
+  "startedAt": 1767607528265,
+  "finishedAt": 1767607528338,
+  "steps": [
+    {
+      "name": "enable_dom",
+      "commandId": "cmd_d1652db2c8f2e42fd8a511e5",
+      "traceId": "tr_e9db9a9bd7916c954a6c94de",
+      "issuedAt": 1767607528265,
+      "ttlMs": 30000,
+      "status": "ok",
+      "callback": {
+        "type": "control.callback",
+        "commandId": "cmd_d1652db2c8f2e42fd8a511e5",
+        "traceId": "tr_e9db9a9bd7916c954a6c94de",
+        "at": 1767607528294,
+        "status": "ok",
+        "result": {
+          "kind": "cdp.send",
+          "tabId": 829137749,
+          "method": "DOM.enable",
+          "sessionId": null,
+          "response": {}
+        },
+        "telemetry": {
+          "durationMs": 9,
+          "attempt": 1
+        }
+      }
+    },
+    {
+      "name": "get_document",
+      "commandId": "cmd_7582a7c8a9688eaac8dca28d",
+      "traceId": "tr_5732433a36d96a6647c93f32",
+      "issuedAt": 1767607528300,
+      "ttlMs": 30000,
+      "status": "ok",
+      "callback": {
+        "type": "control.callback",
+        "commandId": "cmd_7582a7c8a9688eaac8dca28d",
+        "traceId": "tr_5732433a36d96a6647c93f32",
+        "at": 1767607528308,
+        "status": "ok",
+        "result": {
+          "kind": "cdp.send",
+          "tabId": 829137749,
+          "method": "DOM.getDocument",
+          "sessionId": null,
+          "response": {
+            "root": {
+              "backendNodeId": 4132,
+              "baseURL": "http://localhost:3000/control/webapp",
+              "childNodeCount": 2,
+              "compatibilityMode": "NoQuirksMode",
+              "documentURL": "http://localhost:3000/control/webapp",
+              "isScrollable": true,
+              "localName": "",
+              "nodeId": 1,
+              "nodeName": "#document",
+              "nodeType": 9,
+              "nodeValue": "",
+              "xmlVersion": ""
+            }
+          }
+        },
+        "telemetry": {
+          "durationMs": 4,
+          "attempt": 1
+        }
+      }
+    },
+    {
+      "name": "query_selector",
+      "commandId": "cmd_185c91f6afa37a7a8e42757e",
+      "traceId": "tr_ec84816858e52286af8c94d2",
+      "issuedAt": 1767607528330,
+      "ttlMs": 30000,
+      "status": "error",
+      "callback": {
+        "type": "control.callback",
+        "commandId": "cmd_185c91f6afa37a7a8e42757e",
+        "traceId": "tr_ec84816858e52286af8c94d2",
+        "at": 1767607528336,
+        "status": "error",
+        "error": {
+          "message": "{\"code\":-32000,\"message\":\"Could not find node with given id\"}",
+          "name": "Error"
+        },
+        "telemetry": {
+          "durationMs": 2,
+          "attempt": 1
+        }
+      }
+    }
+  ]
+}
+
+[2026-01-05T10:05:28.334Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767607528332",
+  "commandId": "cmd_185c91f6afa37a7a8e42757e",
+  "traceId": "tr_ec84816858e52286af8c94d2",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T10:05:28.332Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767607528332",
+  "commandId": "cmd_185c91f6afa37a7a8e42757e",
+  "traceId": "tr_ec84816858e52286af8c94d2",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ik1oSVpzYl9yaGxNU0VfWU1pV2djdVhLTW1fSlRJeU50ZDI2aVV1Q3lUQU0iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzE4NWM5MWY2YWZhMzdhN2E4ZTQyNzU3ZSIsInRyYWNlSWQiOiJ0cl9lYzg0ODE2ODU4ZTUyMjg2YWY4Yzk0ZDIiLCJpc3N1ZWRBdCI6MTc2NzYwNzUyODMzMCwidHRsTXMiOjMwMDAwLCJ0YXJnZXQiOnsia2VlcEF0dGFjaGVkIjpmYWxzZX0sIm9wIjp7ImtpbmQiOiJjZHAuc2VuZCIsIm1ldGhvZCI6IkRPTS5xdWVyeVNlbGVjdG9yIiwicGFyYW1zIjp7Im5vZGVJZCI6MSwic2VsZWN0b3IiOiJib2R5In19LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF8xMjk3MzY4MmU1OGE0NzcyOTdlY2ZjNjUyMTIyMmQ4ZGU2Y2MifX0.WmXPeQRW816vEg1fcbtCZcz6NkJ4IKCi7z9u6cqrMT0T0c2qPIjbLUhdnIjyRNVgdRrSSE-MSrvqBsqjW_UdiA"
+}
+
+[2026-01-05T10:05:28.331Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_185c91f6afa37a7a8e42757e",
+  "traceId": "tr_ec84816858e52286af8c94d2",
+  "issuedAt": 1767607528330,
+  "ttlMs": 30000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ik1oSVpzYl9yaGxNU0VfWU1pV2djdVhLTW1fSlRJeU50ZDI2aVV1Q3lUQU0iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzE4NWM5MWY2YWZhMzdhN2E4ZTQyNzU3ZSIsInRyYWNlSWQiOiJ0cl9lYzg0ODE2ODU4ZTUyMjg2YWY4Yzk0ZDIiLCJpc3N1ZWRBdCI6MTc2NzYwNzUyODMzMCwidHRsTXMiOjMwMDAwLCJ0YXJnZXQiOnsia2VlcEF0dGFjaGVkIjpmYWxzZX0sIm9wIjp7ImtpbmQiOiJjZHAuc2VuZCIsIm1ldGhvZCI6IkRPTS5xdWVyeVNlbGVjdG9yIiwicGFyYW1zIjp7Im5vZGVJZCI6MSwic2VsZWN0b3IiOiJib2R5In19LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF8xMjk3MzY4MmU1OGE0NzcyOTdlY2ZjNjUyMTIyMmQ4ZGU2Y2MifX0.WmXPeQRW816vEg1fcbtCZcz6NkJ4IKCi7z9u6cqrMT0T0c2qPIjbLUhdnIjyRNVgdRrSSE-MSrvqBsqjW_UdiA"
+}
+
+[2026-01-05T10:05:28.304Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767607528301",
+  "commandId": "cmd_7582a7c8a9688eaac8dca28d",
+  "traceId": "tr_5732433a36d96a6647c93f32",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T10:05:28.301Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767607528301",
+  "commandId": "cmd_7582a7c8a9688eaac8dca28d",
+  "traceId": "tr_5732433a36d96a6647c93f32",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ik1oSVpzYl9yaGxNU0VfWU1pV2djdVhLTW1fSlRJeU50ZDI2aVV1Q3lUQU0iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzc1ODJhN2M4YTk2ODhlYWFjOGRjYTI4ZCIsInRyYWNlSWQiOiJ0cl81NzMyNDMzYTM2ZDk2YTY2NDdjOTNmMzIiLCJpc3N1ZWRBdCI6MTc2NzYwNzUyODMwMCwidHRsTXMiOjMwMDAwLCJ0YXJnZXQiOnsia2VlcEF0dGFjaGVkIjpmYWxzZX0sIm9wIjp7ImtpbmQiOiJjZHAuc2VuZCIsIm1ldGhvZCI6IkRPTS5nZXREb2N1bWVudCIsInBhcmFtcyI6eyJkZXB0aCI6MH19LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF84NWZlZTE2ZTQyNTUzNzJlMmYzN2NlYWUzMWMyOGM1ZWQyMjgifX0.J3Ehsy9t4VX3EfdVlEE2Zepefr20sKNhiXJhi6SmwJJvo3XC6kjEMqR5P7LXjzvZYgSSG4Jzb-KeSMNfkcLQww"
+}
+
+[2026-01-05T10:05:28.301Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_7582a7c8a9688eaac8dca28d",
+  "traceId": "tr_5732433a36d96a6647c93f32",
+  "issuedAt": 1767607528300,
+  "ttlMs": 30000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ik1oSVpzYl9yaGxNU0VfWU1pV2djdVhLTW1fSlRJeU50ZDI2aVV1Q3lUQU0iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kXzc1ODJhN2M4YTk2ODhlYWFjOGRjYTI4ZCIsInRyYWNlSWQiOiJ0cl81NzMyNDMzYTM2ZDk2YTY2NDdjOTNmMzIiLCJpc3N1ZWRBdCI6MTc2NzYwNzUyODMwMCwidHRsTXMiOjMwMDAwLCJ0YXJnZXQiOnsia2VlcEF0dGFjaGVkIjpmYWxzZX0sIm9wIjp7ImtpbmQiOiJjZHAuc2VuZCIsIm1ldGhvZCI6IkRPTS5nZXREb2N1bWVudCIsInBhcmFtcyI6eyJkZXB0aCI6MH19LCJyZXBseSI6eyJ1cmwiOiJodHRwOi8vbG9jYWxob3N0OjMwMDAvY29udHJvbC9jYWxsYmFjayIsImNhbGxiYWNrVG9rZW4iOiJjdF84NWZlZTE2ZTQyNTUzNzJlMmYzN2NlYWUzMWMyOGM1ZWQyMjgifX0.J3Ehsy9t4VX3EfdVlEE2Zepefr20sKNhiXJhi6SmwJJvo3XC6kjEMqR5P7LXjzvZYgSSG4Jzb-KeSMNfkcLQww"
+}
+
+[2026-01-05T10:05:28.285Z] forward response
+{
+  "ok": true,
+  "requestId": "web-1767607528270",
+  "commandId": "cmd_d1652db2c8f2e42fd8a511e5",
+  "traceId": "tr_e9db9a9bd7916c954a6c94de",
+  "data": {
+    "accepted": true
+  }
+}
+
+[2026-01-05T10:05:28.270Z] forward -> extension
+{
+  "type": "driver",
+  "action": "invoke",
+  "requestId": "web-1767607528270",
+  "commandId": "cmd_d1652db2c8f2e42fd8a511e5",
+  "traceId": "tr_e9db9a9bd7916c954a6c94de",
+  "target": {},
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ik1oSVpzYl9yaGxNU0VfWU1pV2djdVhLTW1fSlRJeU50ZDI2aVV1Q3lUQU0iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kX2QxNjUyZGIyYzhmMmU0MmZkOGE1MTFlNSIsInRyYWNlSWQiOiJ0cl9lOWRiOWE5YmQ3OTE2Yzk1NGE2Yzk0ZGUiLCJpc3N1ZWRBdCI6MTc2NzYwNzUyODI2NSwidHRsTXMiOjMwMDAwLCJ0YXJnZXQiOnsia2VlcEF0dGFjaGVkIjpmYWxzZX0sIm9wIjp7ImtpbmQiOiJjZHAuc2VuZCIsIm1ldGhvZCI6IkRPTS5lbmFibGUiLCJwYXJhbXMiOnt9fSwicmVwbHkiOnsidXJsIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwL2NvbnRyb2wvY2FsbGJhY2siLCJjYWxsYmFja1Rva2VuIjoiY3RfMTkwNDVjOTdmNDg0MTgzNDY1YmQyOWVmZjcyYTFiMjBjYTg4In19.PhP6dwwuJ52vaBaPxno21ZRqXG_F2FAU-6XUyNe4TqgRGKMoyRMBD9i-Qg9L9kXZQ9xtprc_W-bmc9-2cis6iQ"
+}
+
+[2026-01-05T10:05:28.270Z] sse command
+{
+  "type": "control.command",
+  "commandId": "cmd_d1652db2c8f2e42fd8a511e5",
+  "traceId": "tr_e9db9a9bd7916c954a6c94de",
+  "issuedAt": 1767607528265,
+  "ttlMs": 30000,
+  "target": {
+    "extensionId": "dgeaceidfgpnkggjnhhcgcgoonpgaoha"
+  },
+  "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6Ik1oSVpzYl9yaGxNU0VfWU1pV2djdVhLTW1fSlRJeU50ZDI2aVV1Q3lUQU0iLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJjb250cm9sLXNlcnZlciIsImF1ZCI6ImJyb3dzZXItZXh0ZW5zaW9uIiwiY29tbWFuZElkIjoiY21kX2QxNjUyZGIyYzhmMmU0MmZkOGE1MTFlNSIsInRyYWNlSWQiOiJ0cl9lOWRiOWE5YmQ3OTE2Yzk1NGE2Yzk0ZGUiLCJpc3N1ZWRBdCI6MTc2NzYwNzUyODI2NSwidHRsTXMiOjMwMDAwLCJ0YXJnZXQiOnsia2VlcEF0dGFjaGVkIjpmYWxzZX0sIm9wIjp7ImtpbmQiOiJjZHAuc2VuZCIsIm1ldGhvZCI6IkRPTS5lbmFibGUiLCJwYXJhbXMiOnt9fSwicmVwbHkiOnsidXJsIjoiaHR0cDovL2xvY2FsaG9zdDozMDAwL2NvbnRyb2wvY2FsbGJhY2siLCJjYWxsYmFja1Rva2VuIjoiY3RfMTkwNDVjOTdmNDg0MTgzNDY1YmQyOWVmZjcyYTFiMjBjYTg4In19.PhP6dwwuJ52vaBaPxno21ZRqXG_F2FAU-6XUyNe4TqgRGKMoyRMBD9i-Qg9L9kXZQ9xtprc_W-bmc9-2cis6iQ"
+}
+
+[2026-01-05T10:05:25.968Z] sse ready

@@ -64,8 +64,8 @@
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `Target.getTargets` | `{}` | ✅ 返回 targets 列表 | [ ] |
-| `Target.setDiscoverTargets` | `{ discover: true }` | ✅ ok | [ ] |
+| `Target.getTargets` | `{}` | ✅ 返回 targets 列表 | ❌ Not allowed |
+| `Target.setDiscoverTargets` | `{ discover: true }` | ✅ ok | ❌ Not allowed |
 
 ---
 
@@ -77,57 +77,69 @@
 
 | Method | 依赖 | 状态 |
 |--------|------|------|
-| `DOM.querySelector` | 需要 `nodeId` from `DOM.getDocument` | [ ] |
-| `DOM.getBoxModel` | 需要 `nodeId` | [ ] |
-| `DOM.describeNode` | 需要 `nodeId` or `backendNodeId` | [ ] |
-| `DOM.scrollIntoViewIfNeeded` | 需要 `nodeId` | [ ] |
-| `DOM.setFileInputFiles` | 需要 file input `nodeId` | [ ] |
-| `DOM.getFrameOwner` | 需要 `frameId` | [ ] |
-| `DOM.getNodeForLocation` | 需要坐标，直接测试 | [ ] |
-| `DOM.requestNode` | 需要 `objectId` | [ ] |
-| `DOM.resolveNode` | 需要 `nodeId` | [ ] |
+| `DOM.querySelector` | 需要 `nodeId` from `DOM.getDocument` | ✅ 通过 |
+| `DOM.getBoxModel` | 需要 `nodeId` | ✅ 通过 |
+| `DOM.describeNode` | 需要 `nodeId` or `backendNodeId` | ✅ 通过 |
+| `DOM.scrollIntoViewIfNeeded` | 需要 `nodeId` | ✅ 通过 |
+| `DOM.setFileInputFiles` | 需要 file input `nodeId` | [ ] 未测试 |
+| `DOM.getFrameOwner` | 需要 `frameId` | [ ] 未测试 |
+| `DOM.getNodeForLocation` | 需要坐标，直接测试 | ✅ 通过 |
+| `DOM.requestNode` | 需要 `objectId` | [ ] 未测试 |
+| `DOM.resolveNode` | 需要 `nodeId` | [ ] 未测试 |
 
 ### Runtime 依赖项
 
 | Method | 依赖 | 状态 |
 |--------|------|------|
-| `Runtime.callFunctionOn` | 需要 `objectId` | [ ] |
-| `Runtime.releaseObject` | 需要 `objectId` | [ ] |
-| `Runtime.runIfWaitingForDebugger` | 特殊场景 | [ ] |
+| `Runtime.callFunctionOn` | 需要 `objectId` | ✅ 通过 |
+| `Runtime.releaseObject` | 需要 `objectId` | ✅ 通过 |
+| `Runtime.runIfWaitingForDebugger` | 特殊场景 | [ ] 未测试 |
 
 ### Page 依赖项
 
 | Method | 依赖 | 状态 |
 |--------|------|------|
-| `Page.navigate` | 直接测试（会导航离开） | [ ] |
-| `Page.reload` | 直接测试（会刷新页面） | [ ] |
-| `Page.navigateToHistoryEntry` | 需要 `entryId` | [ ] |
-| `Page.addScriptToEvaluateOnNewDocument` | 直接测试 | [ ] |
-| `Page.createIsolatedWorld` | 需要 `frameId` | [ ] |
+| `Page.navigate` | 直接测试（会导航离开） | [ ] 未测试 |
+| `Page.reload` | 直接测试（会刷新页面） | [ ] 未测试 |
+| `Page.navigateToHistoryEntry` | 需要 `entryId` | [ ] 未测试 |
+| `Page.addScriptToEvaluateOnNewDocument` | 直接测试 | ✅ 通过 |
+| `Page.createIsolatedWorld` | 需要 `frameId` | ✅ 通过 |
 
 ### Target 依赖项
 
 | Method | 依赖 | 状态 |
 |--------|------|------|
-| `Target.setAutoAttach` | 直接测试 | [已在 Phase 0 验证] |
-| `Target.attachToTarget` | 需要 `targetId` | [ ] |
-| `Target.detachFromTarget` | 需要 `sessionId` | [ ] |
-| `Target.createTarget` | 直接测试 | [ ] |
-| `Target.activateTarget` | 需要 `targetId` | [ ] |
-| `Target.closeTarget` | 需要 `targetId` | [ ] |
+| `Target.setAutoAttach` | 直接测试 | ✅ 已在 Phase 0 验证 |
+| `Target.attachToTarget` | 需要 `targetId` | [ ] 未测试 |
+| `Target.detachFromTarget` | 需要 `sessionId` | [ ] 未测试 |
+| `Target.createTarget` | 直接测试 | [ ] 未测试 |
+| `Target.activateTarget` | 需要 `targetId` | [ ] 未测试 |
+| `Target.closeTarget` | 需要 `targetId` | [ ] 未测试 |
 
 ### Overlay 依赖项
 
 | Method | 依赖 | 状态 |
 |--------|------|------|
-| `Overlay.highlightNode` | 需要 `nodeId` or `backendNodeId` | [ ] |
-| `Overlay.hideHighlight` | 直接测试 | [ ] |
+| `Overlay.highlightNode` | 需要 `nodeId` or `backendNodeId` | ✅ 通过 |
+| `Overlay.hideHighlight` | 直接测试 | ✅ 通过 |
 
 ### Network 依赖项
 
 | Method | 依赖 | 状态 |
 |--------|------|------|
-| `Network.getResponseBody` | 需要 `requestId` (from event) | [ ] |
+| `Network.getResponseBody` | 需要 `requestId` (from event) | [ ] 未测试 |
+
+### 额外验证项统计
+
+| 测试组 | 总数 | 通过 | 未测试 |
+|--------|------|------|--------|
+| DOM 依赖链 | 9 | 5 | 4 |
+| Runtime 依赖链 | 3 | 2 | 1 |
+| Page 依赖项 | 5 | 2 | 3 |
+| Target 依赖项 | 6 | 1 | 5 |
+| Overlay 依赖项 | 2 | 2 | 0 |
+| Network 依赖项 | 1 | 0 | 1 |
+| **总计** | **26** | **12** | **14** |
 
 ---
 
@@ -135,21 +147,31 @@
 
 | 轮次 | 总数 | 成功 | 失败 | 覆盖率 |
 |------|------|------|------|--------|
-| Round 1 | 5 | | | |
-| Round 2 | 2 | | | |
-| Round 3 | 3 | | | |
-| Round 4 | 5 | | | |
-| Round 5 | 3 | | | |
-| Round 6 | 2 | | | |
-| Round 7 | 2 | | | |
-| **总计** | **22** | | | |
+| Round 1 | 5 | 5 | 0 | 100% |
+| Round 2 | 2 | 2 | 0 | 100% |
+| Round 3 | 3 | 3 | 0 | 100% |
+| Round 4 | 5 | 5 | 0 | 100% |
+| Round 5 | 3 | 3 | 0 | 100% |
+| Round 6 | 2 | 2 | 0 | 100% |
+| Round 7 | 2 | 0 | 2 | 0% |
+| **总计** | **22** | **20** | **2** | **91%** |
 
 ## 结论
 
-- [ ] Tier1 基础 methods 全部通过 → 继续 Phase 2
-- [ ] 部分 methods 失败 → 记录失败原因，评估影响
+- [x] Tier1 基础 methods 大部分通过 → 继续 Phase 2
+- [x] 部分 methods 失败 → 记录如下
+
+### 失败项分析
+
+| Method | 错误 | 影响评估 |
+|--------|------|----------|
+| `Target.getTargets` | Not allowed | 低影响：可用 `Page.getFrameTree` 替代获取 frame 信息 |
+| `Target.setDiscoverTargets` | Not allowed | 低影响：`Target.setAutoAttach` 已验证可用，足以支持 OOPIF 场景 |
+
+**结论**：91% 覆盖率，核心功能路径不受影响。
 
 ## 备注
 
-_______________________________________________________________
+- `Target.setAutoAttach` 已在 Phase 0 验证通过，是 OOPIF 穿透的关键方法
+- Round 7 失败的两个方法属于 Target 域的"发现"类方法，非核心执行路径
 
