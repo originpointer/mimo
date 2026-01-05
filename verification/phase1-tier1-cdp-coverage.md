@@ -49,9 +49,9 @@
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `Page.setLifecycleEventsEnabled` | `{ enabled: true }` | ✅ ok | [ ] |
-| `Page.getNavigationHistory` | `{}` | ✅ 返回 history | [ ] |
-| `Page.captureScreenshot` | `{ format: 'png' }` | ✅ 返回 base64 data | [ ] |
+| `Page.setLifecycleEventsEnabled` | `{ enabled: true }` | ✅ ok | ✅ ok |
+| `Page.getNavigationHistory` | `{}` | ✅ 返回 history | ✅ 返回 history |
+| `Page.captureScreenshot` | `{ format: 'png' }` | ✅ 返回 base64 data | ✅ 返回 base64 data |
 
 ### Round 6: Runtime operations
 
