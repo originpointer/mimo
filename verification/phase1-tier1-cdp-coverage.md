@@ -57,8 +57,8 @@
 
 | Method | 参数 | 预期 | 实际 |
 |--------|------|------|------|
-| `Runtime.evaluate` | `{ expression: 'document.title', returnByValue: true }` | ✅ 返回页面标题 | [ ] |
-| `Runtime.evaluate` | `{ expression: '1+1', returnByValue: true }` | ✅ 返回 2 | [ ] |
+| `Runtime.evaluate` | `{ expression: 'document.title', returnByValue: true }` | ✅ 返回页面标题 | ✅ "Control WebApp Bridge" |
+| `Runtime.evaluate` | `{ expression: '1+1', returnByValue: true }` | ✅ 返回 2 | ✅ 返回 2 |
 
 ### Round 7: Target operations
 
