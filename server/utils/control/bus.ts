@@ -6,7 +6,7 @@ export type ControlCommandEnvelope = {
   traceId: string
   issuedAt: number
   ttlMs: number
-  target: { extensionId: string; tabId?: number }
+  target: { extensionId: string; tabId?: number; sessionId?: string }
   jws: string
 }
 
@@ -94,11 +94,11 @@ class ControlBus {
     }
   }
 
-  waitForCallback(commandId: string, timeoutMs: number): Promise<ExecutionCallback> {
+  waitForCallback(commandId: string, timeoutMs: number): Promise<ExecutionCallback | null> {
     const existing = this.pending.get(commandId)
     if (existing?.lastCallback) return Promise.resolve(existing.lastCallback)
 
-    return new Promise<ExecutionCallback>((resolve, reject) => {
+    return new Promise<ExecutionCallback | null>((resolve) => {
       const set = this.waiters.get(commandId) ?? new Set<(cb: ExecutionCallback) => void>()
       let done = false
 
@@ -124,7 +124,7 @@ class ControlBus {
         if (done) return
         done = true
         cleanup()
-        reject(new Error(`Timeout waiting callback: ${commandId}`))
+        resolve(null) // 超时返回 null 而不是 reject
       }, Math.max(1, timeoutMs))
     })
   }

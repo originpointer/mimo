@@ -5,9 +5,11 @@ import { signJws } from "@/utils/control/keys"
 type EnqueueBody = {
   extensionId: string
   tabId?: number
+  sessionId?: string // 子 session ID（用于 iframe/OOPIF 命令）
   ttlMs?: number
-  op: { kind: "cdp.send"; method: string; params?: Record<string, unknown> }
+  op: { kind: "cdp.send"; method: string; params?: Record<string, unknown>; sessionId?: string; keepAttached?: boolean }
   replyUrl: string
+  options?: { keepAttached?: boolean }
 }
 
 export default eventHandler(async (event) => {
@@ -29,6 +31,13 @@ export default eventHandler(async (event) => {
   const { commandId, traceId, callbackToken } = controlBus.issueIds()
   const issuedAt = Date.now()
 
+  // 合并 sessionId 到 op（如果在 body 顶层指定）
+  const opWithSession = {
+    ...body.op,
+    sessionId: body.op.sessionId || body.sessionId || undefined,
+    keepAttached: body.op.keepAttached || body.options?.keepAttached || undefined
+  }
+
   const signedPayload = {
     iss: "control-server",
     aud: "browser-extension",
@@ -36,8 +45,12 @@ export default eventHandler(async (event) => {
     traceId,
     issuedAt,
     ttlMs,
-    target: { tabId: typeof body.tabId === "number" ? body.tabId : undefined },
-    op: body.op,
+    target: {
+      tabId: typeof body.tabId === "number" ? body.tabId : undefined,
+      sessionId: opWithSession.sessionId
+    },
+    op: opWithSession,
+    options: { keepAttached: opWithSession.keepAttached },
     reply: { url: body.replyUrl, callbackToken }
   }
 

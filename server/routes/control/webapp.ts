@@ -52,6 +52,32 @@ export default eventHandler(() => {
   <pre id="log"></pre>
 </div>
 
+<div class="box">
+  <div class="meta">OOPIF 测试区（跨域 iframe）</div>
+  <iframe id="oopifFrame" src="" style="width:100%;height:120px;border:1px solid #ccc;background:#fafafa;"></iframe>
+  <div class="row" style="margin-top:8px">
+    <input id="oopifSrc" placeholder="cross-origin URL, e.g. https://example.com" style="flex:1" />
+    <button id="btnLoadOopif">Load iframe</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button id="btnTestAutoAttach">Test Target.setAutoAttach (flatten)</button>
+  </div>
+</div>
+
+<div class="box">
+  <div class="meta">Phase 1: Tier1 CDP Methods 批量验证</div>
+  <div class="row" style="margin-top:8px;gap:4px;flex-wrap:wrap">
+    <button id="btnRound1">Round 1 (enable + getDocument)</button>
+    <button id="btnRound2">Round 2 (DOM ops)</button>
+    <button id="btnRound3">Round 3 (Input)</button>
+    <button id="btnRound4">Round 4 (A11y/Overlay/Emulation)</button>
+    <button id="btnRound5">Round 5 (Page ops)</button>
+    <button id="btnRound6">Round 6 (Runtime ops)</button>
+    <button id="btnRound7">Round 7 (Target ops)</button>
+  </div>
+  <div class="meta" id="batchStatus" style="margin-top:8px"></div>
+</div>
+
 <script>
   const $extId = document.getElementById('extId');
   const $replyUrl = document.getElementById('replyUrl');
@@ -230,6 +256,133 @@ export default eventHandler(() => {
     if (!data.ok) setStatus('run failed', false);
     else setStatus('run ok', true);
   }
+
+  // OOPIF testing
+  const $oopifSrc = document.getElementById('oopifSrc');
+  const $oopifFrame = document.getElementById('oopifFrame');
+  const $btnLoadOopif = document.getElementById('btnLoadOopif');
+  const $btnTestAutoAttach = document.getElementById('btnTestAutoAttach');
+
+  $btnLoadOopif.addEventListener('click', () => {
+    const src = ($oopifSrc.value || '').trim();
+    if (!src) {
+      setStatus('Please enter an iframe URL', false);
+      return;
+    }
+    $oopifFrame.src = src;
+    log('iframe loaded', { src });
+  });
+
+  async function testAutoAttach() {
+    const extensionId = ($extId.value || '').trim();
+    const replyUrl = ($replyUrl.value || '').trim();
+    if (!extensionId) {
+      setStatus('Missing extensionId', false);
+      return;
+    }
+    if (!replyUrl) {
+      setStatus('Missing replyUrl', false);
+      return;
+    }
+    const body = {
+      extensionId,
+      ttlMs: 30000,
+      op: {
+        kind: 'cdp.send',
+        method: 'Target.setAutoAttach',
+        params: { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }
+      },
+      replyUrl
+    };
+    const res = await fetch('/control/enqueue', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    log('Target.setAutoAttach response', data);
+    if (!data.ok) setStatus('setAutoAttach failed: ' + (data.error || 'unknown'), false);
+    else setStatus('setAutoAttach ok: ' + data.commandId, true);
+  }
+
+  $btnTestAutoAttach.addEventListener('click', () => void testAutoAttach());
+
+  // Phase 1: Tier1 CDP Methods batch verification
+  const $batchStatus = document.getElementById('batchStatus');
+
+  async function runBatch(roundName, items) {
+    const extensionId = ($extId.value || '').trim();
+    const replyUrl = ($replyUrl.value || '').trim();
+    if (!extensionId || !replyUrl) {
+      $batchStatus.textContent = 'Missing extensionId or replyUrl';
+      $batchStatus.className = 'meta bad';
+      return;
+    }
+    $batchStatus.textContent = 'Running ' + roundName + ' (' + items.length + ' methods)...';
+    $batchStatus.className = 'meta';
+
+    const body = { extensionId, replyUrl, items, ttlMs: 60000 };
+    const res = await fetch('/control/enqueue-batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    log(roundName + ' batch response', data);
+    if (!data.ok) {
+      $batchStatus.textContent = roundName + ' failed: ' + (data.error || 'unknown');
+      $batchStatus.className = 'meta bad';
+    } else {
+      $batchStatus.textContent = roundName + ' enqueued ' + data.count + ' commands';
+      $batchStatus.className = 'meta ok';
+    }
+  }
+
+  // Round 1: Enable methods + getDocument
+  document.getElementById('btnRound1').addEventListener('click', () => void runBatch('Round 1', [
+    { method: 'Page.enable', params: {} },
+    { method: 'Runtime.enable', params: {} },
+    { method: 'DOM.enable', params: {} },
+    { method: 'Network.enable', params: {} },
+    { method: 'DOM.getDocument', params: {} }
+  ]));
+
+  // Round 2: DOM operations (需要 documentNodeId，但这是异步的，先测试基础调用)
+  document.getElementById('btnRound2').addEventListener('click', () => void runBatch('Round 2', [
+    { method: 'DOM.getDocument', params: { depth: 0 } },
+    { method: 'Page.getFrameTree', params: {} }
+  ]));
+
+  // Round 3: Input operations
+  document.getElementById('btnRound3').addEventListener('click', () => void runBatch('Round 3', [
+    { method: 'Input.dispatchMouseEvent', params: { type: 'mouseMove', x: 100, y: 100 } },
+    { method: 'Input.dispatchKeyEvent', params: { type: 'keyDown', key: 'Shift' } },
+    { method: 'Input.dispatchKeyEvent', params: { type: 'keyUp', key: 'Shift' } }
+  ]));
+
+  // Round 4: Accessibility/Overlay/Emulation
+  document.getElementById('btnRound4').addEventListener('click', () => void runBatch('Round 4', [
+    { method: 'Accessibility.enable', params: {} },
+    { method: 'Accessibility.getFullAXTree', params: {} },
+    { method: 'Overlay.enable', params: {} },
+    { method: 'Emulation.setDeviceMetricsOverride', params: { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false } },
+    { method: 'Emulation.clearDeviceMetricsOverride', params: {} }
+  ]));
+
+  // Round 5: Page operations
+  document.getElementById('btnRound5').addEventListener('click', () => void runBatch('Round 5', [
+    { method: 'Page.setLifecycleEventsEnabled', params: { enabled: true } },
+    { method: 'Page.getNavigationHistory', params: {} },
+    { method: 'Page.captureScreenshot', params: { format: 'png' } }
+  ]));
+
+  // Round 6: Runtime operations
+  document.getElementById('btnRound6').addEventListener('click', () => void runBatch('Round 6', [
+    { method: 'Runtime.evaluate', params: { expression: 'document.title', returnByValue: true } },
+    { method: 'Runtime.evaluate', params: { expression: '1+1', returnByValue: true } }
+  ]));
+
+  // Round 7: Target operations
+  document.getElementById('btnRound7').addEventListener('click', () => void runBatch('Round 7', [
+    { method: 'Target.getTargets', params: {} },
+    { method: 'Target.setDiscoverTargets', params: { discover: true } }
+  ]));
 
   $btnConnect.addEventListener('click', connect);
   $btnDisconnect.addEventListener('click', disconnect);
