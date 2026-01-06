@@ -42,6 +42,16 @@ function originFromUrl(url) {
   }
 }
 
+function isControlPageUrl(url) {
+  try {
+    const u = new URL(url)
+    if (!(u.hostname === "localhost" || u.hostname === "127.0.0.1")) return false
+    return u.pathname.startsWith("/control/")
+  } catch {
+    return false
+  }
+}
+
 // ---- CDP functions with session support ----
 
 async function ensureAttached(tabId) {
@@ -123,9 +133,87 @@ async function getActiveTabId() {
   return tab.id
 }
 
+// Track last non-control active tab per window to avoid reloading control pages.
+const lastNonControlTabByWindow = new Map() // windowId -> tabId
+
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  void (async () => {
+    try {
+      const tab = await chrome.tabs.get(activeInfo.tabId)
+      if (tab && typeof tab.id === "number" && typeof tab.url === "string" && tab.url && !isControlPageUrl(tab.url)) {
+        lastNonControlTabByWindow.set(activeInfo.windowId, tab.id)
+      }
+    } catch {
+      // ignore
+    }
+  })()
+})
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (!tab || typeof tab.id !== "number") return
+  const url = tab.url || changeInfo.url
+  if (typeof url === "string" && url && !isControlPageUrl(url) && typeof tab.windowId === "number") {
+    lastNonControlTabByWindow.set(tab.windowId, tab.id)
+  }
+})
+
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   const req = message || {}
-  if (!req || req.type !== "driver" || req.action !== "invoke") return
+  if (!req || req.type !== "driver") return
+
+  // --- Simple external action: return active tabId (no JWS needed) ---
+  if (req.action === "getActiveTab") {
+    void (async () => {
+      try {
+        const senderOrigin = originFromUrl(sender?.url || "")
+        if (!senderOrigin) throw new Error("Missing sender origin")
+        if (!isLocalhostOrigin(senderOrigin)) {
+          throw new Error(`Sender origin not allowed: ${senderOrigin}`)
+        }
+
+        const sourceTabId = typeof sender?.tab?.id === "number" ? sender.tab.id : undefined
+        const sourceWindowId = typeof sender?.tab?.windowId === "number" ? sender.tab.windowId : undefined
+
+        let candidate = null
+        if (typeof sourceWindowId === "number") {
+          candidate = lastNonControlTabByWindow.get(sourceWindowId) ?? null
+        }
+
+        // Validate candidate tab still exists; otherwise fall back.
+        let tabId = null
+        if (typeof candidate === "number") {
+          try {
+            const t = await chrome.tabs.get(candidate)
+            if (t && typeof t.id === "number") tabId = t.id
+          } catch {
+            tabId = null
+          }
+        }
+        if (typeof tabId !== "number") {
+          tabId = await getActiveTabId()
+        }
+
+        let tabUrl = undefined
+        let tabTitle = undefined
+        try {
+          const t = await chrome.tabs.get(tabId)
+          tabUrl = t?.url
+          tabTitle = t?.title
+        } catch {
+          // ignore
+        }
+
+        sendResponse({ ok: true, requestId: req.requestId, tabId, tabUrl, tabTitle, sourceTabId, sourceWindowId })
+      } catch (e) {
+        sendResponse({ ok: false, requestId: req.requestId, error: toErrorPayload(e) })
+      }
+    })()
+
+    // keep channel open for async sendResponse
+    return true
+  }
+
+  if (req.action !== "invoke") return
 
   void (async () => {
     try {

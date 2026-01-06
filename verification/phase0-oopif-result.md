@@ -131,8 +131,8 @@
 
 ## 结论
 
-- [x] **OOPIF 可被检测** → `Target.attachedToTarget` 事件已收到，子 session 可见
-- [x] **OOPIF 可被操作** → ✅ **已验证成功**
+- ✅ **OOPIF 可被检测** → `Target.attachedToTarget` 事件已收到，子 session 可见
+- ✅ **OOPIF 可被操作** → ✅ **已验证成功**
 
 ### 验证成功日志
 

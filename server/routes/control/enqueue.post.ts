@@ -66,7 +66,17 @@ export default eventHandler(async (event) => {
     jws
   }
 
-  controlBus.publish(envelope, { commandId, traceId, callbackToken, expiresAt: issuedAt + ttlMs })
+  controlBus.publish(envelope, {
+    commandId,
+    traceId,
+    callbackToken,
+    expiresAt: issuedAt + ttlMs,
+    meta: {
+      method: opWithSession.method,
+      tabId: typeof body.tabId === "number" ? body.tabId : undefined,
+      sessionId: opWithSession.sessionId
+    }
+  })
 
   return { ok: true, commandId, traceId, issuedAt, ttlMs }
 })

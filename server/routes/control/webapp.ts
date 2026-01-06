@@ -450,7 +450,7 @@ export default eventHandler(() => {
     $batchStatus.textContent = 'Running ' + roundName + ' (' + items.length + ' methods)...';
     $batchStatus.className = 'meta';
 
-    const body = { extensionId, replyUrl, items, ttlMs: 60000 };
+    const body = { extensionId, replyUrl, items, ttlMs: 60000, keepAttached: true };
     const res = await fetch('/control/enqueue-batch', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -478,6 +478,7 @@ export default eventHandler(() => {
 
   // Round 2: DOM operations (需要 documentNodeId，但这是异步的，先测试基础调用)
   document.getElementById('btnRound2').addEventListener('click', () => void runBatch('Round 2', [
+    { method: 'DOM.enable', params: {} },
     { method: 'DOM.getDocument', params: { depth: 0 } },
     { method: 'Page.getFrameTree', params: {} }
   ]));

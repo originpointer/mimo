@@ -24,6 +24,8 @@
     "@orama/highlight": "^0.1.9",
     "@orama/orama": "^3.1.18",
     "@orama/stopwords": "^3.1.18",
-    "@orama/tokenizers": "^3.1.18"
+    "@orama/tokenizers": "^3.1.18",
+    "pino": "^10.1.0",
+    "pino-pretty": "^13.1.3"
   }
 }

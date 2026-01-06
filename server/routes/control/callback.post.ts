@@ -1,5 +1,8 @@
 import { eventHandler, getHeader, readBody } from "h3"
 import { controlBus, type ExecutionCallback } from "@/utils/control/bus"
+import { createLogger } from "@/utils/logger"
+
+const logger = createLogger('control.callback')
 
 function parseBearer(auth: string | undefined): string {
   if (!auth) return ""
@@ -40,7 +43,7 @@ export default eventHandler(async (event) => {
 
   controlBus.markCallback(cb)
   // 为联调/验收提供可观测性（后续可替换为审计落库）
-  console.log("[control.callback]", JSON.stringify(cb))
+  logger.info({ ...cb, meta: verified.pending.meta }, 'Callback received')
   return { ok: true }
 })
 

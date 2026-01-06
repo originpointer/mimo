@@ -21,6 +21,12 @@ export type ExecutionCallback = {
   telemetry?: Record<string, unknown>
 }
 
+export type PendingMeta = {
+  method?: string
+  tabId?: number
+  sessionId?: string
+}
+
 type PendingCommand = {
   commandId: string
   traceId: string
@@ -28,6 +34,7 @@ type PendingCommand = {
   callbackToken: string
   state: "pending" | "done"
   lastCallback?: ExecutionCallback
+  meta?: PendingMeta
 }
 
 type Subscriber = (cmd: ControlCommandEnvelope) => void

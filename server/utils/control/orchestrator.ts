@@ -163,11 +163,33 @@ export async function runPlan(plan: RunPlan): Promise<RunResult> {
         target: { extensionId: plan.extensionId, tabId: typeof step.tabId === "number" ? step.tabId : undefined },
         jws
       },
-      { commandId, traceId: stepTraceId, callbackToken, expiresAt: issuedAt + ttlMs }
+      {
+        commandId,
+        traceId: stepTraceId,
+        callbackToken,
+        expiresAt: issuedAt + ttlMs,
+        meta: {
+          method: resolvedOp.method,
+          tabId: typeof step.tabId === "number" ? step.tabId : undefined,
+          sessionId: resolvedOp.target?.sessionId
+        }
+      }
     )
 
     try {
       const cb = await controlBus.waitForCallback(commandId, ttlMs + 5_000)
+      if (!cb) {
+        stepsOut.push({
+          name: step.name,
+          commandId,
+          traceId: stepTraceId,
+          issuedAt,
+          ttlMs,
+          status: "timeout",
+          error: { message: "Callback timeout" }
+        })
+        return { ok: false, traceId, startedAt, finishedAt: Date.now(), steps: stepsOut }
+      }
       stepsOut.push({
         name: step.name,
         commandId,

@@ -23,6 +23,10 @@ export interface TabSession {
   lastActivity: number
 }
 
+import { createLogger } from "@/utils/logger"
+
+const logger = createLogger('sessionRegistry')
+
 const tabSessions = new Map<number, TabSession>()
 
 export function getOrCreateTabSession(tabId: number): TabSession {
@@ -51,7 +55,7 @@ export function registerChildSession(
     attachedAt: Date.now()
   })
   session.lastActivity = Date.now()
-  console.log(`[sessionRegistry] Child registered: tabId=${tabId} sessionId=${sessionId} type=${targetInfo.type}`)
+  logger.info({ tabId, sessionId, type: targetInfo.type }, 'Child registered')
 }
 
 export function unregisterChildSession(tabId: number, sessionId: string): void {
@@ -59,13 +63,13 @@ export function unregisterChildSession(tabId: number, sessionId: string): void {
   if (session) {
     session.children.delete(sessionId)
     session.lastActivity = Date.now()
-    console.log(`[sessionRegistry] Child unregistered: tabId=${tabId} sessionId=${sessionId}`)
+    logger.info({ tabId, sessionId }, 'Child unregistered')
   }
 }
 
 export function clearTabSession(tabId: number): void {
   tabSessions.delete(tabId)
-  console.log(`[sessionRegistry] Tab session cleared: tabId=${tabId}`)
+  logger.info({ tabId }, 'Tab session cleared')
 }
 
 export function getChildSessionsByTabId(tabId: number): TargetInfo[] {

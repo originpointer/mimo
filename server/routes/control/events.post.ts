@@ -1,5 +1,8 @@
 import { eventHandler, readBody, createError } from "h3"
 import { registerChildSession, unregisterChildSession, clearTabSession } from "@/utils/control/sessionRegistry"
+import { createLogger } from "@/utils/logger"
+
+const logger = createLogger('events')
 
 /**
  * CDP Event Store
@@ -91,12 +94,21 @@ export default eventHandler(async (event) => {
   }
 
   // 打印关键事件到控制台
-  const isImportant = method?.startsWith("Target.") || method?.startsWith("Page.frame") || method?.startsWith("Runtime.execution")
+  const isImportant = 
+    method?.startsWith("Target.") || 
+    method?.startsWith("Page.frame") || 
+    method?.startsWith("Page.load") || 
+    method?.startsWith("Page.domContent") ||
+    method?.startsWith("Runtime.execution") ||
+    method?.startsWith("Runtime.executionContext")
+
   if (isImportant) {
-    console.log(
-      `[events] tabId=${tabId} sessionId=${sessionId || "(root)"} method=${method}`,
-      JSON.stringify(params, null, 2).slice(0, 300)
-    )
+    logger.info({
+      tabId,
+      sessionId: sessionId || "(root)",
+      method,
+      params
+    }, 'Important event received')
   }
 
   return { ok: true, received: { tabId, sessionId, method, ts } }

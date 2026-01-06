@@ -110,19 +110,25 @@ interface TabSession {
 
 | 检查项 | 预期 | 实际 |
 |--------|------|------|
-| Session registry 自动更新 | ✅ | [ ] |
-| 子 session 命令能正确路由 | ✅ | [ ] |
-| 子 session 返回结果正确 | ✅ | [ ] |
-| keepAttached 选项生效 | ✅ | [ ] |
-| Session 清理正确 | ✅ | [ ] |
-| GET /control/sessions API 工作 | ✅ | [ ] |
+| Session registry 自动更新 | ✅ | ✅（通过 `Target.attachedToTarget` 自动注册；`GET /control/sessions?tabId=829138347&type=iframe` 可返回 `sessionId=A964F...`） |
+| 子 session 命令能正确路由 | ✅ | ✅（`Runtime.evaluate(document.title)` 指定 `target.sessionId=A964F...` 成功） |
+| 子 session 返回结果正确 | ✅ | ✅（返回 `"Example Domain"`，符合 `https://example.com/` iframe） |
+| keepAttached 选项生效 | ✅ | ✅（通过 `/control/run keepAttached=true` 连续执行） |
+| Session 清理正确 | ✅ | [ ]（本次未做关闭 iframe/页面的验证） |
+| GET /control/sessions API 工作 | ✅ | ✅（可按 tabId/type 查询到 iframe session） |
 
 ## 结论
 
-- [ ] Session multiplexer 通过 → 继续 Phase 4
-- [ ] 部分功能失败 → 需要排查
+- ✅ Session multiplexer 核心链路通过（Step1/2/3） → 继续 Phase 4
+- [ ] Session 清理（Step4）未验证 → 建议补测
 
 ## 备注
+
+### 本次验证证据（来自 `/control/verify/phase2` 的 Step3/Step4 自动验证页）
+
+- **Target 事件**：`Target.attachedToTarget.params.sessionId = A964F51127C1977267E7B1F97F8EA99D`，且 `targetInfo.type = iframe`
+- **Sessions API**：`GET /control/sessions?tabId=829138347&type=iframe` 返回上述 `sessionId`
+- **子 session 执行**：在 `sessionId=A964F...` 下执行 `Runtime.evaluate(document.title)` 返回 `"Example Domain"`
 
 _______________________________________________________________
 

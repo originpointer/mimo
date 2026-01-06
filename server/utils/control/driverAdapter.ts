@@ -118,7 +118,17 @@ export class DriverAdapter {
     }
     
     // 发布命令并等待回调
-    controlBus.publish(envelope, { commandId, traceId, callbackToken, expiresAt: issuedAt + ttlMs })
+    controlBus.publish(envelope, {
+      commandId,
+      traceId,
+      callbackToken,
+      expiresAt: issuedAt + ttlMs,
+      meta: {
+        method,
+        tabId,
+        sessionId: options?.sessionId
+      }
+    })
     
     // 等待回调结果
     const result = await controlBus.waitForCallback(commandId, ttlMs + 5000)
@@ -139,9 +149,12 @@ export class DriverAdapter {
       tabId,
       sessionId: options?.sessionId,
       method,
-      response: result.result?.response,
+      response: (result.result as { response?: unknown } | undefined)?.response,
       error: result.error,
-      durationMs: result.telemetry?.durationMs ?? Date.now() - issuedAt
+      durationMs:
+        typeof (result.telemetry as { durationMs?: unknown } | undefined)?.durationMs === "number"
+          ? (result.telemetry as { durationMs: number }).durationMs
+          : Date.now() - issuedAt
     }
   }
   

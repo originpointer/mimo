@@ -14,6 +14,7 @@ type EnqueueBatchBody = {
   replyUrl: string
   items: BatchItem[]
   ttlMs?: number
+  keepAttached?: boolean
 }
 
 export default eventHandler(async (event) => {
@@ -32,6 +33,7 @@ export default eventHandler(async (event) => {
   }
 
   const batchTtl = typeof body.ttlMs === "number" && Number.isFinite(body.ttlMs) ? Math.max(1_000, body.ttlMs) : 30_000
+  const keepAttached = body.keepAttached === true
   const issuedAt = Date.now()
 
   const results: Array<{ ok: true; commandId: string; traceId: string; method: string } | { ok: false; method: string; error: string }> =
@@ -54,8 +56,9 @@ export default eventHandler(async (event) => {
       traceId,
       issuedAt,
       ttlMs,
-      target: { tabId: typeof item.tabId === "number" ? item.tabId : undefined },
+      target: { tabId: typeof item.tabId === "number" ? item.tabId : undefined, keepAttached },
       op: { kind: "cdp.send", method, params: item.params ?? {} },
+      options: { keepAttached },
       reply: { url: body.replyUrl, callbackToken }
     }
 
@@ -71,7 +74,17 @@ export default eventHandler(async (event) => {
       jws
     }
 
-    controlBus.publish(envelope, { commandId, traceId, callbackToken, expiresAt: issuedAt + ttlMs })
+    controlBus.publish(envelope, {
+      commandId,
+      traceId,
+      callbackToken,
+      expiresAt: issuedAt + ttlMs,
+      meta: {
+        method,
+        tabId: typeof item.tabId === "number" ? item.tabId : undefined,
+        sessionId: undefined
+      }
+    })
     results.push({ ok: true, commandId, traceId, method })
   }
 

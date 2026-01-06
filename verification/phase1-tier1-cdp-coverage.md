@@ -158,8 +158,8 @@
 
 ## 结论
 
-- [x] Tier1 基础 methods 大部分通过 → 继续 Phase 2
-- [x] 部分 methods 失败 → 记录如下
+- ✅ Tier1 基础 methods 大部分通过 → 继续 Phase 2
+- ✅ 部分 methods 失败 → 记录如下
 
 ### 失败项分析
 
