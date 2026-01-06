@@ -213,6 +213,28 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return true
   }
 
+  // --- Simple external action: create a new tab (no JWS needed) ---
+  if (req.action === "createTab") {
+    void (async () => {
+      try {
+        const senderOrigin = originFromUrl(sender?.url || "")
+        if (!senderOrigin) throw new Error("Missing sender origin")
+        if (!isLocalhostOrigin(senderOrigin)) {
+          throw new Error(`Sender origin not allowed: ${senderOrigin}`)
+        }
+
+        const url = typeof req.url === "string" ? req.url : "about:blank"
+        const active = typeof req.active === "boolean" ? req.active : false
+        const tab = await chrome.tabs.create({ url, active })
+        
+        sendResponse({ ok: true, requestId: req.requestId, tabId: tab.id, tabUrl: tab.url, tabTitle: tab.title })
+      } catch (e) {
+        sendResponse({ ok: false, requestId: req.requestId, error: toErrorPayload(e) })
+      }
+    })()
+    return true
+  }
+
   if (req.action !== "invoke") return
 
   void (async () => {
