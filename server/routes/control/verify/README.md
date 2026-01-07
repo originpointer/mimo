@@ -68,6 +68,24 @@ Verifies controlled execution loop:
 
 **Status**: ✅ Implementation complete - ready for verification
 
+### Phase 10: LLM End-to-End (Plan → Act2 → Confirm → Audit)
+**URL**: `http://localhost:3000/control/verify/phase10`
+
+End-to-end verification using an OpenAI-compatible local model (e.g. Qwen3) to generate an action plan:
+- Calls `POST /control/plan` (LLM planner)
+- Executes returned actions via `POST /control/act2`
+- Reuses Phase9 confirmation + audit + replay/export
+
+**Required env** (server):
+```bash
+LLM_PROVIDER_ID=local-qwen3
+LLM_BASE_URL=http://10.31.1.6:30001/v1
+LLM_MODEL=qwen3
+LLM_API_KEY=sk-xxx
+```
+
+**Status**: ✅ Implementation complete - ready for verification
+
 ## Prerequisites
 
 1. **Chrome Extension Installed**
