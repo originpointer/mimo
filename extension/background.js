@@ -213,6 +213,39 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
     return true
   }
 
+  // --- Simple external action: return the REAL focused active tabId (no JWS needed) ---
+  // This does NOT apply lastNonControlTab fallback. Used for \"no disturbance\" verification.
+  if (req.action === "getFocusedActiveTab") {
+    void (async () => {
+      try {
+        const senderOrigin = originFromUrl(sender?.url || "")
+        if (!senderOrigin) throw new Error("Missing sender origin")
+        if (!isLocalhostOrigin(senderOrigin)) {
+          throw new Error(`Sender origin not allowed: ${senderOrigin}`)
+        }
+
+        const tabId = await getActiveTabId()
+
+        let tabUrl = undefined
+        let tabTitle = undefined
+        let windowId = undefined
+        try {
+          const t = await chrome.tabs.get(tabId)
+          tabUrl = t?.url
+          tabTitle = t?.title
+          windowId = t?.windowId
+        } catch {
+          // ignore
+        }
+
+        sendResponse({ ok: true, requestId: req.requestId, tabId, tabUrl, tabTitle, windowId })
+      } catch (e) {
+        sendResponse({ ok: false, requestId: req.requestId, error: toErrorPayload(e) })
+      }
+    })()
+    return true
+  }
+
   // --- Simple external action: create a new tab (no JWS needed) ---
   if (req.action === "createTab") {
     void (async () => {

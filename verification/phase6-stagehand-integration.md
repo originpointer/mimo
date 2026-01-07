@@ -75,7 +75,46 @@ interface DriverAdapter {
 }
 ```
 
+### Observe Endpoint
+
+**Endpoint**: `POST /control/observe`
+
+**说明**: `page.observe()` 的最小实现，用于拿到页面快照，供后续 LLM 定位/决策。
+
+**Body**:
+```json
+{
+  "extensionId": "xxx",
+  "tabId": 123,
+  "replyUrl": "http://localhost:3000/control/callback",
+  "sessionId": "optional-session-id",
+  "include": ["document", "screenshot", "axTree", "frameTree"],
+  "depth": 1
+}
+```
+
+**Response**:
+```json
+{
+  "ok": true,
+  "result": {
+    "tabId": 123,
+    "sessionId": null,
+    "include": ["document", "screenshot"],
+    "document": { "...": "..." },
+    "screenshot": "base64..."
+  }
+}
+```
+
 ## 验证步骤
+
+### 推荐：一键自动验证
+
+打开验证页：`http://localhost:3000/control/verify/phase6`，填写 `extensionId` / `replyUrl` 后点击 **Run All**。
+
+- **预期**：所有检查项 PASS（绿色 ✅），Detailed Output 中能看到完整 JSON 结果。
+- **备注**：verify 页会创建一个测试 tab，并自动导航到 `http://localhost:3000/test-stagehand.html`（固定布局测试页）。
 
 ### Step 1: 验证基础 evaluate
 
@@ -84,6 +123,7 @@ curl -X POST http://localhost:3000/control/extract \
   -H "Content-Type: application/json" \
   -d '{
     "extensionId": "xxx",
+    "tabId": 123,
     "mode": "expression",
     "expression": "document.title"
   }'
@@ -105,8 +145,9 @@ curl -X POST http://localhost:3000/control/act \
   -H "Content-Type: application/json" \
   -d '{
     "extensionId": "xxx",
+    "tabId": 123,
     "action": "navigate",
-    "url": "https://example.com"
+    "url": "http://localhost:3000/test-stagehand.html"
   }'
 ```
 
@@ -126,9 +167,10 @@ curl -X POST http://localhost:3000/control/act \
   -H "Content-Type: application/json" \
   -d '{
     "extensionId": "xxx",
+    "tabId": 123,
     "action": "click",
-    "x": 100,
-    "y": 200
+    "x": 160,
+    "y": 142
   }'
 ```
 
@@ -148,6 +190,7 @@ curl -X POST http://localhost:3000/control/act \
   -H "Content-Type: application/json" \
   -d '{
     "extensionId": "xxx",
+    "tabId": 123,
     "action": "type",
     "text": "Hello World"
   }'
@@ -169,8 +212,9 @@ curl -X POST http://localhost:3000/control/extract \
   -H "Content-Type: application/json" \
   -d '{
     "extensionId": "xxx",
+    "tabId": 123,
     "mode": "selector",
-    "selector": "h1",
+    "selector": "#title",
     "attribute": "textContent"
   }'
 ```
@@ -191,6 +235,7 @@ curl -X POST http://localhost:3000/control/extract \
   -H "Content-Type: application/json" \
   -d '{
     "extensionId": "xxx",
+    "tabId": 123,
     "mode": "all"
   }'
 ```
@@ -214,7 +259,7 @@ curl -X POST http://localhost:3000/control/extract \
 |---------------|---------|------|
 | `page.act("点击登录按钮")` | `POST /control/act` (坐标点击) | ⚠️ 需要 LLM 定位 |
 | `page.extract({ title: "页面标题" })` | `POST /control/extract` | ✅ 基础版本 |
-| `page.observe()` | 需要实现 | ❌ 待添加 |
+| `page.observe()` | `POST /control/observe` | ✅ 最小版（document/screenshot/axTree/frameTree） |
 | Frame 穿透 | sessionId 支持 | ⚠️ 需测试 |
 | 等待稳定 | waitHelpers | ✅ |
 | 截图 | screenshot() | ✅ |
@@ -237,20 +282,46 @@ curl -X POST http://localhost:3000/control/extract \
 
 | 检查项 | 预期 | 实际 |
 |--------|------|------|
-| DriverAdapter 创建成功 | ✅ | [ ] |
-| evaluate 返回正确结果 | ✅ | [ ] |
-| navigate 成功导航 | ✅ | [ ] |
-| click 成功点击 | ✅ | [ ] |
-| type 成功输入 | ✅ | [ ] |
-| extract 返回正确数据 | ✅ | [ ] |
-| 错误处理正确 | ✅ | [ ] |
+| DriverAdapter 创建成功 | ✅ | ✅ |
+| evaluate 返回正确结果 | ✅ | ✅ |
+| navigate 成功导航 | ✅ | ✅ |
+| click 成功点击 | ✅ | ✅ |
+| type 成功输入 | ✅ | ✅ |
+| extract 返回正确数据 | ✅ | ✅ |
+| observe 返回页面快照 | ✅ | ✅ |
+| 错误处理正确 | ✅ | ✅ |
 
 ## 结论
 
-- [ ] 基础 act/extract 通过 → 可以开始 LLM 集成
+- ✅ 基础 act/extract/observe 通过 → 可以开始 LLM 集成
 - [ ] 部分功能失败 → 需要排查
 
 ## 备注
 
 _______________________________________________________________
+
+### 固定布局测试页
+
+用于稳定验证 click/type 的页面：`http://localhost:3000/test-stagehand.html`
+
+- **按钮中心坐标**: `(160, 142)`
+- **输入框中心坐标**: `(210, 209)`
+
+### 验证结果（跑完 /control/verify/phase6 后填写）
+
+- **验证时间**: 2026-01-06
+- **验证状态**: ✅ 全部通过
+- **详细输出**: 见 `verification/round6-log.json`（包含 screenshot base64，文档中仅记录摘要，不粘贴原始数据）
+
+#### 测试摘要（来自 round6-log.json）
+
+| 测试项 | 结果 | 关键输出摘要 |
+|------|------|-------------|
+| navigate | ✅ PASS | `href === "http://localhost:3000/test-stagehand.html"` |
+| evaluate | ✅ PASS | `1+1 === 2` |
+| extract(selector) | ✅ PASS | `#title.textContent === "Stagehand Fixed Layout Test"` |
+| click | ✅ PASS | 点击 `(160,142)` 后 `#clickStatus === "clickStatus: clicked"` |
+| type | ✅ PASS | 输入 `"Hello Stagehand"` 后 `#input.value === "Hello Stagehand"` |
+| observe | ✅ PASS | `include=["document","screenshot"]`；document 存在；screenshot 为 base64（长度远大于 100） |
+| error-handling | ✅ PASS | 缺参 click 返回 `ok:false` 且 message 为 `"Missing x/y for click action"` |
 

@@ -25,6 +25,35 @@ Tests wait conditions and stability detection:
 - Scenario 5: Wait for stable (combined)
 - Scenario 6: Timeout mechanism
 
+**Status**: ✅ Phase 5 completed - wait/stability verified
+
+### Phase 6: Stagehand act/extract/observe (Minimal)
+**URL**: `http://localhost:3000/control/verify/phase6`
+
+Tests minimal Stagehand-style server-side handlers with extension-side CDP execution:
+- Run All: navigate + evaluate + extract + click + type + observe + error handling
+
+**Status**: ✅ Implementation complete - ready for verification
+
+### Phase 7: Deterministic Act (DOM → coord → input) + Same-origin iframe fallback
+**URL**: `http://localhost:3000/control/verify/phase7`
+
+Tests deterministic selector-based actions without LLM:
+- `POST /control/act2` with `click.selector` / `type.selector`
+- Same-origin iframe fallback: `click.iframeSelector` / `type.iframeSelector` (no child sessionId)
+- Error handling for missing selector / iframe not found
+
+**Status**: ✅ Implementation complete - ready for verification
+
+### Phase 8: Background (No-disturb) Trusted Click/Type
+**URL**: `http://localhost:3000/control/verify/phase8`
+
+Verifies that we can click/type in a **background tab** without stealing focus or switching the user's active tab:
+- Create tab with `active:false`
+- Use `POST /control/act2` (`click.selector` / `type.selector`) to drive **CDP Input**
+- Check `document.hasFocus() === false` on target tab
+- Check true active tab via extension `getFocusedActiveTab` (strict active tab, no control-page fallback)
+
 **Status**: ✅ Implementation complete - ready for verification
 
 ## Prerequisites
@@ -108,6 +137,9 @@ Each verification uses specific test pages:
 | Slow load | `/test-slow-load.html` | 2s delayed load event |
 | Multi-resource | `/test-multi-resource.html` | 6 images with delays |
 | Delayed image | `/slow-image.png?delay=N` | Configurable delay resource |
+| Stagehand fixed layout | `/test-stagehand.html` | Fixed coordinates button/input for act/extract/observe |
+| Stagehand same-origin iframe | `/test-stagehand-same-origin-iframe.html` | Same-origin iframe fallback tests |
+| Stagehand inner frame | `/test-stagehand-inner.html` | Inner frame for same-origin iframe tests |
 
 ## Adding New Verifications
 
@@ -128,4 +160,7 @@ To add a new verification endpoint:
 - [Phase 4 Verification Doc](../../../../verification/phase4-frame-oopif.md)
 - [Phase 5 Verification Doc](../../../../verification/phase5-stability-wait.md)
 - [Phase 5 Implementation Summary](../../../../verification/phase5-implementation-summary.md)
+- [Phase 6 Verification Doc](../../../../verification/phase6-stagehand-integration.md)
+- [Phase 7 Verification Doc](../../../../verification/phase7-deterministic-act.md)
+- [Phase 8 Verification Doc](../../../../verification/phase8-background-input.md)
 
