@@ -222,3 +222,5 @@ sequenceDiagram
 5. 服务端按 `commandId/traceId` 关联回调并推进下一步（或记录错误并终止）
 
 
+
+

@@ -56,6 +56,18 @@ Verifies that we can click/type in a **background tab** without stealing focus o
 
 **Status**: ✅ Implementation complete - ready for verification
 
+### Phase 9: Controlled Execution Closed Loop (Confirm + Audit + Replay)
+**URL**: `http://localhost:3000/control/verify/phase9`
+
+Verifies controlled execution loop:
+- Confirmation gating via extension popup (`CONFIRMATION_REQUIRED` / `CONFIRMATION_REJECTED`)
+- Server-side audit artifacts: `audit/<taskId>.jsonl` + `audit/<taskId>/screenshots/*-before.jpg|*-after.jpg`
+- Replay/Export endpoints:
+  - `GET /control/replay/:taskId`
+  - `GET /control/export/:taskId`
+
+**Status**: ✅ Implementation complete - ready for verification
+
 ## Prerequisites
 
 1. **Chrome Extension Installed**

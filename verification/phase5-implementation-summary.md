@@ -191,3 +191,5 @@ After Phase 5 verification passes:
 - `server/routes/control/events.post.ts` (already implemented)
 - `server/routes/control/events.get.ts` (already implemented)
 
+
+

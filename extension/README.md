@@ -11,6 +11,7 @@
 
 - `manifest.json`
   - `permissions`: `debugger`, `storage`
+  - `permissions`: `notifications`（Phase9 起：确认交互改为系统通知 Approve/Reject；不依赖 popup 可被程序唤起）
   - `externally_connectable.matches`: 允许 WebApp origin（目前默认允许 localhost + https://*/*，后续应收紧）
   - `host_permissions`: 允许扩展 `fetch` 到控制端（目前默认较宽，后续应收紧）
 
@@ -19,5 +20,7 @@
 1. 打开 `chrome://extensions`
 2. 开启开发者模式
 3. 加载已解压的扩展程序，选择本目录 `extension/`
+
+
 
 

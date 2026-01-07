@@ -24,11 +24,28 @@ export interface CdpResult {
   sessionId?: string
   method: string
   response?: unknown
-  error?: { message: string; name?: string }
+  error?: { code?: string; message: string; name?: string }
   durationMs: number
 }
 
 type Quad = number[] // [x1,y1,x2,y2,x3,y3,x4,y4]
+
+export type ActionMeta = {
+  taskId: string
+  actionId: string
+  risk?: "low" | "medium" | "high"
+  requiresConfirmation?: boolean
+  reason?: string
+}
+
+class DriverActionError extends Error {
+  code?: string
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = "DriverActionError"
+    this.code = code
+  }
+}
 
 export interface FrameInfo {
   sessionId: string
@@ -65,13 +82,18 @@ export class DriverAdapter {
     return this.currentTabId
   }
   
+  private throwCdpError(result: CdpResult, fallbackMessage: string): never {
+    const msg = result.error?.message ?? fallbackMessage
+    throw new DriverActionError(msg, result.error?.code)
+  }
+
   /**
    * 发送 CDP 命令
    */
   async send(
     method: string,
     params: Record<string, unknown> = {},
-    options?: { sessionId?: string; tabId?: number; timeoutMs?: number }
+    options?: { sessionId?: string; tabId?: number; timeoutMs?: number; action?: ActionMeta }
   ): Promise<CdpResult> {
     const tabId = options?.tabId ?? this.currentTabId
     if (tabId === null) {
@@ -96,6 +118,15 @@ export class DriverAdapter {
       issuedAt,
       ttlMs,
       target: { tabId, sessionId: options?.sessionId },
+      action: options?.action
+        ? {
+            taskId: options.action.taskId,
+            actionId: options.action.actionId,
+            risk: options.action.risk,
+            requiresConfirmation: options.action.requiresConfirmation,
+            reason: options.action.reason
+          }
+        : undefined,
       op: {
         kind: "cdp.send",
         method,
@@ -128,7 +159,11 @@ export class DriverAdapter {
       meta: {
         method,
         tabId,
-        sessionId: options?.sessionId
+        sessionId: options?.sessionId,
+        taskId: options?.action?.taskId,
+        actionId: options?.action?.actionId,
+        risk: options?.action?.risk,
+        requiresConfirmation: options?.action?.requiresConfirmation
       }
     })
     
@@ -178,7 +213,7 @@ export class DriverAdapter {
     )
     
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "Evaluate failed")
+      this.throwCdpError(result, "Evaluate failed")
     }
     
     const response = result.response as { result?: { value?: unknown } }
@@ -191,7 +226,7 @@ export class DriverAdapter {
   async getFrameTree(tabId?: number): Promise<unknown> {
     const result = await this.send("Page.getFrameTree", {}, { tabId })
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "getFrameTree failed")
+      this.throwCdpError(result, "getFrameTree failed")
     }
     return (result.response as { frameTree?: unknown })?.frameTree
   }
@@ -206,7 +241,7 @@ export class DriverAdapter {
       options
     )
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "getDocument failed")
+      this.throwCdpError(result, "getDocument failed")
     }
     return (result.response as { root?: unknown })?.root
   }
@@ -242,7 +277,7 @@ export class DriverAdapter {
       { tabId: options?.tabId, sessionId: options?.sessionId }
     )
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "DOM.querySelector failed")
+      this.throwCdpError(result, "DOM.querySelector failed")
     }
     return (result.response as { nodeId?: number })?.nodeId ?? 0
   }
@@ -260,7 +295,7 @@ export class DriverAdapter {
       { tabId: options?.tabId, sessionId: options?.sessionId }
     )
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "DOM.scrollIntoViewIfNeeded failed")
+      this.throwCdpError(result, "DOM.scrollIntoViewIfNeeded failed")
     }
   }
 
@@ -277,7 +312,7 @@ export class DriverAdapter {
       { tabId: options?.tabId, sessionId: options?.sessionId }
     )
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "DOM.getBoxModel failed")
+      this.throwCdpError(result, "DOM.getBoxModel failed")
     }
     const model = (result.response as { model?: { border?: Quad } })?.model
     const border = model?.border
@@ -301,14 +336,14 @@ export class DriverAdapter {
    */
   async clickSelector(
     selector: string,
-    options?: { sessionId?: string; tabId?: number; timeoutMs?: number }
+    options?: { sessionId?: string; tabId?: number; timeoutMs?: number; action?: ActionMeta }
   ): Promise<{ nodeId: number; x: number; y: number }> {
     const nodeId = await this.querySelector(selector, options)
     if (!nodeId) throw new Error(`Selector not found: ${selector}`)
     await this.scrollIntoViewIfNeeded(nodeId, options)
     const { border } = await this.getBoxModel(nodeId, options)
     const { x, y } = this.quadCenter(border)
-    await this.clickAt(x, y)
+    await this.clickAt(x, y, { tabId: options?.tabId, sessionId: options?.sessionId, action: options?.action })
     return { nodeId, x, y }
   }
 
@@ -318,7 +353,7 @@ export class DriverAdapter {
   async typeSelector(
     selector: string,
     text: string,
-    options?: { sessionId?: string; tabId?: number }
+    options?: { sessionId?: string; tabId?: number; action?: ActionMeta }
   ): Promise<{ nodeId: number; x: number; y: number; text: string }> {
     // Try focus first to improve reliability
     await this.evaluate(
@@ -326,7 +361,7 @@ export class DriverAdapter {
       { tabId: options?.tabId, sessionId: options?.sessionId, returnByValue: true }
     )
     const { nodeId, x, y } = await this.clickSelector(selector, options)
-    await this.type(text)
+    await this.type(text, { tabId: options?.tabId, sessionId: options?.sessionId, action: options?.action })
     return { nodeId, x, y, text }
   }
 
@@ -368,10 +403,10 @@ export class DriverAdapter {
   async clickIframeSelector(
     frameSelector: string,
     selector: string,
-    options?: { tabId?: number }
+    options?: { tabId?: number; action?: ActionMeta }
   ): Promise<{ x: number; y: number }> {
     const { x, y } = await this.resolvePointInSameOriginIframe(frameSelector, selector, options)
-    await this.clickAt(x, y)
+    await this.clickAt(x, y, { tabId: options?.tabId, action: options?.action })
     return { x, y }
   }
 
@@ -382,7 +417,7 @@ export class DriverAdapter {
     frameSelector: string,
     selector: string,
     text: string,
-    options?: { tabId?: number }
+    options?: { tabId?: number; action?: ActionMeta }
   ): Promise<{ x: number; y: number; text: string }> {
     // Focus inside iframe (best-effort)
     await this.evaluate(
@@ -396,7 +431,7 @@ export class DriverAdapter {
       { tabId: options?.tabId, returnByValue: true }
     )
     const { x, y } = await this.clickIframeSelector(frameSelector, selector, options)
-    await this.type(text)
+    await this.type(text, { tabId: options?.tabId, action: options?.action })
     return { x, y, text }
   }
   
@@ -472,7 +507,7 @@ export class DriverAdapter {
       { sessionId: options?.sessionId }
     )
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "Screenshot failed")
+      this.throwCdpError(result, "Screenshot failed")
     }
     return (result.response as { data?: string })?.data ?? ""
   }
@@ -483,7 +518,7 @@ export class DriverAdapter {
   async navigate(url: string, options?: { waitForLoad?: boolean }): Promise<void> {
     const result = await this.send("Page.navigate", { url })
     if (!result.ok) {
-      throw new Error(result.error?.message ?? "Navigate failed")
+      this.throwCdpError(result, "Navigate failed")
     }
     if (options?.waitForLoad !== false) {
       await this.waitForLoad()
@@ -493,10 +528,16 @@ export class DriverAdapter {
   /**
    * 点击元素（通过坐标）
    */
-  async clickAt(x: number, y: number): Promise<void> {
+  async clickAt(
+    x: number,
+    y: number,
+    options?: { tabId?: number; sessionId?: string; timeoutMs?: number; action?: ActionMeta }
+  ): Promise<void> {
     // Some environments are stricter about mouse event sequences.
     // Send move -> press -> small delay -> release with proper buttons/pointerType.
-    await this.send("Input.dispatchMouseEvent", {
+    const r1 = await this.send(
+      "Input.dispatchMouseEvent",
+      {
       type: "mouseMoved",
       x,
       y,
@@ -504,8 +545,14 @@ export class DriverAdapter {
       buttons: 0,
       pointerType: "mouse",
       clickCount: 0
-    })
-    await this.send("Input.dispatchMouseEvent", {
+      },
+      options
+    )
+    if (!r1.ok) this.throwCdpError(r1, "Input.mouseMoved failed")
+
+    const r2 = await this.send(
+      "Input.dispatchMouseEvent",
+      {
       type: "mousePressed",
       x,
       y,
@@ -513,10 +560,15 @@ export class DriverAdapter {
       buttons: 1,
       pointerType: "mouse",
       clickCount: 1
-    })
+      },
+      options
+    )
+    if (!r2.ok) this.throwCdpError(r2, "Input.mousePressed failed")
     // Minimal delay to better approximate real input and allow handlers to attach.
     await new Promise((r) => setTimeout(r, 25))
-    await this.send("Input.dispatchMouseEvent", {
+    const r3 = await this.send(
+      "Input.dispatchMouseEvent",
+      {
       type: "mouseReleased",
       x,
       y,
@@ -524,22 +576,28 @@ export class DriverAdapter {
       buttons: 0,
       pointerType: "mouse",
       clickCount: 1
-    })
+      },
+      options
+    )
+    if (!r3.ok) this.throwCdpError(r3, "Input.mouseReleased failed")
   }
   
   /**
    * 输入文本
    */
-  async type(text: string): Promise<void> {
-    await this.send("Input.insertText", { text })
+  async type(text: string, options?: { tabId?: number; sessionId?: string; timeoutMs?: number; action?: ActionMeta }): Promise<void> {
+    const r = await this.send("Input.insertText", { text }, options)
+    if (!r.ok) this.throwCdpError(r, "Input.insertText failed")
   }
   
   /**
    * 按键
    */
-  async press(key: string): Promise<void> {
-    await this.send("Input.dispatchKeyEvent", { type: "keyDown", key })
-    await this.send("Input.dispatchKeyEvent", { type: "keyUp", key })
+  async press(key: string, options?: { tabId?: number; sessionId?: string; timeoutMs?: number; action?: ActionMeta }): Promise<void> {
+    const r1 = await this.send("Input.dispatchKeyEvent", { type: "keyDown", key }, options)
+    if (!r1.ok) this.throwCdpError(r1, "Input.keyDown failed")
+    const r2 = await this.send("Input.dispatchKeyEvent", { type: "keyUp", key }, options)
+    if (!r2.ok) this.throwCdpError(r2, "Input.keyUp failed")
   }
 }
 

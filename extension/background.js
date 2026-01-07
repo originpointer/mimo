@@ -3,6 +3,147 @@ import { verifyJwsEs256 } from "./jwks.js"
 const DEFAULT_JWKS_URL = "http://localhost:3000/.well-known/jwks.json"
 const DEFAULT_EVENT_SINK_URL = "http://localhost:3000/control/events"
 
+// ---- Confirmation store ----
+// actionKey = `${taskId}:${actionId}`
+const CONFIRM_STORE_KEY = "mimo.confirmations.v1"
+
+// ---- Notifications ----
+// We avoid relying on popup being programmatically opened. Notifications are the primary confirmation entry.
+// Ref: https://developer.chrome.com/docs/extensions/reference/api/notifications
+const NOTIFY_PREFIX = "mimo.confirm:"
+// Prefer extension-packaged resource (plan requirement). Keep data URL as fallback.
+const NOTIFY_ICON_PATH = "icons/128.png"
+const NOTIFY_ICON_URL = chrome?.runtime?.getURL ? chrome.runtime.getURL(NOTIFY_ICON_PATH) : NOTIFY_ICON_PATH
+// 1x1 PNG data URL (last-resort fallback, avoids SVG rendering issues in some notification centers)
+const NOTIFY_ICON_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBApQp6XQAAAAASUVORK5CYII="
+
+// ---- Action cache (idempotency) ----
+// Keep short TTL to prevent accidental double-exec on retries/reconnects.
+const ACTION_CACHE_TTL_MS = 2 * 60 * 1000
+const actionCache = new Map() // actionKey -> { expiresAt, status, result, error }
+const actionInFlight = new Map() // actionKey -> Promise<{status,result,error}>
+
+async function getConfirmStore() {
+  const out = await chrome.storage.local.get(CONFIRM_STORE_KEY)
+  const v = out?.[CONFIRM_STORE_KEY]
+  return v && typeof v === "object" ? v : {}
+}
+
+async function setConfirmStore(next) {
+  await chrome.storage.local.set({ [CONFIRM_STORE_KEY]: next })
+}
+
+function notificationIdForActionKey(actionKey) {
+  // notificationId max length is 500; our ids are short. Use stable mapping.
+  return NOTIFY_PREFIX + actionKey
+}
+
+function actionKeyFromNotificationId(notificationId) {
+  if (typeof notificationId !== "string") return ""
+  if (!notificationId.startsWith(NOTIFY_PREFIX)) return ""
+  return notificationId.slice(NOTIFY_PREFIX.length)
+}
+
+async function getNotificationPermissionLevelSafe() {
+  try {
+    if (!chrome?.notifications?.getPermissionLevel) return "unsupported"
+    // callback-style for broad compatibility
+    return await new Promise((resolve) => {
+      try {
+        chrome.notifications.getPermissionLevel((level) => {
+          const err = chrome.runtime?.lastError
+          if (err) return resolve("error")
+          resolve(level || "granted")
+        })
+      } catch {
+        resolve("error")
+      }
+    })
+  } catch {
+    return "error"
+  }
+}
+
+async function createConfirmNotification({ actionKey, title, message }) {
+  if (!chrome?.notifications?.create) return { ok: false, reason: "unsupported" }
+  const id = notificationIdForActionKey(actionKey)
+  const options = {
+    type: "basic",
+    iconUrl: NOTIFY_ICON_URL,
+    title: title || "Mimo 需要确认",
+    message: message || "该动作需要用户确认",
+    requireInteraction: true,
+    priority: 0,
+    silent: true,
+    buttons: [{ title: "Approve" }, { title: "Reject" }]
+  }
+  try {
+    const r1 = await new Promise((resolve) => {
+      chrome.notifications.create(id, options, () => {
+        const err = chrome.runtime?.lastError
+        resolve({ ok: !err, err: err?.message })
+      })
+    })
+    if (!r1.ok) {
+      // Fallback to data URL icon (some platforms may reject resource urls in notifications)
+      const r2 = await new Promise((resolve) => {
+        chrome.notifications.create(id, { ...options, iconUrl: NOTIFY_ICON_DATA_URL }, () => {
+          const err = chrome.runtime?.lastError
+          resolve({ ok: !err, err: err?.message })
+        })
+      })
+      if (!r2.ok) return { ok: false, reason: r2.err || "notifications.create failed" }
+    }
+    return { ok: true, notificationId: id }
+  } catch (e) {
+    return { ok: false, reason: e instanceof Error ? e.message : String(e) }
+  }
+}
+
+// Popup/debug helper: trigger a test notification on demand.
+if (chrome?.runtime?.onMessage) {
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    const req = msg || {}
+    if (req?.type !== "mimo.confirm") return
+    if (req?.action !== "testNotification") return
+    void (async () => {
+      const perm = await getNotificationPermissionLevelSafe()
+      const actionKey = `test:${Date.now()}`
+      const created =
+        perm === "granted"
+          ? await createConfirmNotification({ actionKey, title: "Mimo 通知测试", message: "如果你能看到这条通知，说明 notifications 可用。" })
+          : { ok: false, reason: String(perm) }
+      sendResponse({ ok: true, perm, created })
+    })()
+    return true
+  })
+}
+
+// Handle notification buttons -> write decision back to confirm store
+if (chrome?.notifications?.onButtonClicked) {
+  chrome.notifications.onButtonClicked.addListener((notificationId, buttonIndex) => {
+    void (async () => {
+      const actionKey = actionKeyFromNotificationId(notificationId)
+      if (!actionKey) return
+      const store = await getConfirmStore()
+      const entry = store[actionKey]
+      if (!entry) {
+        try {
+          chrome.notifications.clear(notificationId)
+        } catch {}
+        return
+      }
+      const nextStatus = buttonIndex === 0 ? "approved" : "rejected"
+      store[actionKey] = { ...entry, status: nextStatus, decidedAt: Date.now() }
+      await setConfirmStore(store)
+      try {
+        chrome.notifications.clear(notificationId)
+      } catch {}
+    })()
+  })
+}
+
 // ---- Session Registry ----
 // Tracks attached tabs and their child sessions (for iframe/OOPIF support)
 const sessionRegistry = new Map() // tabId -> { attached: boolean, children: Map<sessionId, targetInfo> }
@@ -31,6 +172,29 @@ function isLocalhostOrigin(origin) {
 function toErrorPayload(e) {
   if (e instanceof Error) return { message: e.message, name: e.name }
   return { message: typeof e === "string" ? e : "Unknown error" }
+}
+
+function toErrorPayloadWithCode(code, e) {
+  const base = toErrorPayload(e)
+  return { code, ...base }
+}
+
+function now() {
+  return Date.now()
+}
+
+function getCachedAction(actionKey) {
+  const e = actionCache.get(actionKey)
+  if (!e) return null
+  if (e.expiresAt <= now()) {
+    actionCache.delete(actionKey)
+    return null
+  }
+  return e
+}
+
+function setCachedAction(actionKey, value) {
+  actionCache.set(actionKey, { ...value, expiresAt: now() + ACTION_CACHE_TTL_MS })
 }
 
 function originFromUrl(url) {
@@ -131,6 +295,31 @@ async function getActiveTabId() {
   const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true })
   if (!tab || typeof tab.id !== "number") throw new Error("No active tab found")
   return tab.id
+}
+
+async function getTabInfo(tabId) {
+  try {
+    const t = await chrome.tabs.get(tabId)
+    return { url: t?.url, title: t?.title }
+  } catch {
+    return { url: undefined, title: undefined }
+  }
+}
+
+async function tryCaptureBeforeScreenshot(tabId, sessionId, keepAttached) {
+  try {
+    // jpeg keeps size smaller for storage + popup rendering
+    const response = await cdpSendWithAutoDetach(
+      tabId,
+      "Page.captureScreenshot",
+      { format: "jpeg", quality: 60 },
+      sessionId,
+      keepAttached
+    )
+    return typeof response?.data === "string" ? response.data : ""
+  } catch {
+    return ""
+  }
 }
 
 // Track last non-control active tab per window to avoid reloading control pages.
@@ -295,6 +484,15 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       const sessionId = op.sessionId || payload?.target?.sessionId || null
       const keepAttached = Boolean(op.keepAttached || payload?.target?.keepAttached || payload?.options?.keepAttached)
 
+      // Optional action meta (Phase9+): used for confirmation gating & audit correlation.
+      const action = payload?.action
+      const taskId = typeof action?.taskId === "string" ? action.taskId : ""
+      const actionId = typeof action?.actionId === "string" ? action.actionId : ""
+      const risk = typeof action?.risk === "string" ? action.risk : undefined
+      const requiresConfirmation = Boolean(action?.requiresConfirmation)
+      const reason = typeof action?.reason === "string" ? action.reason : ""
+      const actionKey = taskId && actionId ? `${taskId}:${actionId}` : ""
+
       // Respond to WebApp early (accepted) to avoid hanging external channel.
       sendResponse({ ok: true, requestId: req.requestId, commandId, traceId, data: { accepted: true } })
 
@@ -304,11 +502,112 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       let err
       await runExclusive(tabId, async () => {
         try {
-          const response = await cdpSendWithAutoDetach(tabId, op.method, op.params || {}, sessionId, keepAttached)
-          result = { kind: "cdp.send", tabId, method: op.method, sessionId, response }
+          if (actionKey) {
+            const cached = getCachedAction(actionKey)
+            if (cached) {
+              status = cached.status
+              result = cached.result
+              err = cached.error
+              return
+            }
+            const inflight = actionInFlight.get(actionKey)
+            if (inflight) {
+              const r = await inflight
+              status = r.status
+              result = r.result
+              err = r.error
+              return
+            }
+          }
+
+          // Confirmation gate: only enforce for user-input CDP methods.
+          // We intentionally do NOT gate DOM/Runtime/Page reads to avoid over-confirming internal sub-steps.
+          const isUserInputMethod = typeof op.method === "string" && op.method.startsWith("Input.")
+          if (requiresConfirmation && isUserInputMethod && actionKey) {
+            const store = await getConfirmStore()
+            const entry = store[actionKey]
+            const entryStatus = entry?.status || "pending"
+
+            if (entryStatus !== "approved") {
+              // Create/refresh pending request snapshot for popup UI
+              const { url, title } = await getTabInfo(tabId)
+              const screenshotData = await tryCaptureBeforeScreenshot(tabId, sessionId, keepAttached)
+              store[actionKey] = {
+                status: entryStatus === "rejected" ? "rejected" : "pending",
+                updatedAt: Date.now(),
+                request: {
+                  taskId,
+                  actionId,
+                  risk,
+                  reason,
+                  tabId,
+                  url,
+                  title,
+                  method: op.method,
+                  screenshotData
+                }
+              }
+              await setConfirmStore(store)
+
+              // Primary confirm UX: system notifications with Approve/Reject.
+              const perm = await getNotificationPermissionLevelSafe()
+              if (perm === "granted") {
+                const msgParts = []
+                msgParts.push(String(op.method || "Input.*"))
+                if (risk) msgParts.push("risk=" + risk)
+                if (url) msgParts.push(url.slice(0, 120))
+                const n = await createConfirmNotification({
+                  actionKey,
+                  title: "Mimo 动作需要确认",
+                  message: msgParts.join(" | ")
+                })
+                // best-effort; ignore failure (will fall back to popup manual)
+                if (!n.ok) {
+                  // no-op
+                }
+              }
+
+              status = "error"
+              err =
+                entryStatus === "rejected"
+                  ? toErrorPayloadWithCode("CONFIRMATION_REJECTED", "User rejected confirmation")
+                  : toErrorPayloadWithCode(
+                      "CONFIRMATION_REQUIRED",
+                      perm === "granted"
+                        ? "Confirmation required (use system notification Approve/Reject)"
+                        : "Confirmation required (notifications disabled; open extension popup to approve)"
+                    )
+              // Don't cache confirmation errors; allow retry after approval.
+              return
+            }
+
+            // Approved: consume decision to avoid unintended reuse on future retries.
+            delete store[actionKey]
+            await setConfirmStore(store)
+          }
+
+          const exec = (async () => {
+            const response = await cdpSendWithAutoDetach(tabId, op.method, op.params || {}, sessionId, keepAttached)
+            return { status: "ok", result: { kind: "cdp.send", tabId, method: op.method, sessionId, response }, error: undefined }
+          })()
+
+          if (actionKey) actionInFlight.set(actionKey, exec)
+          const r = await exec
+          status = r.status
+          result = r.result
+          err = r.error
+          if (actionKey) {
+            actionInFlight.delete(actionKey)
+            // Cache success + non-confirmation errors for a short TTL.
+            setCachedAction(actionKey, { status, result, error: err })
+          }
         } catch (e) {
           status = "error"
           err = toErrorPayload(e)
+          if (actionKey) {
+            actionInFlight.delete(actionKey)
+            setCachedAction(actionKey, { status, result: undefined, error: err })
+          }
         }
       })
 

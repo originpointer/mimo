@@ -17,7 +17,7 @@ export type ExecutionCallback = {
   at: number
   status: "ok" | "error"
   result?: unknown
-  error?: { message: string; name?: string }
+  error?: { code?: string; message: string; name?: string }
   telemetry?: Record<string, unknown>
 }
 
@@ -25,6 +25,10 @@ export type PendingMeta = {
   method?: string
   tabId?: number
   sessionId?: string
+  taskId?: string
+  actionId?: string
+  risk?: "low" | "medium" | "high"
+  requiresConfirmation?: boolean
 }
 
 type PendingCommand = {
