@@ -3,6 +3,7 @@ import { eventHandler, readBody, createError } from "h3"
 import { createDriverAdapter, type ActionMeta } from "@/utils/control/driverAdapter"
 import { runWithTaskLock } from "@/utils/control/taskExecution"
 import { writeAuditLine, writeScreenshotFile, type AuditLine } from "@/utils/control/auditStore"
+import { evaluateAct2Policy, maxRisk, type Risk } from "@/utils/control/policy"
 
 type Act2Action =
   | "click.selector"
@@ -59,23 +60,29 @@ export default eventHandler(async (event) => {
       ? body.actionId
       : `act_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`
 
-  const defaultRisk: Act2Body["risk"] =
-    body.action === "click.selector" || body.action === "click.iframeSelector"
-      ? "medium"
-      : body.action === "type.selector" || body.action === "type.iframeSelector"
-        ? "medium"
-        : "low"
+  // Phase9-B: Server-authoritative policy (request may provide hints, but cannot downgrade below policy)
+  const policy = evaluateAct2Policy({
+    action: String(body.action),
+    selector: typeof body.selector === "string" ? body.selector : undefined,
+    frameSelector: typeof body.frameSelector === "string" ? body.frameSelector : undefined,
+    text: typeof body.text === "string" ? body.text : undefined
+  })
 
-  const risk = (body.risk as Act2Body["risk"]) || defaultRisk
-  const requiresConfirmation =
-    typeof body.requiresConfirmation === "boolean" ? body.requiresConfirmation : risk === "high"
+  const reqRisk = typeof body.risk === "string" ? (body.risk as Risk) : undefined
+  const reqRequires = typeof body.requiresConfirmation === "boolean" ? body.requiresConfirmation : undefined
+  const reqReason = typeof body.reason === "string" ? body.reason : undefined
+
+  const appliedRisk = reqRisk ? maxRisk(reqRisk, policy.risk) : policy.risk
+  const appliedRequiresConfirmation = Boolean(reqRequires ?? false) || policy.requiresConfirmation
+  const overridden = Boolean(reqRisk && appliedRisk !== reqRisk) || Boolean(reqRequires === false && policy.requiresConfirmation)
+  const appliedReason = reqReason ? `${reqReason}（policy: ${policy.reason}）` : policy.reason
 
   const actionMeta: ActionMeta = {
     taskId,
     actionId,
-    risk,
-    requiresConfirmation,
-    reason: typeof body.reason === "string" ? body.reason : undefined
+    risk: appliedRisk,
+    requiresConfirmation: appliedRequiresConfirmation,
+    reason: appliedReason
   }
 
   const driver = createDriverAdapter({
@@ -87,7 +94,7 @@ export default eventHandler(async (event) => {
   })
 
   try {
-    const identity = { taskId, actionId, risk, requiresConfirmation }
+    const identity = { taskId, actionId, risk: appliedRisk, requiresConfirmation: appliedRequiresConfirmation }
     const out = await runWithTaskLock(identity, async () => {
       // Optional wait before action
       const waitMode = body.wait ?? "none"
@@ -166,13 +173,22 @@ export default eventHandler(async (event) => {
         actionId,
         kind: "act2",
         status: "ok",
+        policy: {
+          computedRisk: policy.risk,
+          computedRequiresConfirmation: policy.requiresConfirmation,
+          appliedRisk,
+          appliedRequiresConfirmation,
+          reason: policy.reason,
+          requestProvided: { risk: reqRisk, requiresConfirmation: reqRequires, reason: reqReason },
+          overridden
+        },
         action: {
           type: body.action,
           target: { selector: body.selector, frameSelector: body.frameSelector },
           params: body.text ? { text: body.text } : {},
-          risk,
-          requiresConfirmation,
-          reason: typeof body.reason === "string" ? body.reason : undefined
+          risk: appliedRisk,
+          requiresConfirmation: appliedRequiresConfirmation,
+          reason: appliedReason
         },
         artifacts: {
           beforeScreenshot: beforeRef?.relPath,
@@ -182,12 +198,29 @@ export default eventHandler(async (event) => {
       }
       await writeAuditLine(taskId, line)
 
-      return { ok: true as const, taskId, actionId, risk, requiresConfirmation, action: body.action, resolved, performed }
+      return {
+        ok: true as const,
+        taskId,
+        actionId,
+        risk: appliedRisk,
+        requiresConfirmation: appliedRequiresConfirmation,
+        action: body.action,
+        resolved,
+        performed
+      }
     })
 
     if (!out.ok) {
       event.node.res.statusCode = out.code === "TASK_LOCKED" ? 409 : 500
-      return { ok: false, taskId, actionId, risk, requiresConfirmation, action: body.action, error: { code: out.code, message: out.message } }
+      return {
+        ok: false,
+        taskId,
+        actionId,
+        risk: appliedRisk,
+        requiresConfirmation: appliedRequiresConfirmation,
+        action: body.action,
+        error: { code: out.code, message: out.message }
+      }
     }
     return out.value
   } catch (e) {
@@ -200,18 +233,35 @@ export default eventHandler(async (event) => {
       kind: "act2",
       status: "error",
       error: { code, message },
+      policy: {
+        computedRisk: policy.risk,
+        computedRequiresConfirmation: policy.requiresConfirmation,
+        appliedRisk,
+        appliedRequiresConfirmation,
+        reason: policy.reason,
+        requestProvided: { risk: reqRisk, requiresConfirmation: reqRequires, reason: reqReason },
+        overridden
+      },
       action: {
         type: String(body?.action ?? "unknown"),
         target: { selector: (body as any)?.selector, frameSelector: (body as any)?.frameSelector },
         params: (body as any)?.text ? { text: (body as any)?.text } : {},
-        risk,
-        requiresConfirmation,
-        reason: typeof body?.reason === "string" ? body.reason : undefined
+        risk: appliedRisk,
+        requiresConfirmation: appliedRequiresConfirmation,
+        reason: appliedReason
       }
     }
     await writeAuditLine(taskId, line)
     // Keep same style as /control/act: ok:false payload
-    return { ok: false, taskId, actionId, risk, requiresConfirmation, action: body.action, error: { code, message } }
+    return {
+      ok: false,
+      taskId,
+      actionId,
+      risk: appliedRisk,
+      requiresConfirmation: appliedRequiresConfirmation,
+      action: body.action,
+      error: { code, message }
+    }
   }
 })
 

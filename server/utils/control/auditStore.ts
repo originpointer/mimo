@@ -11,6 +11,15 @@ export type AuditLine = {
   status: "ok" | "error"
   error?: { code?: string; message: string }
   page?: { url?: string; title?: string }
+  policy?: {
+    computedRisk?: AuditRisk
+    computedRequiresConfirmation?: boolean
+    appliedRisk?: AuditRisk
+    appliedRequiresConfirmation?: boolean
+    reason?: string
+    requestProvided?: { risk?: AuditRisk; requiresConfirmation?: boolean; reason?: string }
+    overridden?: boolean
+  }
   action?: {
     type: string
     target?: { selector?: string; frameSelector?: string }
@@ -91,6 +100,18 @@ export async function readTaskScreenshotBase64(taskId: string, relPathFromAuditR
     if (!resolved.startsWith(root + path.sep)) return null
     const buf = await fs.readFile(resolved)
     return buf.toString("base64")
+  } catch {
+    return null
+  }
+}
+
+export async function readAuditFileBuffer(relPathFromAuditRoot: string): Promise<Buffer | null> {
+  try {
+    const abs = path.join(auditRootDir(), relPathFromAuditRoot)
+    const root = auditRootDir()
+    const resolved = path.resolve(abs)
+    if (!resolved.startsWith(root + path.sep)) return null
+    return await fs.readFile(resolved)
   } catch {
     return null
   }

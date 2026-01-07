@@ -66,12 +66,29 @@ export default eventHandler(async (event) => {
     <header>
       <h1>Replay: <code>${escapeHtml(taskId)}</code></h1>
       <div class="muted">items: ${items.length}</div>
+      <div class="muted" style="margin-top:6px">
+        <a href="/control/export/${escapeHtml(taskId)}" style="color:#2563eb;text-decoration:none">Download zip</a>
+        <span style="margin-left:10px"></span>
+        <a href="/control/export/${escapeHtml(taskId)}?format=json" style="color:#2563eb;text-decoration:none">Export json</a>
+      </div>
     </header>
     <div class="wrap" id="root"></div>
     <script>
       const items = ${JSON.stringify(items)};
       const root = document.getElementById('root');
       const fmtTs = (ts)=> new Date(ts).toLocaleString();
+      function downloadBase64Jpeg(base64, filename) {
+        const byteChars = atob(base64);
+        const byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+        const blob = new Blob([new Uint8Array(byteNumbers)], { type: 'image/jpeg' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename || 'image.jpg';
+        a.click();
+        setTimeout(()=> URL.revokeObjectURL(url), 1000);
+      }
       for (const it of items) {
         const div = document.createElement('div');
         div.className = 'card';
@@ -79,13 +96,19 @@ export default eventHandler(async (event) => {
         div.innerHTML = \`
           <div>\${pill} <code>\${it.actionId}</code> <span class="muted">\${fmtTs(it.ts)}</span></div>
           <div class="muted">action: <code>\${(it.action && it.action.type) || 'unknown'}</code></div>
+          \${it.action && (it.action.risk || it.action.requiresConfirmation) ? '<div class="muted">risk: <code>' + (it.action.risk||'') + '</code> confirm: <code>' + String(Boolean(it.action.requiresConfirmation)) + '</code></div>' : ''}
+          \${it.action && it.action.reason ? '<div class="muted">reason: <code>' + it.action.reason + '</code></div>' : ''}
           \${it.error ? '<div class="muted">error: <code>' + ((it.error.code||'') + ' ' + (it.error.message||'')).trim() + '</code></div>' : ''}
           <div class="grid">
-            <div>\${it.beforeB64 ? '<div class="muted">before</div><img src="data:image/jpeg;base64,'+it.beforeB64+'"/>' : '<div class="muted">before: (none)</div>'}</div>
-            <div>\${it.afterB64 ? '<div class="muted">after</div><img src="data:image/jpeg;base64,'+it.afterB64+'"/>' : '<div class="muted">after: (none)</div>'}</div>
+            <div>\${it.beforeB64 ? '<div class="muted">before <button data-dl=\"before\" style=\"margin-left:6px\">download</button></div><img src="data:image/jpeg;base64,'+it.beforeB64+'"/>' : '<div class="muted">before: (none)</div>'}</div>
+            <div>\${it.afterB64 ? '<div class="muted">after <button data-dl=\"after\" style=\"margin-left:6px\">download</button></div><img src="data:image/jpeg;base64,'+it.afterB64+'"/>' : '<div class="muted">after: (none)</div>'}</div>
           </div>
         \`;
         root.appendChild(div);
+        const b1 = div.querySelector('button[data-dl=\"before\"]');
+        if (b1 && it.beforeB64) b1.addEventListener('click', ()=> downloadBase64Jpeg(it.beforeB64, it.actionId + '-before.jpg'));
+        const b2 = div.querySelector('button[data-dl=\"after\"]');
+        if (b2 && it.afterB64) b2.addEventListener('click', ()=> downloadBase64Jpeg(it.afterB64, it.actionId + '-after.jpg'));
       }
     </script>
   </body>

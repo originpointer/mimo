@@ -6,6 +6,7 @@ const DEFAULT_EVENT_SINK_URL = "http://localhost:3000/control/events"
 // ---- Confirmation store ----
 // actionKey = `${taskId}:${actionId}`
 const CONFIRM_STORE_KEY = "mimo.confirmations.v1"
+const CONFIRM_META_KEY = "mimo.confirm.meta.v1"
 
 // ---- Notifications ----
 // We avoid relying on popup being programmatically opened. Notifications are the primary confirmation entry.
@@ -17,6 +18,7 @@ const NOTIFY_ICON_URL = chrome?.runtime?.getURL ? chrome.runtime.getURL(NOTIFY_I
 // 1x1 PNG data URL (last-resort fallback, avoids SVG rendering issues in some notification centers)
 const NOTIFY_ICON_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMBApQp6XQAAAAASUVORK5CYII="
+const NOTIFY_DEDUP_MS = 30_000
 
 // ---- Action cache (idempotency) ----
 // Keep short TTL to prevent accidental double-exec on retries/reconnects.
@@ -34,6 +36,16 @@ async function setConfirmStore(next) {
   await chrome.storage.local.set({ [CONFIRM_STORE_KEY]: next })
 }
 
+async function setConfirmMeta(patch) {
+  try {
+    const out = await chrome.storage.local.get(CONFIRM_META_KEY)
+    const prev = out?.[CONFIRM_META_KEY] && typeof out[CONFIRM_META_KEY] === "object" ? out[CONFIRM_META_KEY] : {}
+    await chrome.storage.local.set({ [CONFIRM_META_KEY]: { ...prev, ...patch, updatedAt: Date.now() } })
+  } catch {
+    // ignore
+  }
+}
+
 function notificationIdForActionKey(actionKey) {
   // notificationId max length is 500; our ids are short. Use stable mapping.
   return NOTIFY_PREFIX + actionKey
@@ -43,6 +55,38 @@ function actionKeyFromNotificationId(notificationId) {
   if (typeof notificationId !== "string") return ""
   if (!notificationId.startsWith(NOTIFY_PREFIX)) return ""
   return notificationId.slice(NOTIFY_PREFIX.length)
+}
+
+function taskIdFromActionKey(actionKey) {
+  if (!actionKey) return ""
+  const idx = actionKey.indexOf(":")
+  return idx > 0 ? actionKey.slice(0, idx) : ""
+}
+
+async function getLastServerOriginSafe() {
+  try {
+    const out = await chrome.storage.local.get(CONFIRM_META_KEY)
+    const meta = out?.[CONFIRM_META_KEY]
+    const origin = meta?.lastServerOrigin
+    return typeof origin === "string" ? origin : ""
+  } catch {
+    return ""
+  }
+}
+
+function truncate(s, n) {
+  const str = String(s || "")
+  if (str.length <= n) return str
+  return str.slice(0, Math.max(0, n - 1)) + "…"
+}
+
+function originFromHttpUrl(url) {
+  try {
+    const u = new URL(url)
+    return u.origin
+  } catch {
+    return ""
+  }
 }
 
 async function getNotificationPermissionLevelSafe() {
@@ -72,7 +116,7 @@ async function createConfirmNotification({ actionKey, title, message }) {
     type: "basic",
     iconUrl: NOTIFY_ICON_URL,
     title: title || "Mimo 需要确认",
-    message: message || "该动作需要用户确认",
+    message: truncate(message || "该动作需要用户确认", 220),
     requireInteraction: true,
     priority: 0,
     silent: true,
@@ -101,6 +145,38 @@ async function createConfirmNotification({ actionKey, title, message }) {
   }
 }
 
+async function createOrUpdateConfirmNotification({ actionKey, title, message }) {
+  const id = notificationIdForActionKey(actionKey)
+  const options = {
+    type: "basic",
+    iconUrl: NOTIFY_ICON_URL,
+    title: title || "Mimo 需要确认",
+    message: truncate(message || "该动作需要用户确认", 220),
+    requireInteraction: true,
+    priority: 0,
+    silent: true,
+    buttons: [{ title: "Approve" }, { title: "Reject" }]
+  }
+
+  // Prefer update to avoid flashing; fallback to create.
+  if (chrome?.notifications?.update) {
+    const okUpdate = await new Promise((resolve) => {
+      try {
+        chrome.notifications.update(id, options, (ok) => {
+          const err = chrome.runtime?.lastError
+          if (err) return resolve(false)
+          resolve(Boolean(ok))
+        })
+      } catch {
+        resolve(false)
+      }
+    })
+    if (okUpdate) return { ok: true, notificationId: id, updated: true }
+  }
+  const created = await createConfirmNotification({ actionKey, title, message })
+  return { ...created, updated: false }
+}
+
 // Popup/debug helper: trigger a test notification on demand.
 if (chrome?.runtime?.onMessage) {
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -117,6 +193,34 @@ if (chrome?.runtime?.onMessage) {
       sendResponse({ ok: true, perm, created })
     })()
     return true
+  })
+}
+
+// Click notification body -> open replay (if available)
+if (chrome?.notifications?.onClicked) {
+  chrome.notifications.onClicked.addListener((notificationId) => {
+    void (async () => {
+      const actionKey = actionKeyFromNotificationId(notificationId)
+      if (!actionKey) return
+      const store = await getConfirmStore()
+      const entry = store[actionKey]
+      const replayUrlFromStore = entry?.request?.replayUrl
+      const taskId = taskIdFromActionKey(actionKey)
+      const lastOrigin = await getLastServerOriginSafe()
+      const fallbackReplayUrl = taskId && lastOrigin ? `${lastOrigin}/control/replay/${taskId}` : ""
+      const replayUrl = typeof replayUrlFromStore === "string" && replayUrlFromStore ? replayUrlFromStore : fallbackReplayUrl
+
+      await setConfirmMeta({ lastNotificationClickedAt: Date.now(), lastNotificationId: notificationId, lastActionKey: actionKey, lastReplayUrl: replayUrl })
+
+      if (typeof replayUrl === "string" && replayUrl) {
+        try {
+          await chrome.tabs.create({ url: replayUrl, active: true })
+          await setConfirmMeta({ lastOpenReplayOk: true })
+        } catch (e) {
+          await setConfirmMeta({ lastOpenReplayOk: false, lastOpenReplayError: e instanceof Error ? e.message : String(e) })
+        }
+      }
+    })()
   })
 }
 
@@ -492,6 +596,13 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
       const requiresConfirmation = Boolean(action?.requiresConfirmation)
       const reason = typeof action?.reason === "string" ? action.reason : ""
       const actionKey = taskId && actionId ? `${taskId}:${actionId}` : ""
+      const callbackUrl = typeof payload?.reply?.url === "string" ? payload.reply.url : ""
+      const serverOrigin = callbackUrl ? originFromHttpUrl(callbackUrl) : ""
+      const replayUrl = serverOrigin && taskId ? `${serverOrigin}/control/replay/${taskId}` : ""
+      const exportUrl = serverOrigin && taskId ? `${serverOrigin}/control/export/${taskId}` : ""
+      if (serverOrigin) {
+        await setConfirmMeta({ lastServerOrigin: serverOrigin })
+      }
 
       // Respond to WebApp early (accepted) to avoid hanging external channel.
       sendResponse({ ok: true, requestId: req.requestId, commandId, traceId, data: { accepted: true } })
@@ -532,9 +643,11 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
               // Create/refresh pending request snapshot for popup UI
               const { url, title } = await getTabInfo(tabId)
               const screenshotData = await tryCaptureBeforeScreenshot(tabId, sessionId, keepAttached)
+              const prevNotifiedAt = entry?.notification?.notifiedAt
               store[actionKey] = {
                 status: entryStatus === "rejected" ? "rejected" : "pending",
                 updatedAt: Date.now(),
+                notification: entry?.notification,
                 request: {
                   taskId,
                   actionId,
@@ -544,6 +657,8 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
                   url,
                   title,
                   method: op.method,
+                  replayUrl,
+                  exportUrl,
                   screenshotData
                 }
               }
@@ -552,18 +667,35 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
               // Primary confirm UX: system notifications with Approve/Reject.
               const perm = await getNotificationPermissionLevelSafe()
               if (perm === "granted") {
-                const msgParts = []
-                msgParts.push(String(op.method || "Input.*"))
-                if (risk) msgParts.push("risk=" + risk)
-                if (url) msgParts.push(url.slice(0, 120))
-                const n = await createConfirmNotification({
-                  actionKey,
-                  title: "Mimo 动作需要确认",
-                  message: msgParts.join(" | ")
-                })
-                // best-effort; ignore failure (will fall back to popup manual)
-                if (!n.ok) {
-                  // no-op
+                const nowMs = Date.now()
+                const shouldNotify =
+                  entryStatus !== "rejected" && (!prevNotifiedAt || nowMs - Number(prevNotifiedAt) > NOTIFY_DEDUP_MS)
+                if (shouldNotify) {
+                  const host = url ? (() => { try { return new URL(url).host } catch { return "" } })() : ""
+                  const msg = [
+                    host ? `site=${host}` : "",
+                    op.method ? `method=${op.method}` : "",
+                    risk ? `risk=${risk}` : "",
+                    reason ? `reason=${truncate(reason, 80)}` : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" | ")
+
+                  const n = await createOrUpdateConfirmNotification({
+                    actionKey,
+                    title: "Mimo 需要确认（Approve/Reject）",
+                    message: msg || "该动作需要用户确认"
+                  })
+
+                  const store2 = await getConfirmStore()
+                  const e2 = store2[actionKey]
+                  if (e2 && (n.ok || n.updated)) {
+                    store2[actionKey] = {
+                      ...e2,
+                      notification: { notificationId: notificationIdForActionKey(actionKey), notifiedAt: nowMs, updatedAt: nowMs }
+                    }
+                    await setConfirmStore(store2)
+                  }
                 }
               }
 

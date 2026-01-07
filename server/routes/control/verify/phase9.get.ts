@@ -168,6 +168,17 @@ export default eventHandler(() => {
     return await res.json();
   }
 
+  async function fetchJson(url) {
+    const res = await fetch(url);
+    return await res.json();
+  }
+
+  async function fetchArrayBuffer(url) {
+    const res = await fetch(url);
+    const buf = await res.arrayBuffer();
+    return { ok: res.ok, status: res.status, contentType: res.headers.get('content-type') || '', size: buf.byteLength };
+  }
+
   function rid(prefix) { return prefix + '_' + Date.now() + '_' + Math.random().toString(16).slice(2, 10); }
 
   async function runAll() {
@@ -212,7 +223,7 @@ export default eventHandler(() => {
     const exportUrl = window.location.origin + '/control/export/' + taskId;
     addResult('task created', true, 'taskId=' + taskId + '\\nreplay=' + replayUrl + '\\nexport=' + exportUrl);
 
-    setStatus('Scenario 1: low risk click (no confirm)…', true);
+    setStatus('Scenario 1: low risk click (policy decides)…', true);
     const a1 = rid('a1_low');
     const s1 = await postJson('/control/act2', {
       extensionId,
@@ -221,10 +232,7 @@ export default eventHandler(() => {
       taskId,
       actionId: a1,
       action: 'click.selector',
-      selector: '#btn',
-      risk: 'low',
-      requiresConfirmation: false,
-      reason: 'phase9 one-click low risk click'
+      selector: '#btn'
     });
     addResult('s1 low risk click (no confirm)', s1?.ok === true, s1?.ok ? 'ok' : ('error=' + JSON.stringify(s1?.error)));
 
@@ -238,10 +246,7 @@ export default eventHandler(() => {
       actionId: a2,
       action: 'type.selector',
       selector: '#input',
-      text: 'phase9-confirm',
-      risk: 'high',
-      requiresConfirmation: true,
-      reason: 'phase9 one-click high risk type'
+      text: 'phase9-confirm'
     });
 
     const needsConfirm = first?.ok === false && first?.error?.code === 'CONFIRMATION_REQUIRED';
@@ -261,10 +266,7 @@ export default eventHandler(() => {
           actionId: a2,
           action: 'type.selector',
           selector: '#input',
-          text: 'phase9-confirm',
-          risk: 'high',
-          requiresConfirmation: true,
-          reason: 'phase9 one-click high risk type (retry)'
+          text: 'phase9-confirm'
         });
         if (second?.ok === true) break;
         if (second?.ok === false && second?.error?.code === 'CONFIRMATION_REJECTED') break;
@@ -274,7 +276,25 @@ export default eventHandler(() => {
     }
 
     setDetail({ taskId, replayUrl, exportUrl, tabId, s1, first, second, plan });
-    setStatus('done. 打开 replay/export 检查证据链。', true);
+
+    // --- Auto assertions (Phase9-C prep): validate audit artifacts ---
+    try {
+      const exp = await fetchJson(exportUrl + '?format=json');
+      const okJson = exp?.ok === true && typeof exp?.count === 'number' && exp.count >= 2;
+      addResult('assert export?format=json count>=2', okJson, okJson ? ('count=' + exp.count) : JSON.stringify(exp));
+
+      const keys = exp?.screenshots ? Object.keys(exp.screenshots) : [];
+      const okShots = keys.length >= 2 && keys.every(k => (exp.screenshots[k] || '').length > 1000);
+      addResult('assert screenshots present (base64 non-empty)', okShots, 'keys=' + keys.length);
+
+      const zipCheck = await fetchArrayBuffer(exportUrl);
+      const okZip = zipCheck.ok && zipCheck.size > 200 && (zipCheck.contentType.includes('zip') || zipCheck.contentType.includes('application/zip'));
+      addResult('assert export zip downloadable', okZip, JSON.stringify(zipCheck));
+    } catch (e) {
+      addResult('assert audit artifacts', false, e instanceof Error ? e.message : String(e));
+    }
+
+    setStatus('done. replay/export 已自动断言；也可手动打开链接检查。', true);
   }
 
   $btnRunAll.addEventListener('click', () => void runAll());

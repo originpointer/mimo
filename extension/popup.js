@@ -1,4 +1,5 @@
 const KEY = "mimo.confirmations.v1"
+const META_KEY = "mimo.confirm.meta.v1"
 
 function $(id) {
   return document.getElementById(id)
@@ -7,6 +8,11 @@ function $(id) {
 async function getStore() {
   const out = await chrome.storage.local.get(KEY)
   return out?.[KEY] && typeof out[KEY] === "object" ? out[KEY] : {}
+}
+
+async function getMeta() {
+  const out = await chrome.storage.local.get(META_KEY)
+  return out?.[META_KEY] && typeof out[META_KEY] === "object" ? out[META_KEY] : {}
 }
 
 async function setStore(next) {
@@ -40,6 +46,7 @@ function renderItem(key, entry, store, refresh) {
   const reason = req.reason || ""
   const risk = req.risk || "low"
   const screenshot = req.screenshotData || ""
+  const replayUrl = req.replayUrl || ""
 
   const header = h("div", {}, [
     h("div", { className: "kv" }, [
@@ -66,6 +73,21 @@ function renderItem(key, entry, store, refresh) {
     : h("div", { className: "muted", text: "No screenshot captured." })
 
   const actions = h("div", { className: "actions" }, [
+    ...(replayUrl
+      ? [
+          h("button", {
+            className: "btn",
+            text: "Open replay",
+            onclick: async () => {
+              try {
+                await chrome.tabs.create({ url: replayUrl, active: true })
+              } catch {
+                // ignore
+              }
+            }
+          })
+        ]
+      : []),
     h("button", {
       className: "btn approve",
       text: "Approve",
@@ -101,10 +123,12 @@ function renderItem(key, entry, store, refresh) {
 async function refresh() {
   const statusEl = $("status")
   const notifyStatusEl = $("notifyStatus")
+  const notifyDiagEl = $("notifyDiag")
   const listEl = $("list")
   listEl.innerHTML = ""
 
   const store = await getStore()
+  const meta = await getMeta()
   const keys = Object.keys(store || {})
   const pending = keys.filter((k) => (store[k]?.status || "pending") === "pending")
 
@@ -121,6 +145,13 @@ async function refresh() {
 
   // Reset notify status line
   if (notifyStatusEl) notifyStatusEl.textContent = ""
+  if (notifyDiagEl) {
+    const last = meta?.lastNotificationId ? `lastNotificationId=${meta.lastNotificationId}` : "lastNotificationId=(none)"
+    const lastReplay = meta?.lastReplayUrl ? `lastReplayUrl=${meta.lastReplayUrl}` : ""
+    const lastOk = typeof meta?.lastOpenReplayOk === "boolean" ? `openReplayOk=${meta.lastOpenReplayOk}` : ""
+    const lastErr = meta?.lastOpenReplayError ? `openReplayError=${meta.lastOpenReplayError}` : ""
+    notifyDiagEl.textContent = [last, lastReplay, lastOk, lastErr].filter(Boolean).join(" | ")
+  }
 }
 
 $("btnRefresh").addEventListener("click", () => void refresh())
