@@ -55,6 +55,42 @@ export interface FrameInfo {
 }
 
 /**
+ * DOM 节点类型（CDP DOM.Node 的简化版）
+ */
+export interface DomNode {
+  nodeId: number
+  backendNodeId: number
+  nodeType: number
+  nodeName: string
+  localName?: string
+  nodeValue?: string
+  childNodeCount?: number
+  children?: DomNode[]
+  attributes?: string[]
+  shadowRoots?: DomNode[]
+  contentDocument?: DomNode
+  frameId?: string
+  isScrollable?: boolean
+}
+
+/**
+ * 可访问性节点类型（CDP Accessibility.AXNode 的简化版）
+ */
+export interface AXNode {
+  nodeId: string
+  ignored: boolean
+  role?: { type: string; value: string }
+  chromeRole?: { type: string; value: string }
+  name?: { type: string; value: string }
+  description?: { type: string; value: string }
+  value?: { type: string; value: string }
+  properties?: Array<{ name: string; value: { type: string; value: unknown } }>
+  parentId?: string
+  childIds?: string[]
+  backendDOMNodeId?: number
+}
+
+/**
  * DriverAdapter 类
  * 
  * 提供与 Stagehand Understudy 类似的接口，但底层通过扩展执行 CDP 命令。
@@ -234,10 +270,13 @@ export class DriverAdapter {
   /**
    * 获取文档根节点
    */
-  async getDocument(options?: { sessionId?: string; tabId?: number; depth?: number }): Promise<unknown> {
+  async getDocument(options?: { sessionId?: string; tabId?: number; depth?: number; pierce?: boolean }): Promise<unknown> {
+    const params: Record<string, unknown> = { depth: options?.depth ?? 0 }
+    if (options?.pierce !== undefined) params.pierce = options.pierce
+    
     const result = await this.send(
       "DOM.getDocument",
-      { depth: options?.depth ?? 0 },
+      params,
       options
     )
     if (!result.ok) {
@@ -598,6 +637,152 @@ export class DriverAdapter {
     if (!r1.ok) this.throwCdpError(r1, "Input.keyDown failed")
     const r2 = await this.send("Input.dispatchKeyEvent", { type: "keyUp", key }, options)
     if (!r2.ok) this.throwCdpError(r2, "Input.keyUp failed")
+  }
+
+  // ---- Stagehand DOM Serialization CDP Methods ----
+
+  /**
+   * DOM.describeNode - 获取节点详细信息
+   * 用于 DOM 树水合（hydrate）和获取节点完整信息
+   */
+  async describeNode(
+    options: {
+      nodeId?: number
+      backendNodeId?: number
+      depth?: number
+      pierce?: boolean
+      sessionId?: string
+      tabId?: number
+    }
+  ): Promise<DomNode> {
+    const { nodeId, backendNodeId, depth, pierce, sessionId, tabId } = options
+    if (!nodeId && !backendNodeId) {
+      throw new Error("describeNode requires either nodeId or backendNodeId")
+    }
+    const params: Record<string, unknown> = {}
+    if (nodeId !== undefined) params.nodeId = nodeId
+    if (backendNodeId !== undefined) params.backendNodeId = backendNodeId
+    if (depth !== undefined) params.depth = depth
+    if (pierce !== undefined) params.pierce = pierce
+
+    const result = await this.send("DOM.describeNode", params, { sessionId, tabId })
+    if (!result.ok) {
+      this.throwCdpError(result, "DOM.describeNode failed")
+    }
+    return (result.response as { node: DomNode }).node
+  }
+
+  /**
+   * DOM.getFrameOwner - 获取包含指定 frame 的 iframe 元素信息
+   * 用于计算 iframe 的 XPath 前缀
+   */
+  async getFrameOwner(
+    frameId: string,
+    options?: { sessionId?: string; tabId?: number }
+  ): Promise<{ backendNodeId: number; nodeId?: number }> {
+    const result = await this.send(
+      "DOM.getFrameOwner",
+      { frameId },
+      { sessionId: options?.sessionId, tabId: options?.tabId }
+    )
+    if (!result.ok) {
+      this.throwCdpError(result, "DOM.getFrameOwner failed")
+    }
+    const response = result.response as { backendNodeId?: number; nodeId?: number }
+    if (typeof response?.backendNodeId !== "number") {
+      throw new Error("DOM.getFrameOwner returned invalid backendNodeId")
+    }
+    return {
+      backendNodeId: response.backendNodeId,
+      nodeId: response.nodeId
+    }
+  }
+
+  /**
+   * DOM.resolveNode - 从 nodeId 或 backendNodeId 解析为 Runtime.RemoteObject
+   * 用于执行脚本操作节点
+   */
+  async resolveNode(
+    options: {
+      nodeId?: number
+      backendNodeId?: number
+      executionContextId?: number
+      sessionId?: string
+      tabId?: number
+    }
+  ): Promise<{ objectId: string; type: string; subtype?: string }> {
+    const { nodeId, backendNodeId, executionContextId, sessionId, tabId } = options
+    if (!nodeId && !backendNodeId) {
+      throw new Error("resolveNode requires either nodeId or backendNodeId")
+    }
+    const params: Record<string, unknown> = {}
+    if (nodeId !== undefined) params.nodeId = nodeId
+    if (backendNodeId !== undefined) params.backendNodeId = backendNodeId
+    if (executionContextId !== undefined) params.executionContextId = executionContextId
+
+    const result = await this.send("DOM.resolveNode", params, { sessionId, tabId })
+    if (!result.ok) {
+      this.throwCdpError(result, "DOM.resolveNode failed")
+    }
+    const response = result.response as { object?: { objectId?: string; type?: string; subtype?: string } }
+    if (!response?.object?.objectId) {
+      throw new Error("DOM.resolveNode returned invalid object")
+    }
+    return {
+      objectId: response.object.objectId,
+      type: response.object.type ?? "object",
+      subtype: response.object.subtype
+    }
+  }
+
+  /**
+   * Accessibility.enable - 启用可访问性域
+   */
+  async enableAccessibility(options?: { sessionId?: string; tabId?: number }): Promise<void> {
+    const result = await this.send("Accessibility.enable", {}, options)
+    if (!result.ok) {
+      this.throwCdpError(result, "Accessibility.enable failed")
+    }
+  }
+
+  /**
+   * Accessibility.getFullAXTree - 获取完整的可访问性树
+   */
+  async getFullAXTree(
+    options?: { depth?: number; frameId?: string; sessionId?: string; tabId?: number }
+  ): Promise<AXNode[]> {
+    const params: Record<string, unknown> = {}
+    if (options?.depth !== undefined) params.depth = options.depth
+    if (options?.frameId !== undefined) params.frameId = options.frameId
+
+    const result = await this.send("Accessibility.getFullAXTree", params, {
+      sessionId: options?.sessionId,
+      tabId: options?.tabId
+    })
+    if (!result.ok) {
+      this.throwCdpError(result, "Accessibility.getFullAXTree failed")
+    }
+    return (result.response as { nodes: AXNode[] }).nodes ?? []
+  }
+
+  /**
+   * DOM.enable - 启用 DOM 域
+   */
+  async enableDOM(options?: { sessionId?: string; tabId?: number }): Promise<void> {
+    const result = await this.send("DOM.enable", {}, options)
+    if (!result.ok) {
+      this.throwCdpError(result, "DOM.enable failed")
+    }
+  }
+
+  /**
+   * Runtime.enable - 启用 Runtime 域
+   */
+  async enableRuntime(options?: { sessionId?: string; tabId?: number }): Promise<void> {
+    const result = await this.send("Runtime.enable", {}, options)
+    if (!result.ok) {
+      this.throwCdpError(result, "Runtime.enable failed")
+    }
   }
 }
 
