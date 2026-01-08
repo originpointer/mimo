@@ -39,7 +39,12 @@ coverage/
 .DS_Store
 
 # sources
-.sources/
+# Ignore third-party repository directories in .sources/
+.sources/*/
+# But keep configuration files, scripts, and documentation
+!.sources/*.yml
+!.sources/*.ts
+!.sources/*.md
 
 # audit artifacts (Phase9/10 evidence chain)
 audit/

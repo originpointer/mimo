@@ -1,135 +1,111 @@
-# Turborepo starter
+# Mimo Repo
 
-This Turborepo starter is maintained by the Turborepo core team.
+基于 Turborepo 的 Monorepo 项目，包含后端服务器、Web 应用和浏览器扩展。
 
-## Using this example
+## 项目结构
 
-Run the following command:
+### Apps
 
-```sh
-npx create-turbo@latest
+- `nitro-app`: [Nitro](https://nitro.build/) 后端调度服务器（端口 6006）
+- `next-app`: [Next.js](https://nextjs.org/) + [shadcn/ui](https://ui.shadcn.com/) 用户交互页面（端口 3000）
+- `plasmo-app`: [Plasmo](https://www.plasmo.com/) 浏览器扩展
+
+### Packages
+
+- `@repo/ui`: React 组件库，供 `next-app` 使用
+- `@repo/eslint-config`: ESLint 配置（包含 `eslint-config-next` 和 `eslint-config-prettier`）
+- `@repo/typescript-config`: TypeScript 配置，在整个 monorepo 中使用
+
+所有包和应用均使用 100% [TypeScript](https://www.typescriptlang.org/)。
+
+## 快速开始
+
+### 安装依赖
+
+```bash
+pnpm install
 ```
 
-## What's inside?
+### 开发
 
-This Turborepo includes the following packages/apps:
+启动所有应用：
 
-### Apps and Packages
-
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `eslint-config-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
-
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
-
-### Utilities
-
-This Turborepo has some additional tools already setup for you:
-
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
-
-### Build
-
-To build all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build
-yarn dlx turbo build
-pnpm exec turbo build
+```bash
+pnpm dev
 ```
 
-You can build a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+启动特定应用：
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo build --filter=docs
+```bash
+# 启动 Nitro 后端服务器（端口 6006）
+pnpm --filter nitro-app dev
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo build --filter=docs
-yarn exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
+# 启动 Next.js Web 应用（端口 3000）
+pnpm --filter next-app dev
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-```
-cd my-turborepo
-
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev
-yarn exec turbo dev
-pnpm exec turbo dev
+# 启动 Plasmo 浏览器扩展
+pnpm --filter plasmo-app dev
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters):
+### 构建
 
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
-turbo dev --filter=web
+构建所有应用和包：
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo dev --filter=web
-yarn exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+```bash
+pnpm build
 ```
 
-### Remote Caching
+构建特定应用：
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
+```bash
+pnpm --filter nitro-app build
+pnpm --filter next-app build
+pnpm --filter plasmo-app build
 ```
-cd my-turborepo
 
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
+### 其他命令
+
+```bash
+# 代码检查
+pnpm lint
+
+# 类型检查
+pnpm check-types
+
+# 代码格式化
+pnpm format
+```
+
+## 工具
+
+本项目已配置以下工具：
+
+- [TypeScript](https://www.typescriptlang.org/) - 静态类型检查
+- [ESLint](https://eslint.org/) - 代码检查
+- [Prettier](https://prettier.io) - 代码格式化
+- [Turborepo](https://turborepo.com/) - Monorepo 构建系统
+
+## 远程缓存
+
+Turborepo 支持[远程缓存](https://turborepo.com/docs/core-concepts/remote-caching)，可以在团队成员和 CI/CD 流水线之间共享构建缓存。
+
+默认情况下，Turborepo 会在本地缓存。要启用远程缓存，需要 Vercel 账户：
+
+```bash
+# 登录 Vercel
 turbo login
 
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo login
-yarn exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-```
-# With [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation) installed (recommended)
+# 链接远程缓存
 turbo link
-
-# Without [global `turbo`](https://turborepo.com/docs/getting-started/installation#global-installation), use your package manager
-npx turbo link
-yarn exec turbo link
-pnpm exec turbo link
 ```
 
-## Useful Links
+## 有用链接
 
-Learn more about the power of Turborepo:
+了解更多关于 Turborepo 的信息：
 
-- [Tasks](https://turborepo.com/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.com/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.com/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.com/docs/reference/configuration)
-- [CLI Usage](https://turborepo.com/docs/reference/command-line-reference)
+- [任务](https://turborepo.com/docs/crafting-your-repository/running-tasks)
+- [缓存](https://turborepo.com/docs/crafting-your-repository/caching)
+- [远程缓存](https://turborepo.com/docs/core-concepts/remote-caching)
+- [过滤](https://turborepo.com/docs/crafting-your-repository/running-tasks#using-filters)
+- [配置选项](https://turborepo.com/docs/reference/configuration)
+- [CLI 使用](https://turborepo.com/docs/reference/command-line-reference)
