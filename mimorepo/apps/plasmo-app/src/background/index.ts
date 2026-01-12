@@ -5,6 +5,7 @@
  */
 
 import { type PageStateInfo, PageLoadState } from '../types/page-state';
+import { STAGEHAND_XPATH_SCAN, type StagehandXPathScanPayload, type StagehandXPathScanResponse } from '../types/stagehand-xpath';
 
 interface TabState {
   tabId: number;
@@ -139,6 +140,137 @@ class PageStateManager {
         const tabId = message.tabId;
         const tabState = this.tabStates.get(tabId);
         sendResponse(tabState || null);
+        return true;
+      }
+
+      // Tab Page -> Background -> Content: 扫描当前活动标签页并生成 XPath
+      if (message.type === STAGEHAND_XPATH_SCAN) {
+        const payload = message.payload as Partial<StagehandXPathScanPayload> | undefined;
+        const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
+
+        const isScannableUrl = (url: string | undefined): boolean => {
+          const u = String(url || '');
+          if (!u) return false;
+          const blocked = [
+            'chrome://',
+            'edge://',
+            'about:',
+            'devtools://',
+            'chrome-extension://',
+            'moz-extension://',
+            'view-source:',
+            'file://',
+          ];
+          return !blocked.some((p) => u.startsWith(p));
+        };
+
+        const tryInjectContentScript = async (tabId: number): Promise<boolean> => {
+          try {
+            // 从 manifest 动态取 content script 文件名（Plasmo 会生成 hash 文件名）
+            const mf = chrome.runtime.getManifest();
+            const file = mf?.content_scripts?.[0]?.js?.[0];
+            if (!file) return false;
+
+            return await new Promise((resolve) => {
+              try {
+                chrome.scripting.executeScript(
+                  {
+                    target: { tabId },
+                    files: [file],
+                  },
+                  () => {
+                    if (chrome.runtime.lastError) return resolve(false);
+                    resolve(true);
+                  },
+                );
+              } catch {
+                resolve(false);
+              }
+            });
+          } catch {
+            return false;
+          }
+        };
+
+        const sendToTab = (tabId: number) => {
+          chrome.tabs.get(tabId, (tab) => {
+            const tabUrl = tab?.url;
+            if (chrome.runtime.lastError) {
+              sendResponse({
+                ok: false,
+                error: `tabs.get failed: ${chrome.runtime.lastError.message}`,
+              } satisfies StagehandXPathScanResponse);
+              return;
+            }
+            if (!isScannableUrl(tabUrl)) {
+              sendResponse({
+                ok: false,
+                error: `目标 Tab 不可扫描（url=${tabUrl || 'unknown'}）。请使用 http/https 页面。`,
+              } satisfies StagehandXPathScanResponse);
+              return;
+            }
+
+            const sendOnce = (onDone: (resp: unknown) => void) => {
+              chrome.tabs.sendMessage(
+                tabId,
+                {
+                  type: STAGEHAND_XPATH_SCAN,
+                  payload,
+                },
+                (resp) => onDone(resp),
+              );
+            };
+
+            // 先发一次；若发现没有接收端，则尝试注入 content script 后重试一次
+            sendOnce(async (resp) => {
+              const errMsg = chrome.runtime.lastError?.message;
+              if (errMsg && errMsg.includes('Receiving end does not exist')) {
+                const injected = await tryInjectContentScript(tabId);
+                if (injected) {
+                  sendOnce((resp2) => {
+                    if (chrome.runtime.lastError) {
+                      sendResponse({
+                        ok: false,
+                        error: `sendMessage failed: ${chrome.runtime.lastError.message} (tabId=${tabId}, url=${tabUrl || 'unknown'})`,
+                      } satisfies StagehandXPathScanResponse);
+                      return;
+                    }
+                    sendResponse(
+                      (resp2 || { ok: false, error: 'No response from content script' }) satisfies StagehandXPathScanResponse,
+                    );
+                  });
+                  return;
+                }
+              }
+
+              if (chrome.runtime.lastError) {
+                sendResponse({
+                  ok: false,
+                  error: `sendMessage failed: ${chrome.runtime.lastError.message} (tabId=${tabId}, url=${tabUrl || 'unknown'})`,
+                } satisfies StagehandXPathScanResponse);
+                return;
+              }
+              sendResponse(
+                (resp || { ok: false, error: 'No response from content script' }) satisfies StagehandXPathScanResponse,
+              );
+            });
+          });
+        };
+
+        if (requestedTabId != null) {
+          sendToTab(requestedTabId);
+          return true;
+        }
+
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          const tabId = tabs?.[0]?.id;
+          if (!tabId) {
+            sendResponse({ ok: false, error: 'No active tab found' } satisfies StagehandXPathScanResponse);
+            return;
+          }
+          sendToTab(tabId);
+        });
+
         return true;
       }
 

@@ -108,6 +108,39 @@ const metadata = extractPluginMetadata(plugin);
 // { name: 'my-plugin', version: '1.0.0', description: 'My awesome plugin' }
 ```
 
+### Stagehand 风格 XPath 工具（CDP 场景）
+
+当你在 Node.js 中通过 CDP 获取 DOM 树（或类似结构）时，可以使用 `@repo/sens/utils` 提供的工具函数，按 Stagehand v3 的规则构建稳定的 XPath step 并在遍历时累积成绝对 XPath。
+
+```typescript
+import { buildChildXPathSegments, joinXPath } from '@repo/sens/utils'
+
+type CdpNode = { nodeType: number; nodeName: string; children?: CdpNode[] }
+
+function buildXpathMapFromTree(root: CdpNode) {
+  const map = new Map<CdpNode, string>()
+
+  const walk = (node: CdpNode, xp: string) => {
+    map.set(node, xp || "/")
+
+    const kids = node.children ?? []
+    if (!kids.length) return
+
+    const segs = buildChildXPathSegments(kids)
+    for (let i = 0; i < kids.length; i++) {
+      const child = kids[i]!
+      const step = segs[i]!
+      walk(child, joinXPath(xp || "/", step))
+    }
+  }
+
+  walk(root, "/")
+  return map
+}
+```
+
+更多说明见：`mimorepo/packages/sens/docs/StagehandXPath-使用指南.md`
+
 ## API 文档
 
 ### `validatePlugin(plugin: unknown): PluginValidationResult`

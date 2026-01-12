@@ -10,3 +10,10 @@ export type {
   PluginValidationResult,
   PluginCompositionOptions,
 } from '../types.js';
+
+export {
+  buildChildXPathSegments,
+  joinXPath,
+  normalizeXPath,
+  prefixXPath,
+} from './stagehand-xpath.js';
