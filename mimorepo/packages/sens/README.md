@@ -112,6 +112,8 @@ const metadata = extractPluginMetadata(plugin);
 
 当你在 Node.js 中通过 CDP 获取 DOM 树（或类似结构）时，可以使用 `@repo/sens/utils` 提供的工具函数，按 Stagehand v3 的规则构建稳定的 XPath step 并在遍历时累积成绝对 XPath。
 
+算法说明文档：`docs/StagehandXPath-算法说明.md`
+
 ```typescript
 import { buildChildXPathSegments, joinXPath } from '@repo/sens/utils'
 

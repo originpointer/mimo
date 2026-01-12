@@ -26,6 +26,8 @@ For further guidance, [visit our Documentation](https://docs.plasmo.com/)
   - 在任意网页打开后，进入该 Tab Page
   - 在 JSON 配置中填写参数并点击 `Scan + Build XPath`
   - 结果会以 JSON 形式展示（包含 `xpath/tagName/id/className/textSnippet`）
+- 协议说明：
+  - `docs/StagehandXPath-协议说明.md`
 
 ### 配置参数
 
