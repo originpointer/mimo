@@ -1,0 +1,42 @@
+{
+  "name": "@repo/sens",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
+    },
+    "./detectors": {
+      "types": "./dist/detectors/index.d.ts",
+      "import": "./dist/detectors/index.js"
+    }
+  },
+  "scripts": {
+    "build": "rolldown -c && tsc",
+    "test": "vitest run",
+    "test:browser": "vitest run --project browser",
+    "test:all": "vitest run --project node --project browser",
+    "test:watch": "vitest",
+    "test:watch:browser": "vitest --project browser",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "workspace:*",
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.15.3",
+    "@vitest/browser-playwright": "^4.0.16",
+    "@vitest/ui": "^4.0.16",
+    "eslint": "^9.39.1",
+    "rolldown": "^1.0.0-beta.1",
+    "typescript": "5.9.2",
+    "vitest": "^4.0.16"
+  },
+  "dependencies": {}
+}
