@@ -160,7 +160,9 @@ function StagehandXPathTab() {
       <h2 style={{ margin: "0 0 12px 0" }}>StagehandXPath（Tab Page）</h2>
 
       <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
-        说明：点击执行后，会对“当前活动标签页”扫描可交互元素，并生成 stagehand 风格绝对 XPath（每段带索引）。
+        说明：点击执行后，会通过 CDP（chrome.debugger）对“当前活动标签页”及其 iframe（含跨域 OOPIF）扫描可交互元素，并生成 stagehand 风格 XPath（每段带索引，iframe 作为前缀拼接）。
+        <br />
+        注意：该能力需要扩展具备 `debugger` 权限；若目标 Tab 正在被 DevTools 调试，可能导致 attach 失败并返回错误。
       </div>
 
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10, flexWrap: "wrap" }}>

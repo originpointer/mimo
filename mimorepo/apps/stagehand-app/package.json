@@ -1,0 +1,21 @@
+{
+  "name": "stagehand-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture:zhipin": "tsx src/capture-zhipin.ts",
+    "compare:plasmo": "tsx src/compare-with-plasmo.ts"
+  },
+  "dependencies": {
+    "@browserbasehq/stagehand": "^3.0.7",
+    "deepmerge": "^4.3.1",
+    "dotenv": "^16.4.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "playwright": "^1.52.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.2"
+  }
+}

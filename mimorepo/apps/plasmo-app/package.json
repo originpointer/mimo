@@ -30,8 +30,7 @@
       "https://*/*"
     ],
     "permissions": [
-      "webNavigation",
-      "scripting",
+      "debugger",
       "tabs"
     ]
   }

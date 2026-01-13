@@ -1,0 +1,226 @@
+{
+    "ok": true,
+    "items": [
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[1]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[2]/dt[1]/a[1]",
+        "tagName": "a",
+        "className": "router-link-active"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[3]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[4]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[5]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[6]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[7]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[8]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[1]/div[1]/dl[9]/dt[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/h1[1]/a[1]",
+        "tagName": "a",
+        "textSnippet": "直聘企业版"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/div[1]/div[2]/div[1]/a[1]",
+        "tagName": "a"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/div[1]/div[7]/div[1]/div[2]/ul[1]/li[1]/a[1]",
+        "tagName": "a",
+        "className": "link-usecenter"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/div[1]/div[7]/div[1]/div[2]/ul[1]/li[2]/a[1]",
+        "tagName": "a",
+        "className": "link-msgset"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/div[1]/div[7]/div[1]/div[2]/ul[1]/li[3]/a[1]",
+        "tagName": "a",
+        "className": "link-wallet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/div[1]/div[7]/div[1]/div[2]/ul[1]/li[4]/a[1]",
+        "tagName": "a",
+        "className": "link-msgset"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[2]/div[1]/div[1]/div[7]/div[1]/div[2]/ul[1]/li[5]/a[1]",
+        "tagName": "a",
+        "className": "link-signout"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/h1[1]/a[1]",
+        "tagName": "a",
+        "className": "cancle"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/input[1]",
+        "tagName": "input"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/input[2]",
+        "tagName": "input",
+        "id": "x"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/input[3]",
+        "tagName": "input",
+        "id": "y"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/input[4]",
+        "tagName": "input",
+        "id": "w"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/input[5]",
+        "tagName": "input",
+        "id": "h"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/input[6]",
+        "tagName": "input",
+        "id": "saveCrop"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[4]/div[1]/div[2]/a[1]",
+        "tagName": "a",
+        "className": "cancle"
+      },
+      {
+        "xpath": "/html[1]/body[1]/input[1]",
+        "tagName": "input",
+        "id": "page_key_name"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[2]/div[2]/div[1]/input[1]",
+        "tagName": "input",
+        "className": "ipt chat-job-search",
+        "textSnippet": "请输入职位名称"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[2]/div[1]/div[3]/div[1]/label[1]/span[1]/input[1]",
+        "tagName": "input",
+        "className": "checkbox-input"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[2]/div[2]/div[2]/button[1]",
+        "tagName": "button",
+        "className": "btn clear-btn btn-outline"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[1]/div[3]/div[2]/div[2]/div[2]/button[2]",
+        "tagName": "button",
+        "className": "btn confirm-btn"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[1]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[2]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[3]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[4]/div[1]/div[3]/div[1]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[5]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[6]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[7]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[8]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[9]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[10]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[11]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[12]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[13]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[14]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/div[1]/div[1]/div[1]/div[2]/div[1]/div[1]/div[1]/div[1]/ul[1]/li[15]/div[1]/div[3]/div[2]/span[1]/div[1]/button[1]",
+        "tagName": "button",
+        "className": "btn btn-greet"
+      },
+      {
+        "xpath": "/html[1]/body[1]/div[2]/div[3]/div[1]/div[1]/div[2]/iframe[1]/input[1]",
+        "tagName": "input",
+        "id": "page_key_name"
+      }
+    ],
+    "meta": {
+      "totalCandidates": 45,
+      "durationMs": 91,
+      "framesScanned": 2
+    }
+  }
