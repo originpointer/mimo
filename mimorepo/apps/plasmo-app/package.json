@@ -31,7 +31,8 @@
     ],
     "permissions": [
       "debugger",
-      "tabs"
+      "tabs",
+      "downloads"
     ]
   }
 }
