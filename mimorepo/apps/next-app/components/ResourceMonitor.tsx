@@ -97,12 +97,10 @@ export function ResourceMonitor() {
       },
       onCoreWebVital: (info: CoreWebVitalInfo) => {
         let valueStr = '';
-        let unit = '';
 
         switch (info.type) {
           case 'LCP':
             valueStr = formatTime(info.value);
-            unit = '';
             console.log(
               `[CWV] LCP: ${valueStr}`,
               info.details?.element ? `\n  Element: ${info.details.element.tagName}` : '',
@@ -112,7 +110,6 @@ export function ResourceMonitor() {
             break;
           case 'FID':
             valueStr = formatTime(info.value);
-            unit = '';
             console.log(
               `[CWV] FID: ${valueStr}`,
               info.details?.eventType ? `\n  Event: ${info.details.eventType}` : '',
@@ -120,7 +117,6 @@ export function ResourceMonitor() {
             break;
           case 'CLS':
             valueStr = info.value.toFixed(4);
-            unit = '';
             console.log(
               `[CWV] CLS: ${valueStr}`,
               info.details?.sources && info.details.sources.length > 0

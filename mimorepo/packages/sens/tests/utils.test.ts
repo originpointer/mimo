@@ -129,7 +129,7 @@ describe('createPluginFactory', () => {
   });
 
   it('应该自动设置插件名称', () => {
-    const factory = createPluginFactory('auto-name', () => ({} as any));
+    const factory = createPluginFactory('auto-name', () => ({ name: '' }));
     const plugin = factory();
     expect(plugin.name).toBe('auto-name');
   });
