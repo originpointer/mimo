@@ -47,3 +47,15 @@ sources:
     shallow: true
     notes: "Used as reference only"
 
+  - name: opencode
+    repo: git@github.com:anomalyco/opencode.git
+    ref: dev
+    shallow: true
+    notes: "Used as reference only"
+
+  - name: letta
+    repo: git@github.com:letta-ai/letta.git
+    ref: main
+    shallow: true
+    notes: "Used as reference only"
+
