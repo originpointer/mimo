@@ -10,7 +10,8 @@
         "!.next/cache/**",
         ".output/**",
         ".plasmo/**",
-        "build/**"
+        "build/**",
+        "dist/**"
       ]
     },
     "lint": {

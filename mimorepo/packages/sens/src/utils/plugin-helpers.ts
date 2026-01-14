@@ -1,4 +1,4 @@
-import type { PluginMetadata, PluginOptions, PluginValidationResult, PluginCompositionOptions } from '../types.js';
+import type { PluginMetadata, PluginOptions, PluginValidationResult, PluginCompositionOptions } from '../types';
 
 /**
  * 验证插件是否符合基本规范

@@ -13,7 +13,7 @@ import type {
   LongTaskInfo,
   PerformanceMetrics,
   CoreWebVitalType,
-} from './types.js';
+} from './types';
 
 /**
  * 默认配置

@@ -1,15 +1,15 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { ResourcePerformanceDetector } from '../../../packages/sens/src/detectors';
-import type {
-  ResourceInfo,
-  SlowResourceInfo,
-  NetworkQuietInfo,
-  NavigationTimingInfo,
-  CoreWebVitalInfo,
-  LongTaskInfo,
-} from '../../../packages/sens/src/detectors';
+import {
+  ResourcePerformanceDetector,
+  type ResourceInfo,
+  type SlowResourceInfo,
+  type NetworkQuietInfo,
+  type NavigationTimingInfo,
+  type CoreWebVitalInfo,
+  type LongTaskInfo,
+} from '@repo/sens';
 
 /**
  * 格式化字节数为友好格式

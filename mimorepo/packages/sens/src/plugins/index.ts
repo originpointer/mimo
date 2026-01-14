@@ -3,8 +3,8 @@
  * 这里可以放置一些基础插件或示例插件
  */
 
-import type { PluginOptions } from '../types.js';
-import { createPluginFactory } from '../utils/index.js';
+import type { PluginOptions } from '../types';
+import { createPluginFactory } from '../utils/index';
 
 /**
  * 示例：空插件（用于测试）

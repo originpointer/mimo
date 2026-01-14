@@ -7,5 +7,15 @@ export default defineNitroConfig({
   imports: false,
   devServer: {
     port: 6006
-  }
+  },
+  routeRules: {
+    "/api/**": {
+      cors: true,
+      headers: {
+        "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "http://localhost:3000",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      },
+    },
+  },
 });

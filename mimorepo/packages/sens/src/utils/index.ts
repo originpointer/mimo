@@ -4,16 +4,16 @@ export {
   extractPluginMetadata,
   mergePluginOptions,
   createPluginFactory,
-} from './plugin-helpers.js';
+} from './plugin-helpers';
 
 export type {
   PluginValidationResult,
   PluginCompositionOptions,
-} from '../types.js';
+} from '../types';
 
 export {
   buildChildXPathSegments,
   joinXPath,
   normalizeXPath,
   prefixXPath,
-} from './stagehand-xpath.js';
+} from './stagehand-xpath';
