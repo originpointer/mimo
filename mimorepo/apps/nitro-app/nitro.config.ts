@@ -6,6 +6,9 @@ export default defineNitroConfig({
   compatibilityDate: "latest",
   srcDir: "server",
   imports: false,
+  experimental: {
+    websocket: true
+  },
   alias: {
     "@": fileURLToPath(new URL("./server", import.meta.url))
   },

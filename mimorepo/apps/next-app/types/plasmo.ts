@@ -28,6 +28,7 @@ export type StagehandXPathScanResponse =
 
 export type StagehandViewportScreenshotPayload = {
   targetTabId?: number
+  taskId?: string
 }
 
 export type StagehandViewportScreenshotResponse =

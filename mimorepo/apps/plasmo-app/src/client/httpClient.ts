@@ -19,10 +19,6 @@ export class HttpClient {
     const rawBaseUrl = options.baseUrl ?? envBaseUrl ?? ""
     this.baseUrl = String(rawBaseUrl).replace(/\/+$/, "")
     this.defaultHeaders = options.defaultHeaders ?? {}
-
-    console.log('process.env.PLASMO_PUBLIC_BASE_URL', process.env.PLASMO_PUBLIC_BASE_URL)
-
-    console.log("HttpClient constructor", this.baseUrl)
   }
 
   private buildUrl(path: string) {

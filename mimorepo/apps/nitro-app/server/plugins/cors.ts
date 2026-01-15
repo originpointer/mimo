@@ -8,11 +8,5 @@ export default defineNitroPlugin((nitroApp) => {
     setHeader(event, "access-control-allow-methods", "GET,POST,OPTIONS")
     setHeader(event, "access-control-allow-headers", "content-type,authorization")
     setHeader(event, "access-control-max-age", "86400")
-
-    const method = String(event?.node?.req?.method || "").toUpperCase()
-    if (method === "OPTIONS") {
-      event.node.res.statusCode = 204
-      event.node.res.end()
-    }
   })
 })

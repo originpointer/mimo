@@ -5,6 +5,10 @@ export type StagehandViewportScreenshotPayload = {
    * 可选：指定要截图的 tabId；不传则由 background 使用“当前活动标签页”
    */
   targetTabId?: number
+  /**
+   * 可选：用于与 Nitro 任务关联
+   */
+  taskId?: string
 }
 
 export type StagehandViewportScreenshotResponse =

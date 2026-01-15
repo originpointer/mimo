@@ -23,7 +23,7 @@ import {
   type ResumeXpathValidateResponse
 } from "../types/resume-validate"
 import { LIST_TABS, type ListTabsPayload, type ListTabsResponse } from "../types/list-tabs"
-import { registerExtensionId } from "@/apis"
+import { postToolCallResult, registerExtensionId } from "@/apis"
 import { StagehandXPathScanner } from "./libs/StagehandXPathScanner"
 import { StagehandViewportScreenshotter } from "./libs/StagehandViewportScreenshotter"
 import { ResumeBlocksExtractor } from "./libs/ResumeBlocksExtractor"
@@ -63,11 +63,24 @@ class StagehandXPathManager {
   ): true {
     const payload = message.payload as Partial<StagehandViewportScreenshotPayload> | undefined
     const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
+    const taskId = typeof payload?.taskId === "string" ? payload.taskId : undefined
+    const extensionId = chrome.runtime?.id || ""
+
+    const reportToolCallResult = (input: { ok: boolean; dataUrl?: string; base64?: string; meta?: unknown; error?: string }) => {
+      if (!taskId) return
+      void postToolCallResult({
+        taskId,
+        extensionId,
+        toolType: "viewportScreenshot",
+        ...input
+      })
+    }
 
     const runOnTab = (tabId: number) => {
       chrome.tabs.get(tabId, (tab) => {
         const tabUrl = tab?.url
         if (chrome.runtime.lastError) {
+          reportToolCallResult({ ok: false, error: `tabs.get failed: ${chrome.runtime.lastError.message}` })
           sendResponse({
             ok: false,
             error: `tabs.get failed: ${chrome.runtime.lastError.message}`
@@ -75,6 +88,7 @@ class StagehandXPathManager {
           return
         }
         if (!this.isScannableUrl(tabUrl)) {
+          reportToolCallResult({ ok: false, error: `目标 Tab 不可截图（url=${tabUrl || "unknown"}）。请使用 http/https 页面。` })
           sendResponse({
             ok: false,
             error: `目标 Tab 不可截图（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
@@ -84,13 +98,28 @@ class StagehandXPathManager {
 
         this.screenshotter
           .screenshotViewport(tabId)
-          .then((resp) => sendResponse(resp))
-          .catch((e) =>
+          .then((resp) => {
+            if (resp.ok) {
+              reportToolCallResult({
+                ok: true,
+                dataUrl: resp.dataUrl,
+                base64: resp.base64,
+                meta: resp.meta
+              })
+            } else {
+              const errorMessage = "error" in resp ? resp.error : "viewport screenshot failed"
+              reportToolCallResult({ ok: false, error: errorMessage })
+            }
+            sendResponse(resp)
+          })
+          .catch((e) => {
+            const message = e instanceof Error ? e.message : String(e)
+            reportToolCallResult({ ok: false, error: message })
             sendResponse({
               ok: false,
-              error: e instanceof Error ? e.message : String(e)
+              error: message
             } satisfies StagehandViewportScreenshotResponse)
-          )
+          })
       })
     }
 
@@ -102,6 +131,7 @@ class StagehandXPathManager {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tabId = tabs?.[0]?.id
       if (!tabId) {
+        reportToolCallResult({ ok: false, error: "No active tab found" })
         sendResponse({ ok: false, error: "No active tab found" } satisfies StagehandViewportScreenshotResponse)
         return
       }

@@ -1,17 +1,14 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { sendToExtension } from "@/lib/extension-bridge"
-import { fetchExtensionList, getNitroBaseUrl, type ExtensionListItem } from "@/lib/nitro-config"
+import { getNitroBaseUrl } from "@/lib/nitro-config"
 import { parseBlocksToJsonResumeXpath, type JsonResumeXpathParseResult } from "@/lib/resumeJsonResumeXpath"
 import {
-  LIST_TABS,
   RESUME_BLOCKS_EXTRACT,
   RESUME_XPATH_VALIDATE,
   STAGEHAND_VIEWPORT_SCREENSHOT,
   STAGEHAND_XPATH_SCAN,
-  type ListTabsItem,
-  type ListTabsResponse,
   type ResumeBlocksExtractOptions,
   type ResumeBlocksExtractPayload,
   type ResumeBlocksExtractResponse,
@@ -23,11 +20,34 @@ import {
   type StagehandXPathScanPayload,
   type StagehandXPathScanResponse
 } from "@/types/plasmo"
-
-type ChromeTabLite = ListTabsItem
+import ExtensionTabSelector from "./_components/ExtensionTabSelector"
+import { isScannableUrl, useExtensionTabsStore } from "./_stores/extensionTabsStore"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 type ExtractOptions = Partial<ResumeBlocksExtractOptions>
 type ScanOptions = Partial<StagehandXPathScanOptions>
+
+type ToolCallRequestResponse =
+  | {
+      ok: true
+      taskId: string
+      instruction: {
+        type: typeof STAGEHAND_VIEWPORT_SCREENSHOT
+        payload: StagehandViewportScreenshotPayload
+      }
+    }
+  | { ok: false; error: string }
+
+type ToolCallResultMessage = {
+  type: "tool-call:result"
+  taskId: string
+  toolType: "viewportScreenshot"
+  ok: boolean
+  dataUrl?: string
+  meta?: StagehandViewportScreenshotResponse extends { ok: true; meta?: infer M } ? M : never
+  error?: string
+}
 
 const DEFAULT_RESUME_CONFIG: Required<ResumeBlocksExtractOptions> = {
   maxBlocks: 60,
@@ -42,23 +62,6 @@ const DEFAULT_XPATH_CONFIG: Required<StagehandXPathScanOptions> = {
   maxItems: 200,
   selector: "a,button,input,textarea,select,[role='button'],[onclick]",
   includeShadow: false
-}
-
-function isScannableUrl(url: string | undefined): boolean {
-  const u = String(url || "")
-  if (!u) return false
-  const blockedPrefixes = [
-    "chrome://",
-    "edge://",
-    "about:",
-    "devtools://",
-    "chrome-extension://",
-    "moz-extension://",
-    "view-source:"
-  ]
-  if (blockedPrefixes.some((p) => u.startsWith(p))) return false
-  if (u.startsWith("file://")) return false
-  return true
 }
 
 function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
@@ -183,14 +186,17 @@ function flattenXpaths(obj: any, basePath = ""): Array<{ fieldPath: string; xpat
 }
 
 export default function ToolsPage() {
-  const [extensionId, setExtensionId] = useState<string>("")
-  const [extensionName, setExtensionName] = useState<string>("")
-  const [extensionList, setExtensionList] = useState<ExtensionListItem[]>([])
-  const [extensionError, setExtensionError] = useState<string | null>(null)
-
-  const [tabs, setTabs] = useState<ChromeTabLite[]>([])
-  const [targetTabId, setTargetTabId] = useState<number | "active">("active")
-  const [tabsError, setTabsError] = useState<string | null>(null)
+  const extensionId = useExtensionTabsStore((s) => s.extensionId)
+  const extensionName = useExtensionTabsStore((s) => s.extensionName)
+  const extensionList = useExtensionTabsStore((s) => s.extensionList)
+  const extensionError = useExtensionTabsStore((s) => s.extensionError)
+  const tabs = useExtensionTabsStore((s) => s.tabs)
+  const targetTabId = useExtensionTabsStore((s) => s.targetTabId)
+  const tabsError = useExtensionTabsStore((s) => s.tabsError)
+  const refreshTabs = useExtensionTabsStore((s) => s.refreshTabs)
+  const selectExtension = useExtensionTabsStore((s) => s.selectExtension)
+  const setTargetTabId = useExtensionTabsStore((s) => s.setTargetTabId)
+  const initExtensionTabs = useExtensionTabsStore((s) => s.initExtensionTabs)
 
   const [xpathConfigText, setXpathConfigText] = useState(() => JSON.stringify(DEFAULT_XPATH_CONFIG, null, 2))
   const [xpathRunning, setXpathRunning] = useState(false)
@@ -199,7 +205,8 @@ export default function ToolsPage() {
 
   const [shotRunning, setShotRunning] = useState(false)
   const [shotError, setShotError] = useState<string | null>(null)
-  const [shotResp, setShotResp] = useState<StagehandViewportScreenshotResponse | null>(null)
+  const [shotTaskId, setShotTaskId] = useState<string | null>(null)
+  const [shotResult, setShotResult] = useState<ToolCallResultMessage | null>(null)
 
   const [resumeConfigText, setResumeConfigText] = useState(() => JSON.stringify(DEFAULT_RESUME_CONFIG, null, 2))
   const [resumeRunning, setResumeRunning] = useState(false)
@@ -210,77 +217,55 @@ export default function ToolsPage() {
   const [llmOut, setLlmOut] = useState<any>(null)
   const [llmSampleId, setLlmSampleId] = useState<string | null>(null)
   const [validateOut, setValidateOut] = useState<ResumeXpathValidateResponse | null>(null)
+  const shotTaskIdRef = useRef<string | null>(null)
 
   type ParsedResumeConfig = ReturnType<typeof safeJsonParse<Partial<ResumeBlocksExtractOptions>>>
   const parsedResume = useMemo<ParsedResumeConfig>(() => safeJsonParse<Partial<ResumeBlocksExtractOptions>>(resumeConfigText), [resumeConfigText])
   type ParsedXpathConfig = ReturnType<typeof safeJsonParse<Partial<StagehandXPathScanOptions>>>
   const parsedXpath = useMemo<ParsedXpathConfig>(() => safeJsonParse<Partial<StagehandXPathScanOptions>>(xpathConfigText), [xpathConfigText])
 
-  const refreshTabs = async (extId?: string) => {
-    setTabsError(null)
-    const effectiveId = String(extId || extensionId || "").trim()
-    if (!effectiveId) {
-      setTabsError("extensionId 未就绪，请先启动扩展并完成上报")
-      return
-    }
-    try {
-      const out = await sendToExtension<ListTabsResponse>({
-        type: LIST_TABS,
-        payload: { includeAllWindows: true }
-      }, effectiveId)
-      if (!out) {
-        setTabsError("未收到 tabs 响应")
-        return
-      }
-      if (out.ok === false) {
-        setTabsError(out.error)
-        return
-      }
-      setTabs(out.tabs)
-    } catch (e) {
-      setTabsError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  const selectExtension = (name: string) => {
-    setExtensionName(name)
-    const picked = extensionList.find((item) => item.extensionName === name)
-    if (!picked) {
-      setExtensionId("")
-      setExtensionError("extensionId 未就绪，请先启动扩展并完成上报")
-      return
-    }
-    setExtensionError(null)
-    setExtensionId(picked.extensionId)
-    void refreshTabs(picked.extensionId)
-  }
+  useEffect(() => {
+    void initExtensionTabs()
+  }, [initExtensionTabs])
 
   useEffect(() => {
-    const run = async () => {
-      setExtensionError(null)
-      const out = await fetchExtensionList()
-      if (!out.extensions.length) {
-        setExtensionId("")
-        setExtensionName("")
-        setExtensionList([])
-        setExtensionError(out.error || "未发现已注册扩展，请先启动扩展并完成上报")
+    shotTaskIdRef.current = shotTaskId
+  }, [shotTaskId])
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof WebSocket === "undefined") return
+    const baseUrl = nitroBaseUrl.replace(/\/+$/, "")
+    if (!baseUrl) return
+    const wsUrl = baseUrl.replace(/^http/, "ws") + "/api/tool-call/ws"
+    const ws = new WebSocket(wsUrl)
+
+    ws.onmessage = (event) => {
+      if (!event?.data) return
+      let payload: ToolCallResultMessage | null = null
+      try {
+        payload = JSON.parse(String(event.data)) as ToolCallResultMessage
+      } catch {
         return
       }
-      setExtensionList(out.extensions)
-      const selected = out.latest || out.extensions[0]
-      if (!selected) {
-        setExtensionId("")
-        setExtensionName("")
-        setExtensionError(out.error || "未发现可用扩展")
+      if (!payload || payload.type !== "tool-call:result" || payload.toolType !== "viewportScreenshot") {
         return
       }
-      setExtensionName(selected.extensionName)
-      setExtensionId(selected.extensionId)
-      void refreshTabs(selected.extensionId)
+      if (shotTaskIdRef.current && payload.taskId !== shotTaskIdRef.current) return
+      setShotResult(payload)
+      setShotRunning(false)
+      if (!payload.ok) {
+        setShotError(payload.error || "截图失败")
+      }
     }
-    void run()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+
+    ws.onerror = () => {
+      // ignore ws errors; request path may not be ready yet
+    }
+
+    return () => {
+      ws.close()
+    }
+  }, [nitroBaseUrl])
 
   const copyJson = async (label: string, data: unknown, setError: (v: string | null) => void) => {
     setError(null)
@@ -365,7 +350,8 @@ export default function ToolsPage() {
 
   const runScreenshot = async () => {
     setShotError(null)
-    setShotResp(null)
+    setShotResult(null)
+    setShotTaskId(null)
     if (!ensureExtensionId(setShotError)) return
     if (typeof targetTabId === "number") {
       const t = tabs.find((x) => x.id === targetTabId)
@@ -374,24 +360,30 @@ export default function ToolsPage() {
         return
       }
     }
-    const payload: StagehandViewportScreenshotPayload = {
+    const requestBody = {
+      extensionId,
+      toolType: "viewportScreenshot",
       ...(typeof targetTabId === "number" ? { targetTabId } : {})
     }
     setShotRunning(true)
     try {
-      const out = await sendToExtension<StagehandViewportScreenshotResponse>({
-        type: STAGEHAND_VIEWPORT_SCREENSHOT,
-        payload
-      }, extensionId)
-      if (!out) {
-        setShotError("未收到响应（可能扩展未就绪或权限不足）")
+      const url = `${nitroBaseUrl.replace(/\/+$/, "")}/api/tool-call/request`
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(requestBody)
+      })
+      const json = (await res.json().catch(() => null)) as ToolCallRequestResponse | null
+      if (!res.ok || !json || !json.ok) {
+        const message = json && "error" in json ? json.error : `Nitro request failed: HTTP ${res.status}`
+        setShotError(message)
+        setShotRunning(false)
         return
       }
-      setShotResp(out)
-      if (out.ok === false) setShotError(out.error)
+      setShotTaskId(json.taskId)
+      await sendToExtension<unknown>(json.instruction, extensionId)
     } catch (e) {
       setShotError(e instanceof Error ? e.message : String(e))
-    } finally {
       setShotRunning(false)
     }
   }
@@ -607,74 +599,27 @@ export default function ToolsPage() {
     }
   }
 
-  const dataUrl = useMemo(() => (shotResp && shotResp.ok ? shotResp.dataUrl : null), [shotResp])
+  const dataUrl = useMemo(() => (shotResult?.ok ? shotResult.dataUrl : null), [shotResult])
 
   return (
     <div style={{ padding: 16, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" }}>
       <h1 style={{ margin: "0 0 12px 0" }}>Tools</h1>
 
-      {extensionError && (
-        <div style={{ marginBottom: 10, color: "#b00020", fontSize: 12 }}>
-          {extensionError}
-        </div>
-      )}
-      {tabsError && (
-        <div style={{ marginBottom: 10, color: "#b00020", fontSize: 12 }}>
-          Tabs 获取失败：{tabsError}
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 12, color: "#333" }}>扩展</div>
-        <select
-          value={extensionName}
-          onChange={(e) => selectExtension(e.target.value)}
-          style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #ddd", minWidth: 260 }}>
-          <option value="" disabled>
-            {extensionList.length ? "请选择扩展" : "暂无已注册扩展"}
-          </option>
-          {extensionList.map((item) => (
-            <option key={item.extensionName} value={item.extensionName}>
-              {item.extensionName}
-            </option>
-          ))}
-        </select>
-        <div style={{ fontSize: 12, color: "#333" }}>目标 Tab</div>
-        <select
-          value={String(targetTabId)}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === "active") setTargetTabId("active")
-            else setTargetTabId(Number(v))
-          }}
-          style={{ padding: "6px 8px", borderRadius: 8, border: "1px solid #ddd", minWidth: 360 }}>
-          <option value="active">当前活动标签页（active tab）</option>
-          {tabs
-            .filter((t) => typeof t.id === "number")
-            .map((t) => {
-              const id = t.id as number
-              const url = String(t.url || "")
-              const title = String(t.title || "")
-              const label = `${id} | ${title ? title + " | " : ""}${url}`
-              const ok = isScannableUrl(url)
-              return (
-                <option key={id} value={String(id)} disabled={!ok}>
-                  {(ok ? "" : "[不可用] ") + (label.length > 180 ? label.slice(0, 180) + "..." : label)}
-                </option>
-              )
-            })}
-        </select>
-        <button
-          onClick={() => void refreshTabs()}
-          disabled={xpathRunning || shotRunning || resumeRunning}
-          style={{
-            padding: "6px 10px",
-            borderRadius: 8,
-            border: "1px solid #ddd",
-            cursor: xpathRunning || shotRunning || resumeRunning ? "not-allowed" : "pointer"
-          }}>
-          Refresh Tabs
-        </button>
+      <div className="mb-4">
+        <CardTitle className="mb-2">扩展与目标 Tab</CardTitle>
+        <ExtensionTabSelector
+          extensionError={extensionError}
+          tabsError={tabsError}
+          extensionName={extensionName}
+          extensionList={extensionList}
+          selectExtension={selectExtension}
+          targetTabId={targetTabId}
+          setTargetTabId={setTargetTabId}
+          tabs={tabs}
+          isBusy={xpathRunning || shotRunning || resumeRunning}
+          refreshTabs={refreshTabs}
+          isScannableUrl={isScannableUrl}
+        />
       </div>
 
       <div style={{ display: "grid", gap: 16 }}>
@@ -736,65 +681,48 @@ export default function ToolsPage() {
           </div>
         </section>
 
-        <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
-          <h2 style={{ margin: "0 0 8px 0" }}>Viewport Screenshot</h2>
-          <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
-            说明：通过扩展后台对目标 Tab 当前可视 viewport 截图。
-          </div>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 320px", minWidth: 320 }}>
-              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
-                <button
-                  onClick={() => void runScreenshot()}
-                  disabled={shotRunning}
-                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: shotRunning ? "not-allowed" : "pointer" }}>
-                  {shotRunning ? "Capturing..." : "Capture Viewport"}
-                </button>
-                <button
-                  onClick={() => {
-                    if (dataUrl) downloadDataUrl(toFilename(targetTabId), dataUrl)
-                  }}
-                  disabled={!dataUrl}
-                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: !dataUrl ? "not-allowed" : "pointer" }}>
-                  Download PNG
-                </button>
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle>Viewport Screenshot</CardTitle>
+            <p className="text-sm text-muted-foreground">说明：通过扩展后台对目标 Tab 当前可视 viewport 截图。</p>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4 items-start">
+              <div className="flex-1 min-w-[280px]">
+                <div className="flex gap-2 items-center">
+                  <Button onClick={() => void runScreenshot()} disabled={shotRunning}>
+                    {shotRunning ? "Capturing..." : "Capture Viewport"}
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (dataUrl) downloadDataUrl(toFilename(targetTabId), dataUrl)
+                    }}
+                    disabled={!dataUrl}
+                    variant="outline"
+                  >
+                    Download PNG
+                  </Button>
+                </div>
+                {shotTaskId && <p className="mt-2 text-xs text-muted-foreground">TaskId: {shotTaskId}</p>}
+                {shotError && <p className="mt-2 text-sm text-destructive">{shotError}</p>}
               </div>
-              {shotError && <div style={{ marginTop: 10, color: "#b00020", fontSize: 12 }}>{shotError}</div>}
-            </div>
-            <div style={{ flex: "1 1 520px", minWidth: 320 }}>
-              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>预览</div>
-              <div
-                style={{
-                  minHeight: 180,
-                  padding: 10,
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  background: "#fafafa",
-                  overflow: "auto"
-                }}>
-                {dataUrl ? (
-                  <img src={dataUrl} alt="viewport screenshot" style={{ maxWidth: "100%", height: "auto", borderRadius: 6 }} />
-                ) : (
-                  <div style={{ fontSize: 12, color: "#666" }}>（尚未截图）</div>
-                )}
+              <div className="flex-[1.5] min-w-[320px]">
+                <div className="text-xs text-muted-foreground mb-2">预览</div>
+                <div className="min-h-[180px] rounded-md border bg-muted/40 p-2 overflow-auto">
+                  {dataUrl ? (
+                    <img src={dataUrl} alt="viewport screenshot" className="max-w-full h-auto rounded-md" />
+                  ) : (
+                    <div className="text-xs text-muted-foreground">（尚未截图）</div>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground mt-3 mb-2">响应（调试）</div>
+                <pre className="m-0 min-h-[120px] rounded-md border bg-muted/40 p-2 overflow-auto text-xs">
+                  {shotResult ? JSON.stringify(shotResult, null, 2) : "（尚未执行）"}
+                </pre>
               </div>
-              <div style={{ fontSize: 12, color: "#333", margin: "10px 0 6px 0" }}>响应（调试）</div>
-              <pre
-                style={{
-                  margin: 0,
-                  minHeight: 120,
-                  padding: 10,
-                  borderRadius: 8,
-                  border: "1px solid #e5e7eb",
-                  background: "#fafafa",
-                  overflow: "auto",
-                  fontSize: 12
-                }}>
-                {shotResp ? JSON.stringify(shotResp, null, 2) : "（尚未执行）"}
-              </pre>
             </div>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
         <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
           <h2 style={{ margin: "0 0 8px 0" }}>Resume Blocks</h2>
