@@ -1,21 +1,41 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useChat } from "@ai-sdk/react";
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithToolCalls,
+} from "ai";
 import { SendHorizontalIcon } from "lucide-react";
+import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-}
-
 export default function ChatPage() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { messages, sendMessage, status, error, addToolOutput } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+    }),
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+    onToolCall({ toolCall }) {
+      if (toolCall.dynamic) {
+        return;
+      }
+
+      if (toolCall.toolName === "getLocation") {
+        const cities = ["New York", "Los Angeles", "Chicago", "San Francisco"];
+        const city = cities[Math.floor(Math.random() * cities.length)];
+        addToolOutput({
+          tool: "getLocation",
+          toolCallId: toolCall.toolCallId,
+          output: { city },
+        });
+      }
+    },
+  });
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isBusy = status === "submitted" || status === "streaming";
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -25,77 +45,18 @@ export default function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (!error) return;
+    const description =
+      error instanceof Error ? error.message : "请求失败，请稍后重试。";
+    toast.error("请求发生错误", { description });
+  }, [error]);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: input.trim(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
+    if (!input.trim() || status !== "ready") return;
+    sendMessage({ text: input.trim() });
     setInput("");
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(
-        process.env.NEXT_PUBLIC_CHAT_API_URL || "http://localhost:6006/api/chat",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: [...messages, userMessage].map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch response");
-      }
-
-      const text = await response.text();
-      
-      // Parse the UI Message Stream format
-      const lines = text.split("\n").filter((line) => line.trim());
-      let assistantContent = "";
-      
-      for (const line of lines) {
-        try {
-          const chunk = JSON.parse(line);
-          if (chunk.type === "text-delta") {
-            assistantContent += chunk.delta;
-          }
-        } catch {
-          // Skip invalid JSON lines
-        }
-      }
-
-      if (assistantContent) {
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: assistantContent,
-        };
-        setMessages((prev) => [...prev, assistantMessage]);
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "Sorry, there was an error processing your message.",
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   return (
@@ -121,14 +82,22 @@ export default function ChatPage() {
                   <Button
                     variant="outline"
                     className="h-auto max-w-64 whitespace-normal px-4 py-2 text-sm"
-                    onClick={() => setInput("What's the weather in San Francisco?")}
+                    onClick={() => {
+                      if (status !== "ready") return;
+                      sendMessage({ text: "What's the weather in San Francisco?" });
+                    }}
+                    disabled={isBusy}
                   >
                     What&apos;s the weather in San Francisco?
                   </Button>
                   <Button
                     variant="outline"
                     className="h-auto max-w-64 whitespace-normal px-4 py-2 text-sm"
-                    onClick={() => setInput("Explain React hooks")}
+                    onClick={() => {
+                      if (status !== "ready") return;
+                      sendMessage({ text: "Explain React hooks" });
+                    }}
+                    disabled={isBusy}
                   >
                     Explain React hooks
                   </Button>
@@ -157,11 +126,142 @@ export default function ChatPage() {
                           : "bg-muted text-foreground"
                       }`}
                     >
-                      {message.content}
+                      {message.parts.map((part, index) => {
+                        if (part.type === "step-start") {
+                          return index > 0 ? (
+                            <div key={index} className="my-2">
+                              <hr className="border-border" />
+                            </div>
+                          ) : null;
+                        }
+
+                        if (part.type === "text") {
+                          return <span key={index}>{part.text}</span>;
+                        }
+
+                        if (part.type === "tool-askForConfirmation") {
+                          const input = part.input as { message?: string } | undefined;
+                          const output = part.output as
+                            | { confirmed?: boolean }
+                            | undefined;
+                          const messageText = input?.message ?? "需要确认操作";
+                          if (part.state === "output-available") {
+                            const confirmed = Boolean(output?.confirmed);
+                            return (
+                              <div key={index} className="mt-3 text-sm">
+                                <div className="text-muted-foreground">
+                                  {messageText}
+                                </div>
+                                <div className="mt-2 font-medium">
+                                  {confirmed ? "已确认" : "已拒绝"}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (
+                            part.state === "input-available" ||
+                            part.state === "input-streaming"
+                          ) {
+                            return (
+                              <div key={index} className="mt-3 text-sm">
+                                <div className="text-muted-foreground">
+                                  {messageText}
+                                </div>
+                                <div className="mt-2 flex gap-2">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      addToolOutput({
+                                        tool: "askForConfirmation",
+                                        toolCallId: part.toolCallId,
+                                        output: { confirmed: true },
+                                      })
+                                    }
+                                  >
+                                    确认
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() =>
+                                      addToolOutput({
+                                        tool: "askForConfirmation",
+                                        toolCallId: part.toolCallId,
+                                        output: { confirmed: false },
+                                      })
+                                    }
+                                  >
+                                    拒绝
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          if (part.state === "output-error") {
+                            return (
+                              <div key={index} className="mt-3 text-sm">
+                                <div className="text-muted-foreground">
+                                  {messageText}
+                                </div>
+                                <div className="mt-2 text-destructive">
+                                  {part.errorText || "执行失败"}
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        }
+
+                        if (
+                          part.type === "tool-getLocation" ||
+                          part.type === "tool-getWeatherInformation"
+                        ) {
+                          return (
+                            <div key={index} className="mt-3 text-sm">
+                              {(part.state === "input-streaming" ||
+                                part.state === "input-available") && (
+                                <div className="text-muted-foreground">
+                                  {part.type === "tool-getLocation"
+                                    ? "正在获取位置信息..."
+                                    : "正在获取天气信息..."}
+                                </div>
+                              )}
+                              {part.state === "output-available" && (
+                                <div className="text-muted-foreground">
+                                  {part.type === "tool-getLocation" ? (
+                                    <>
+                                      位置：
+                                      {(part.output as { city?: string } | undefined)
+                                        ?.city ?? "Unknown"}
+                                    </>
+                                  ) : (
+                                    <>
+                                      天气：{part.output ?? "Unknown"}
+                                    </>
+                                  )}
+                                </div>
+                              )}
+                              {part.state === "output-error" && (
+                                <div className="text-destructive">
+                                  {part.errorText || "执行失败"}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })}
                     </div>
                   </div>
                 ))}
-                {isLoading && (
+                {isBusy && (
                   <div className="flex justify-start gap-4">
                     <Avatar className="size-10 border shrink-0">
                       <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/5 text-lg">
@@ -190,14 +290,14 @@ export default function ChatPage() {
                 autoFocus
                 placeholder="Send a message..."
                 className="max-h-40 flex-grow resize-none border-none bg-transparent px-4 py-4 text-sm outline-none placeholder:text-muted-foreground"
-                disabled={isLoading}
+                disabled={status !== "ready"}
               />
               <Button
                 type="submit"
                 size="icon"
                 variant="ghost"
                 className="m-2 size-9 shrink-0 rounded-lg transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-30"
-                disabled={isLoading || !input.trim()}
+                disabled={status !== "ready" || !input.trim()}
               >
                 <SendHorizontalIcon className="size-4" />
               </Button>

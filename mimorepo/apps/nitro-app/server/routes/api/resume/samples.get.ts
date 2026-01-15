@@ -2,12 +2,8 @@ import { eventHandler } from "h3"
 import { readdir, stat } from "node:fs/promises"
 import path from "node:path"
 import { createSampleStore } from "../../../lib/sampleStore"
-import { isPreflight, setCors } from "../../../lib/http"
 
 export default eventHandler(async (event) => {
-  setCors(event)
-  if (isPreflight(event)) return { ok: true }
-
   const store = createSampleStore()
   await store.ensure()
 

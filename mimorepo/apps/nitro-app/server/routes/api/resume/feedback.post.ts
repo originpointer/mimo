@@ -1,6 +1,5 @@
 import { eventHandler, readBody } from "h3"
 import { createSampleStore } from "../../../lib/sampleStore"
-import { isPreflight, setCors } from "../../../lib/http"
 
 type FeedbackBody = {
   sampleId: string
@@ -8,9 +7,6 @@ type FeedbackBody = {
 }
 
 export default eventHandler(async (event) => {
-  setCors(event)
-  if (isPreflight(event)) return { ok: true }
-
   const body = (await readBody(event).catch(() => null)) as FeedbackBody | null
   if (!body?.sampleId || !body?.feedback) {
     event.node.res.statusCode = 400

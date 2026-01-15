@@ -2,7 +2,6 @@ import { eventHandler, readBody } from "h3"
 import { OllamaOpenAIClient, getOllamaConfigFromEnv } from "../../../lib/ollamaOpenAIClient"
 import { createSampleStore } from "../../../lib/sampleStore"
 import { buildJsonResumeXpathPrompt, type ResumeSample } from "../../../lib/prompts/jsonresume_xpath"
-import { isPreflight, setCors } from "../../../lib/http"
 
 type ParseBody = {
   sample: ResumeSample
@@ -17,9 +16,6 @@ function extractJson(text: string): any {
 }
 
 export default eventHandler(async (event) => {
-  setCors(event)
-  if (isPreflight(event)) return { ok: true }
-
   const body = (await readBody(event).catch(() => null)) as ParseBody | null
   if (!body?.sample) {
     event.node.res.statusCode = 400

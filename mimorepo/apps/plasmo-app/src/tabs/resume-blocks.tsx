@@ -7,6 +7,7 @@ import {
   type ResumeBlocksExtractResponse
 } from "../types/resume-blocks"
 import { parseBlocksToJsonResumeXpath, type JsonResumeXpathParseResult } from "../utils/resumeJsonResumeXpath"
+import client from "@/client"
 import {
   RESUME_XPATH_VALIDATE,
   type ResumeXpathValidatePayload,
@@ -183,6 +184,7 @@ function ResumeBlocksTab() {
   const [resp, setResp] = useState<ResumeBlocksExtractResponse | null>(null)
   const [parsedOut, setParsedOut] = useState<JsonResumeXpathParseResult | null>(null)
   const [nitroBaseUrl, setNitroBaseUrl] = useState("http://127.0.0.1:6006")
+  // const nitroClient = useMemo(() => new HttpClient({ baseUrl: nitroBaseUrl }), [nitroBaseUrl])
   const [llmOut, setLlmOut] = useState<any>(null)
   const [llmSampleId, setLlmSampleId] = useState<string | null>(null)
   const [validateOut, setValidateOut] = useState<ResumeXpathValidateResponse | null>(null)
@@ -378,13 +380,8 @@ function ResumeBlocksTab() {
     }
 
     try {
-      const url = `${nitroBaseUrl.replace(/\/+$/, "")}/api/resume/parse`
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sample })
-      })
-      const json = (await r.json().catch(() => null)) as any
+      const r = await client.postJson<any>("/api/resume/parse", { sample })
+      const json = r.data
       if (!r.ok || !json?.ok) {
         setError(json?.error || `Nitro parse failed: HTTP ${r.status}`)
         return
@@ -479,13 +476,8 @@ function ResumeBlocksTab() {
         at: Date.now()
       }
 
-      const url = `${nitroBaseUrl.replace(/\/+$/, "")}/api/resume/feedback`
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sampleId, feedback })
-      })
-      const json = (await r.json().catch(() => null)) as any
+      const r = await client.postJson<any>("/api/resume/feedback", { sampleId, feedback })
+      const json = r.data
       if (!r.ok || !json?.ok) {
         setError(json?.error || `Nitro feedback failed: HTTP ${r.status}`)
       }

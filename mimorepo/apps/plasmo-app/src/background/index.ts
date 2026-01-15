@@ -22,6 +22,8 @@ import {
   type ResumeXpathValidatePayload,
   type ResumeXpathValidateResponse
 } from "../types/resume-validate"
+import { LIST_TABS, type ListTabsPayload, type ListTabsResponse } from "../types/list-tabs"
+import { registerExtensionId } from "@/apis"
 import { StagehandXPathScanner } from "./libs/StagehandXPathScanner"
 import { StagehandViewportScreenshotter } from "./libs/StagehandViewportScreenshotter"
 import { ResumeBlocksExtractor } from "./libs/ResumeBlocksExtractor"
@@ -34,7 +36,8 @@ class StagehandXPathManager {
   private readonly resumeXpathValidator = new ResumeXpathValidator()
 
   constructor() {
-    this.setupMessageListeners();
+    this.setupMessageListeners()
+    this.reportExtensionId()
   }
 
   private isScannableUrl(url: string | undefined): boolean {
@@ -237,91 +240,143 @@ class StagehandXPathManager {
     return true
   }
 
+  private handleListTabs(message: any, sendResponse: (resp: ListTabsResponse) => void): true {
+    const payload = message.payload as ListTabsPayload | undefined
+    const query = payload?.includeAllWindows ? {} : { currentWindow: true }
+    chrome.tabs.query(query as chrome.tabs.QueryInfo, (tabs) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({
+          ok: false,
+          error: `tabs.query failed: ${chrome.runtime.lastError.message}`
+        } satisfies ListTabsResponse)
+        return
+      }
+      const cleaned = (tabs || [])
+        .filter((t) => typeof t.id === "number")
+        .map((t) => ({
+          id: t.id as number,
+          url: t.url,
+          title: t.title,
+          windowId: t.windowId,
+          active: t.active
+        }))
+      sendResponse({ ok: true, tabs: cleaned } satisfies ListTabsResponse)
+    })
+    return true
+  }
+
+  private handleRuntimeMessage(message: any, sendResponse: (resp: any) => void): boolean {
+    // Tab Page -> Background -> Content: 扫描当前活动标签页并生成 XPath
+    if (message.type === STAGEHAND_XPATH_SCAN) {
+      const payload = message.payload as Partial<StagehandXPathScanPayload> | undefined
+      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
+
+      const runOnTab = (tabId: number) => {
+        chrome.tabs.get(tabId, (tab) => {
+          const tabUrl = tab?.url
+          if (chrome.runtime.lastError) {
+            sendResponse({
+              ok: false,
+              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
+            } satisfies StagehandXPathScanResponse)
+            return
+          }
+          if (!this.isScannableUrl(tabUrl)) {
+            sendResponse({
+              ok: false,
+              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
+            } satisfies StagehandXPathScanResponse)
+            return
+          }
+
+          const maxItems =
+            typeof payload?.maxItems === "number" && Number.isFinite(payload.maxItems) && payload.maxItems > 0
+              ? Math.floor(payload.maxItems)
+              : 200
+          const selector =
+            typeof payload?.selector === "string" && payload.selector.trim()
+              ? payload.selector.trim()
+              : "a,button,input,textarea,select,[role='button'],[onclick]"
+          const includeShadow = Boolean(payload?.includeShadow)
+
+          // 核心流程：通过 chrome.debugger 走 CDP，把页面/各 iframe 中的候选元素映射到稳定的 XPath。
+          const run = this.scanner.scan(tabId, { maxItems, selector, includeShadow })
+          run
+            .then((resp) => sendResponse(resp))
+            .catch((e) =>
+              sendResponse({
+                ok: false,
+                error: e instanceof Error ? e.message : String(e)
+              } satisfies StagehandXPathScanResponse)
+            )
+        })
+      }
+
+      if (requestedTabId != null) {
+        runOnTab(requestedTabId)
+        return true
+      }
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs?.[0]?.id
+        if (!tabId) {
+          sendResponse({ ok: false, error: "No active tab found" } satisfies StagehandXPathScanResponse)
+          return
+        }
+        runOnTab(tabId)
+      })
+
+      return true
+    }
+
+    // Tab Page -> Background: 截取目标 Tab 当前可视 viewport 的截图（天然包含 iframe）
+    if (message.type === STAGEHAND_VIEWPORT_SCREENSHOT) {
+      return this.handleViewportScreenshot(message, sendResponse as any)
+    }
+
+    // Tab Page -> Background: 抽取简历候选块 blocks（站点无关）
+    if (message.type === RESUME_BLOCKS_EXTRACT) {
+      return this.handleResumeBlocksExtract(message, sendResponse as any)
+    }
+
+    // Tab Page -> Background: 校验一组 XPath 在目标页面是否可命中
+    if (message.type === RESUME_XPATH_VALIDATE) {
+      return this.handleResumeXpathValidate(message, sendResponse as any)
+    }
+
+    if (message.type === LIST_TABS) {
+      return this.handleListTabs(message, sendResponse as any)
+    }
+
+    return false
+  }
+
   /**
    * 设置消息监听
    */
   private setupMessageListeners() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      // Tab Page -> Background -> Content: 扫描当前活动标签页并生成 XPath
-      if (message.type === STAGEHAND_XPATH_SCAN) {
-        const payload = message.payload as Partial<StagehandXPathScanPayload> | undefined;
-        const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
+      return this.handleRuntimeMessage(message, sendResponse)
+    })
+    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+      return this.handleRuntimeMessage(message, sendResponse)
+    })
+  }
 
-        const runOnTab = (tabId: number) => {
-          chrome.tabs.get(tabId, (tab) => {
-            const tabUrl = tab?.url;
-            if (chrome.runtime.lastError) {
-              sendResponse({
-                ok: false,
-                error: `tabs.get failed: ${chrome.runtime.lastError.message}`,
-              } satisfies StagehandXPathScanResponse);
-              return;
-            }
-            if (!this.isScannableUrl(tabUrl)) {
-              sendResponse({
-                ok: false,
-                error: `目标 Tab 不可扫描（url=${tabUrl || 'unknown'}）。请使用 http/https 页面。`,
-              } satisfies StagehandXPathScanResponse);
-              return;
-            }
-
-            const maxItems =
-              typeof payload?.maxItems === 'number' && Number.isFinite(payload.maxItems) && payload.maxItems > 0
-                ? Math.floor(payload.maxItems)
-                : 200;
-            const selector =
-              typeof payload?.selector === 'string' && payload.selector.trim()
-                ? payload.selector.trim()
-                : "a,button,input,textarea,select,[role='button'],[onclick]";
-            const includeShadow = Boolean(payload?.includeShadow);
-
-            // 核心流程：通过 chrome.debugger 走 CDP，把页面/各 iframe 中的候选元素映射到稳定的 XPath。
-            const run = this.scanner.scan(tabId, { maxItems, selector, includeShadow })
-            run
-              .then((resp) => sendResponse(resp))
-              .catch((e) =>
-                sendResponse({
-                  ok: false,
-                  error: e instanceof Error ? e.message : String(e),
-                } satisfies StagehandXPathScanResponse),
-              );
-          });
-        };
-
-        if (requestedTabId != null) {
-          runOnTab(requestedTabId);
-          return true;
-        }
-
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          const tabId = tabs?.[0]?.id;
-          if (!tabId) {
-            sendResponse({ ok: false, error: 'No active tab found' } satisfies StagehandXPathScanResponse);
-            return;
-          }
-          runOnTab(tabId);
-        });
-
-        return true;
-      }
-
-      // Tab Page -> Background: 截取目标 Tab 当前可视 viewport 的截图（天然包含 iframe）
-      if (message.type === STAGEHAND_VIEWPORT_SCREENSHOT) {
-        return this.handleViewportScreenshot(message, sendResponse as any)
-      }
-
-      // Tab Page -> Background: 抽取简历候选块 blocks（站点无关）
-      if (message.type === RESUME_BLOCKS_EXTRACT) {
-        return this.handleResumeBlocksExtract(message, sendResponse as any)
-      }
-
-      // Tab Page -> Background: 校验一组 XPath 在目标页面是否可命中
-      if (message.type === RESUME_XPATH_VALIDATE) {
-        return this.handleResumeXpathValidate(message, sendResponse as any)
-      }
-
-      return false;
-    });
+  private reportExtensionId() {
+    const extensionId = chrome.runtime?.id
+    if (!extensionId) {
+      console.warn("extensionId not available")
+      return
+    }
+    const extensionName = chrome.runtime.getManifest?.().name
+    if (!extensionName) {
+      console.warn("extensionName not available")
+      return
+    }
+    registerExtensionId(extensionId, extensionName).catch((e) => {
+      console.warn("report extensionId failed", e)
+    })
   }
   // 说明：该类只负责“扫描并生成 XPath”，不再维护页面状态。
 }

@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url"
 import { defineNitroConfig } from "nitropack/config"
 
 // https://nitro.build/config
@@ -5,8 +6,8 @@ export default defineNitroConfig({
   compatibilityDate: "latest",
   srcDir: "server",
   imports: false,
-  devServer: {
-    port: 6006
+  alias: {
+    "@": fileURLToPath(new URL("./server", import.meta.url))
   },
   routeRules: {
     "/api/**": {
