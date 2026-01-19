@@ -10,6 +10,7 @@ import {
   RESUME_XPATH_VALIDATE,
   STAGEHAND_VIEWPORT_SCREENSHOT,
   STAGEHAND_XPATH_SCAN,
+  XPATH_MARK_ELEMENTS,
   type JsonCommonXpathFindOptions,
   type JsonCommonXpathFindPayload,
   type JsonCommonXpathFindResponse,
@@ -22,7 +23,9 @@ import {
   type StagehandViewportScreenshotResponse,
   type StagehandXPathScanOptions,
   type StagehandXPathScanPayload,
-  type StagehandXPathScanResponse
+  type StagehandXPathScanResponse,
+  type XPathMarkElementsPayload,
+  type XPathMarkElementsResponse
 } from "@/types/plasmo"
 import ExtensionTabSelector from "./_components/ExtensionTabSelector"
 import { isScannableUrl, useExtensionTabsStore } from "./_stores/extensionTabsStore"
@@ -80,6 +83,10 @@ const DEFAULT_JSON_COMMON_XPATH_KV: Record<string, string> = {
   name: "John",
   email: "@gmail.com"
 }
+
+const DEFAULT_XPATH_MARK_TEXT = `//a
+//button
+//input`
 
 function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
   try {
@@ -222,6 +229,31 @@ function flattenXpaths(obj: any, basePath = ""): Array<{ fieldPath: string; xpat
   return out
 }
 
+function parseXpathList(input: string): { ok: true; xpaths: string[] } | { ok: false; error: string } {
+  const raw = String(input || "").trim()
+  if (!raw) return { ok: true, xpaths: [] }
+
+  // JSON array: ["//a", "..."]
+  if (raw.startsWith("[")) {
+    const parsed = safeJsonParse<unknown>(raw)
+    if (parsed.ok === false) return { ok: false, error: `JSON 解析失败：${parsed.error}` }
+    if (!Array.isArray(parsed.value)) return { ok: false, error: "JSON 必须是数组（string[]）" }
+    const xpaths = (parsed.value as any[])
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter((v) => v)
+      .slice(0, 1500)
+    return { ok: true, xpaths }
+  }
+
+  // Multiline (one xpath per line); allow comment lines
+  const xpaths = raw
+    .split(/\r?\n/g)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#") && !l.startsWith("// "))
+    .slice(0, 1500)
+  return { ok: true, xpaths }
+}
+
 export default function ToolsPage() {
   const extensionId = useExtensionTabsStore((s) => s.extensionId)
   const extensionName = useExtensionTabsStore((s) => s.extensionName)
@@ -245,6 +277,11 @@ export default function ToolsPage() {
   const [jsonCommonRunning, setJsonCommonRunning] = useState(false)
   const [jsonCommonError, setJsonCommonError] = useState<string | null>(null)
   const [jsonCommonResp, setJsonCommonResp] = useState<JsonCommonXpathFindResponse | null>(null)
+
+  const [markText, setMarkText] = useState(() => DEFAULT_XPATH_MARK_TEXT)
+  const [markRunning, setMarkRunning] = useState(false)
+  const [markError, setMarkError] = useState<string | null>(null)
+  const [markResp, setMarkResp] = useState<XPathMarkElementsResponse | null>(null)
 
   const [shotRunning, setShotRunning] = useState(false)
   const [shotError, setShotError] = useState<string | null>(null)
@@ -465,6 +502,58 @@ export default function ToolsPage() {
       setJsonCommonError(e instanceof Error ? e.message : String(e))
     } finally {
       setJsonCommonRunning(false)
+    }
+  }
+
+  const runXpathMark = async (mode: "mark" | "clear") => {
+    setMarkError(null)
+    setMarkResp(null)
+    if (!ensureExtensionId(setMarkError)) return
+
+    const parsed = parseXpathList(markText)
+    if (parsed.ok === false) {
+      setMarkError(parsed.error)
+      return
+    }
+
+    if (mode !== "clear" && parsed.xpaths.length === 0) {
+      setMarkError("请输入至少一个 XPath（每行一个，或 JSON 数组）")
+      return
+    }
+
+    if (typeof targetTabId === "number") {
+      const t = tabs.find((x) => x.id === targetTabId)
+      if (t && !isScannableUrl(t.url)) {
+        setMarkError(`目标 Tab 不可扫描（URL=${t.url || "unknown"}）。请换一个 http/https 页面。`)
+        return
+      }
+    }
+
+    const payload: XPathMarkElementsPayload = {
+      xpaths: mode === "clear" ? [] : parsed.xpaths,
+      mode,
+      ...(typeof targetTabId === "number" ? { targetTabId } : {})
+    }
+
+    setMarkRunning(true)
+    try {
+      const out = await sendToExtension<XPathMarkElementsResponse>(
+        {
+          type: XPATH_MARK_ELEMENTS,
+          payload
+        },
+        extensionId
+      )
+      if (!out) {
+        setMarkError("未收到响应（可能扩展未就绪或权限不足）")
+        return
+      }
+      setMarkResp(out)
+      if (out.ok === false) setMarkError(out.error)
+    } catch (e) {
+      setMarkError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setMarkRunning(false)
     }
   }
 
@@ -748,7 +837,7 @@ export default function ToolsPage() {
           targetTabId={targetTabId}
           setTargetTabId={setTargetTabId}
           tabs={tabs}
-          isBusy={xpathRunning || shotRunning || resumeRunning}
+          isBusy={xpathRunning || jsonCommonRunning || markRunning || shotRunning || resumeRunning}
           refreshTabs={refreshTabs}
           isScannableUrl={isScannableUrl}
         />
@@ -917,6 +1006,87 @@ export default function ToolsPage() {
                 }}
               >
                 {jsonCommonResp ? JSON.stringify(jsonCommonResp, null, 2) : "（尚未执行）"}
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
+          <h2 style={{ margin: "0 0 8px 0" }}>XPath 元素标记（Mark / Clear）</h2>
+          <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
+            说明：输入一组 XPath（每行一个，或 JSON 数组），发送给扩展后在目标页面把所有命中元素进行 outline 标记；可一键清除。
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 520px", minWidth: 320 }}>
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>XPaths</div>
+              <textarea
+                value={markText}
+                onChange={(e) => setMarkText(e.target.value)}
+                spellCheck={false}
+                placeholder={`//a\n//button\n//div[@id='x']\n\n或 JSON：["//a","//button"]`}
+                style={{
+                  width: "100%",
+                  minHeight: 160,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace",
+                  fontSize: 12,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb"
+                }}
+              />
+              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => void runXpathMark("mark")}
+                  disabled={markRunning}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: markRunning ? "not-allowed" : "pointer" }}
+                >
+                  {markRunning ? "Running..." : "Mark Elements"}
+                </button>
+                <button
+                  onClick={() => void runXpathMark("clear")}
+                  disabled={markRunning}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: markRunning ? "not-allowed" : "pointer" }}
+                >
+                  {markRunning ? "Running..." : "Clear Marks"}
+                </button>
+                <button
+                  onClick={() => setMarkText(DEFAULT_XPATH_MARK_TEXT)}
+                  disabled={markRunning}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: markRunning ? "not-allowed" : "pointer" }}
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() => void copyJson("XPath 标记结果", markResp, setMarkError)}
+                  disabled={!markResp}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    cursor: !markResp ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Copy Result
+                </button>
+              </div>
+              {markError && <div style={{ marginTop: 10, color: "#b00020", fontSize: 12 }}>{markError}</div>}
+            </div>
+
+            <div style={{ flex: "1 1 520px", minWidth: 320 }}>
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>结果</div>
+              <pre
+                style={{
+                  margin: 0,
+                  minHeight: 160,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  background: "#fafafa",
+                  overflow: "auto",
+                  fontSize: 12
+                }}
+              >
+                {markResp ? JSON.stringify(markResp, null, 2) : "（尚未执行）"}
               </pre>
             </div>
           </div>
