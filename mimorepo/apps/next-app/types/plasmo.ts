@@ -3,6 +3,7 @@ export const STAGEHAND_VIEWPORT_SCREENSHOT = "STAGEHAND_VIEWPORT_SCREENSHOT" as 
 export const RESUME_BLOCKS_EXTRACT = "RESUME_BLOCKS_EXTRACT" as const
 export const RESUME_XPATH_VALIDATE = "RESUME_XPATH_VALIDATE" as const
 export const LIST_TABS = "LIST_TABS" as const
+export const JSON_COMMON_XPATH_FIND = "JSON_COMMON_XPATH_FIND" as const
 
 export type StagehandXPathScanOptions = {
   maxItems: number
@@ -130,5 +131,27 @@ export type ListTabsItem = {
 
 export type ListTabsResponse =
   | { ok: true; tabs: ListTabsItem[] }
+  | { ok: false; error: string }
+
+export type JsonCommonXpathFindOptions = {
+  maxHitsPerKey: number
+  maxElementsScanned: number
+  caseSensitive: boolean
+  includeShadow: boolean
+}
+
+export type JsonCommonXpathFindPayload = {
+  targetTabId?: number
+  kv: Record<string, string>
+  options?: Partial<JsonCommonXpathFindOptions>
+}
+
+export type JsonCommonXpathFindResponse =
+  | {
+      ok: true
+      containerXpaths: string[]
+      hitsByKey: Record<string, string[]>
+      meta?: { durationMs?: number; tabId?: number; scannedElements?: number; missedKeys?: string[] }
+    }
   | { ok: false; error: string }
 

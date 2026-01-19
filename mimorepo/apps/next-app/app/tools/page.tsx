@@ -5,10 +5,14 @@ import { sendToExtension } from "@/lib/extension-bridge"
 import { getNitroBaseUrl } from "@/lib/nitro-config"
 import { parseBlocksToJsonResumeXpath, type JsonResumeXpathParseResult } from "@/lib/resumeJsonResumeXpath"
 import {
+  JSON_COMMON_XPATH_FIND,
   RESUME_BLOCKS_EXTRACT,
   RESUME_XPATH_VALIDATE,
   STAGEHAND_VIEWPORT_SCREENSHOT,
   STAGEHAND_XPATH_SCAN,
+  type JsonCommonXpathFindOptions,
+  type JsonCommonXpathFindPayload,
+  type JsonCommonXpathFindResponse,
   type ResumeBlocksExtractOptions,
   type ResumeBlocksExtractPayload,
   type ResumeBlocksExtractResponse,
@@ -63,6 +67,18 @@ const DEFAULT_XPATH_CONFIG: Required<StagehandXPathScanOptions> = {
   maxItems: 200,
   selector: "a,button,input,textarea,select,[role='button'],[onclick]",
   includeShadow: false
+}
+
+const DEFAULT_JSON_COMMON_XPATH_OPTIONS: Required<JsonCommonXpathFindOptions> = {
+  maxHitsPerKey: 20,
+  maxElementsScanned: 12_000,
+  caseSensitive: false,
+  includeShadow: false
+}
+
+const DEFAULT_JSON_COMMON_XPATH_KV: Record<string, string> = {
+  name: "John",
+  email: "@gmail.com"
 }
 
 function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
@@ -224,6 +240,12 @@ export default function ToolsPage() {
   const [xpathError, setXpathError] = useState<string | null>(null)
   const [xpathResp, setXpathResp] = useState<StagehandXPathScanResponse | null>(null)
 
+  const [jsonCommonKvText, setJsonCommonKvText] = useState(() => JSON.stringify(DEFAULT_JSON_COMMON_XPATH_KV, null, 2))
+  const [jsonCommonOptionsText, setJsonCommonOptionsText] = useState(() => JSON.stringify(DEFAULT_JSON_COMMON_XPATH_OPTIONS, null, 2))
+  const [jsonCommonRunning, setJsonCommonRunning] = useState(false)
+  const [jsonCommonError, setJsonCommonError] = useState<string | null>(null)
+  const [jsonCommonResp, setJsonCommonResp] = useState<JsonCommonXpathFindResponse | null>(null)
+
   const [shotRunning, setShotRunning] = useState(false)
   const [shotError, setShotError] = useState<string | null>(null)
   const [shotTaskId, setShotTaskId] = useState<string | null>(null)
@@ -244,6 +266,14 @@ export default function ToolsPage() {
   const parsedResume = useMemo<ParsedResumeConfig>(() => safeJsonParse<Partial<ResumeBlocksExtractOptions>>(resumeConfigText), [resumeConfigText])
   type ParsedXpathConfig = ReturnType<typeof safeJsonParse<Partial<StagehandXPathScanOptions>>>
   const parsedXpath = useMemo<ParsedXpathConfig>(() => safeJsonParse<Partial<StagehandXPathScanOptions>>(xpathConfigText), [xpathConfigText])
+
+  type ParsedJsonCommonKv = ReturnType<typeof safeJsonParse<Record<string, string>>>
+  const parsedJsonCommonKv = useMemo<ParsedJsonCommonKv>(() => safeJsonParse<Record<string, string>>(jsonCommonKvText), [jsonCommonKvText])
+  type ParsedJsonCommonOptions = ReturnType<typeof safeJsonParse<Partial<JsonCommonXpathFindOptions>>>
+  const parsedJsonCommonOptions = useMemo<ParsedJsonCommonOptions>(
+    () => safeJsonParse<Partial<JsonCommonXpathFindOptions>>(jsonCommonOptionsText),
+    [jsonCommonOptionsText]
+  )
 
   useEffect(() => {
     void initExtensionTabs()
@@ -366,6 +396,75 @@ export default function ToolsPage() {
       setXpathError(e instanceof Error ? e.message : String(e))
     } finally {
       setXpathRunning(false)
+    }
+  }
+
+  const runJsonCommonXpath = async () => {
+    setJsonCommonError(null)
+    setJsonCommonResp(null)
+    if (!ensureExtensionId(setJsonCommonError)) return
+
+    if (parsedJsonCommonKv.ok === false) {
+      setJsonCommonError(`KV JSON 解析失败：${parsedJsonCommonKv.error}`)
+      return
+    }
+    if (parsedJsonCommonOptions.ok === false) {
+      setJsonCommonError(`Options JSON 解析失败：${parsedJsonCommonOptions.error}`)
+      return
+    }
+
+    const rawKv = parsedJsonCommonKv.value as any
+    if (!rawKv || typeof rawKv !== "object" || Array.isArray(rawKv)) {
+      setJsonCommonError("KV 必须是对象（Record<string,string>）")
+      return
+    }
+    const kv: Record<string, string> = {}
+    for (const k of Object.keys(rawKv)) {
+      const v = rawKv[k]
+      if (typeof v !== "string") continue
+      const key = String(k).trim()
+      const val = v.trim()
+      if (!key || !val) continue
+      kv[key] = val
+    }
+    if (!Object.keys(kv).length) {
+      setJsonCommonError("KV 为空：请提供至少一个 { key: value }")
+      return
+    }
+
+    if (typeof targetTabId === "number") {
+      const t = tabs.find((x) => x.id === targetTabId)
+      if (t && !isScannableUrl(t.url)) {
+        setJsonCommonError(`目标 Tab 不可扫描（URL=${t.url || "unknown"}）。请换一个 http/https 页面。`)
+        return
+      }
+    }
+
+    const payload: JsonCommonXpathFindPayload = {
+      kv,
+      options: parsedJsonCommonOptions.value || {},
+      ...(typeof targetTabId === "number" ? { targetTabId } : {})
+    }
+
+    setJsonCommonRunning(true)
+    try {
+      const out = await sendToExtension<JsonCommonXpathFindResponse>(
+        {
+          type: JSON_COMMON_XPATH_FIND,
+          payload
+        },
+        extensionId
+      )
+      if (!out) {
+        setJsonCommonError("未收到响应（可能扩展未就绪或权限不足）")
+        return
+      }
+      setJsonCommonResp(out)
+      if (out.ok === false) setJsonCommonError(out.error)
+    } catch (e) {
+      setJsonCommonError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setJsonCommonRunning(false)
     }
   }
 
@@ -709,6 +808,115 @@ export default function ToolsPage() {
                   fontSize: 12
                 }}>
                 {xpathResp ? JSON.stringify(xpathResp, null, 2) : "（尚未执行）"}
+              </pre>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
+          <h2 style={{ margin: "0 0 8px 0" }}>JSON Common Ancestor XPath</h2>
+          <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
+            说明：输入 <code>{`{ key: value }`}</code>，在目标页面查找所有 value 的 contains 命中，并计算所有 key 可覆盖到的最小共同父容器 XPath。
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 520px", minWidth: 320 }}>
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>KV（JSON）</div>
+              <textarea
+                value={jsonCommonKvText}
+                onChange={(e) => setJsonCommonKvText(e.target.value)}
+                spellCheck={false}
+                style={{
+                  width: "100%",
+                  minHeight: 160,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace",
+                  fontSize: 12,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb"
+                }}
+              />
+              {parsedJsonCommonKv.ok === false && (
+                <div style={{ marginTop: 8, color: "#b00020", fontSize: 12 }}>JSON 无效：{parsedJsonCommonKv.error}</div>
+              )}
+
+              <div style={{ fontSize: 12, color: "#333", margin: "10px 0 6px 0" }}>Options（JSON）</div>
+              <textarea
+                value={jsonCommonOptionsText}
+                onChange={(e) => setJsonCommonOptionsText(e.target.value)}
+                spellCheck={false}
+                style={{
+                  width: "100%",
+                  minHeight: 140,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace",
+                  fontSize: 12,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb"
+                }}
+              />
+              {parsedJsonCommonOptions.ok === false && (
+                <div style={{ marginTop: 8, color: "#b00020", fontSize: 12 }}>JSON 无效：{parsedJsonCommonOptions.error}</div>
+              )}
+
+              <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => void runJsonCommonXpath()}
+                  disabled={jsonCommonRunning}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    cursor: jsonCommonRunning ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {jsonCommonRunning ? "Running..." : "Find + Common Ancestor"}
+                </button>
+                <button
+                  onClick={() => {
+                    setJsonCommonKvText(JSON.stringify(DEFAULT_JSON_COMMON_XPATH_KV, null, 2))
+                    setJsonCommonOptionsText(JSON.stringify(DEFAULT_JSON_COMMON_XPATH_OPTIONS, null, 2))
+                  }}
+                  disabled={jsonCommonRunning}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    cursor: jsonCommonRunning ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() => void copyJson("JSON Common Ancestor XPath 结果", jsonCommonResp, setJsonCommonError)}
+                  disabled={!jsonCommonResp}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    cursor: !jsonCommonResp ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Copy Result
+                </button>
+              </div>
+              {jsonCommonError && <div style={{ marginTop: 10, color: "#b00020", fontSize: 12 }}>{jsonCommonError}</div>}
+            </div>
+
+            <div style={{ flex: "1 1 520px", minWidth: 320 }}>
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>结果</div>
+              <pre
+                style={{
+                  margin: 0,
+                  minHeight: 180,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  background: "#fafafa",
+                  overflow: "auto",
+                  fontSize: 12
+                }}
+              >
+                {jsonCommonResp ? JSON.stringify(jsonCommonResp, null, 2) : "（尚未执行）"}
               </pre>
             </div>
           </div>

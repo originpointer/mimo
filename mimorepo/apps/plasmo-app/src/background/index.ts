@@ -22,18 +22,25 @@ import {
   type ResumeXpathValidatePayload,
   type ResumeXpathValidateResponse
 } from "../types/resume-validate"
+import {
+  JSON_COMMON_XPATH_FIND,
+  type JsonCommonXpathFindPayload,
+  type JsonCommonXpathFindResponse
+} from "../types/json-common-xpath"
 import { LIST_TABS, type ListTabsPayload, type ListTabsResponse } from "../types/list-tabs"
 import { postToolCallResult, registerExtensionId } from "@/apis"
 import { StagehandXPathScanner } from "./libs/StagehandXPathScanner"
 import { StagehandViewportScreenshotter } from "./libs/StagehandViewportScreenshotter"
 import { ResumeBlocksExtractor } from "./libs/ResumeBlocksExtractor"
 import { ResumeXpathValidator } from "./libs/ResumeXpathValidator"
+import { JsonCommonXpathFinder } from "./libs/JsonCommonXpathFinder"
 
 class StagehandXPathManager {
   private readonly scanner = new StagehandXPathScanner()
   private readonly screenshotter = new StagehandViewportScreenshotter()
   private readonly resumeBlocksExtractor = new ResumeBlocksExtractor()
   private readonly resumeXpathValidator = new ResumeXpathValidator()
+  private readonly jsonCommonXpathFinder = new JsonCommonXpathFinder()
 
   constructor() {
     this.setupMessageListeners()
@@ -372,6 +379,58 @@ class StagehandXPathManager {
     // Tab Page -> Background: 校验一组 XPath 在目标页面是否可命中
     if (message.type === RESUME_XPATH_VALIDATE) {
       return this.handleResumeXpathValidate(message, sendResponse as any)
+    }
+
+    // next-app -> Background: JSON kv -> contains -> common ancestor xpaths
+    if (message.type === JSON_COMMON_XPATH_FIND) {
+      const payload = message.payload as Partial<JsonCommonXpathFindPayload> | undefined
+      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
+
+      const runOnTab = (tabId: number) => {
+        chrome.tabs.get(tabId, (tab) => {
+          const tabUrl = tab?.url
+          if (chrome.runtime.lastError) {
+            sendResponse({
+              ok: false,
+              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
+            } satisfies JsonCommonXpathFindResponse)
+            return
+          }
+          if (!this.isScannableUrl(tabUrl)) {
+            sendResponse({
+              ok: false,
+              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
+            } satisfies JsonCommonXpathFindResponse)
+            return
+          }
+
+          this.jsonCommonXpathFinder
+            .find(tabId, (payload || {}) as JsonCommonXpathFindPayload)
+            .then((resp) => sendResponse(resp))
+            .catch((e) =>
+              sendResponse({
+                ok: false,
+                error: e instanceof Error ? e.message : String(e)
+              } satisfies JsonCommonXpathFindResponse)
+            )
+        })
+      }
+
+      if (requestedTabId != null) {
+        runOnTab(requestedTabId)
+        return true
+      }
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs?.[0]?.id
+        if (!tabId) {
+          sendResponse({ ok: false, error: "No active tab found" } satisfies JsonCommonXpathFindResponse)
+          return
+        }
+        runOnTab(tabId)
+      })
+
+      return true
     }
 
     if (message.type === LIST_TABS) {
