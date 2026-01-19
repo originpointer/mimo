@@ -3,7 +3,8 @@ import {
   buildChildXPathSegments,
   joinXPath,
   normalizeXPath,
-  prefixXPath
+  prefixXPath,
+  parseXPathSteps,
 } from "../src/utils/index.js"
 
 describe("buildChildXPathSegments", () => {
@@ -82,6 +83,73 @@ describe("prefixXPath", () => {
     expect(prefixXPath("/html[1]/body[1]", "/")).toBe("/html[1]/body[1]")
     expect(prefixXPath("/", "/")).toBe("/")
     expect(prefixXPath("/", "")).toBe("/")
+  })
+})
+
+describe("parseXPathSteps", () => {
+  it("应该解析简单的绝对 XPath", () => {
+    const steps = parseXPathSteps("/html[1]/body[1]/div[2]")
+    expect(steps).toEqual([
+      { axis: "child", tag: "html", index: 1 },
+      { axis: "child", tag: "body", index: 1 },
+      { axis: "child", tag: "div", index: 2 },
+    ])
+  })
+
+  it("应该解析后代选择器 //", () => {
+    const steps = parseXPathSteps("//div[1]//span[2]")
+    expect(steps).toEqual([
+      { axis: "descendant", tag: "div", index: 1 },
+      { axis: "descendant", tag: "span", index: 2 },
+    ])
+  })
+
+  it("应该解析混合的子/后代选择器", () => {
+    const steps = parseXPathSteps("/html[1]/body[1]//div[1]/span[1]")
+    expect(steps).toEqual([
+      { axis: "child", tag: "html", index: 1 },
+      { axis: "child", tag: "body", index: 1 },
+      { axis: "descendant", tag: "div", index: 1 },
+      { axis: "child", tag: "span", index: 1 },
+    ])
+  })
+
+  it("应该解析带命名空间的标签", () => {
+    const steps = parseXPathSteps("/html[1]/*[name()='svg:rect'][1]")
+    expect(steps).toEqual([
+      { axis: "child", tag: "html", index: 1 },
+      { axis: "child", tag: "svg:rect", index: 1 },
+    ])
+  })
+
+  it("应该解析无索引的选择器", () => {
+    const steps = parseXPathSteps("/html/body/div")
+    expect(steps).toEqual([
+      { axis: "child", tag: "html", index: null },
+      { axis: "child", tag: "body", index: null },
+      { axis: "child", tag: "div", index: null },
+    ])
+  })
+
+  it("应该处理 xpath= 前缀", () => {
+    const steps = parseXPathSteps("xpath=/html[1]/body[1]")
+    expect(steps).toEqual([
+      { axis: "child", tag: "html", index: 1 },
+      { axis: "child", tag: "body", index: 1 },
+    ])
+  })
+
+  it("应该跳过 text() 和 comment() 节点", () => {
+    const steps = parseXPathSteps("/html[1]/body[1]/text()[1]")
+    expect(steps).toEqual([
+      { axis: "child", tag: "html", index: 1 },
+      { axis: "child", tag: "body", index: 1 },
+    ])
+  })
+
+  it("空字符串应返回空数组", () => {
+    expect(parseXPathSteps("")).toEqual([])
+    expect(parseXPathSteps("   ")).toEqual([])
   })
 })
 

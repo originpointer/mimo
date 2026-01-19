@@ -7,7 +7,7 @@
 import { PageStateDetector } from './utils/page-state-detector';
 import { PageStateInfo } from './types/page-state';
 // NOTE: @repo/sens 的 dist/utils/index.js 在当前仓库里可能尚未产出；这里使用 workspace 源码深导入，交给 Plasmo/Parcel 进行打包。
-import { buildChildXPathSegments, joinXPath } from '@repo/sens/src/utils/stagehand-xpath';
+import { scanDomForXPaths } from '@repo/sens/src/utils/stagehand-xpath';
 import {
   STAGEHAND_XPATH_SCAN,
   type StagehandXPathItem,
@@ -101,6 +101,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         : "a,button,input,textarea,select,[role='button'],[onclick]";
     const includeShadow = Boolean(payload.includeShadow);
 
+    /** 元素可见性检查 */
     const isVisible = (el: Element): boolean => {
       try {
         const style = window.getComputedStyle(el);
@@ -116,6 +117,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
     };
 
+    /** 提取元素文本片段 */
     const textSnippetOf = (el: Element): string | undefined => {
       const raw =
         (el as HTMLElement).innerText || el.getAttribute('aria-label') || el.textContent || '';
@@ -125,63 +127,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     };
 
     try {
-      const candidates = Array.from(document.querySelectorAll(selector)).filter(isVisible);
-      const candidateSet = new Set<Element>(candidates);
-
-      const root = document.documentElement;
-      if (!root) {
+      if (!document.documentElement) {
         sendResponse({ ok: false, error: 'document.documentElement missing' } satisfies StagehandXPathScanResponse);
         return true;
       }
 
-      const items: StagehandXPathItem[] = [];
+      // 使用封装的 scanDomForXPaths 工具函数
+      const scanResults = scanDomForXPaths(selector, {
+        includeShadow,
+        maxItems,
+        isVisible,
+      });
 
-      type StackEntry = { node: Node; xp: string };
-      const stack: StackEntry[] = [{ node: root, xp: '/html[1]' }];
+      // 转换为 StagehandXPathItem 格式，添加 textSnippet
+      const items: StagehandXPathItem[] = scanResults.map((result) => ({
+        xpath: result.xpath,
+        tagName: result.tagName,
+        id: result.id,
+        className: result.className,
+        textSnippet: textSnippetOf(result.element),
+      }));
 
-      while (stack.length) {
-        const { node, xp } = stack.pop()!;
-
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as Element;
-
-          if (candidateSet.has(el)) {
-            items.push({
-              xpath: xp,
-              tagName: el.tagName.toLowerCase(),
-              id: (el as HTMLElement).id || undefined,
-              className: (el as HTMLElement).className ? String((el as HTMLElement).className) : undefined,
-              textSnippet: textSnippetOf(el),
-            });
-            if (items.length >= maxItems) break;
-          }
-
-          if (includeShadow) {
-            const sr = (el as HTMLElement & { shadowRoot?: ShadowRoot | null }).shadowRoot;
-            if (sr) {
-              stack.push({ node: sr, xp: joinXPath(xp, '//') });
-            }
-          }
-        }
-
-        const kids = Array.from(node.childNodes || []);
-        if (kids.length) {
-          const segs = buildChildXPathSegments(
-            kids.map((k) => ({ nodeType: k.nodeType, nodeName: k.nodeName })),
-          );
-          // push reverse to keep traversal in DOM order
-          for (let i = kids.length - 1; i >= 0; i--) {
-            const child = kids[i]!;
-            const step = segs[i]!;
-            stack.push({ node: child, xp: joinXPath(xp, step) });
-          }
-        }
-      }
+      // 统计总候选数（用于响应元数据）
+      const totalCandidates = Array.from(document.querySelectorAll(selector)).filter(isVisible).length;
 
       sendResponse({
         ok: true,
         items,
-        meta: { totalCandidates: candidates.length, durationMs: Date.now() - started },
+        meta: { totalCandidates, durationMs: Date.now() - started },
       } satisfies StagehandXPathScanResponse);
       return true;
     } catch (e) {

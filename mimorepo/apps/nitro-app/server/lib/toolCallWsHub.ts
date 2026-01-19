@@ -7,6 +7,7 @@ export type ToolCallWsMessage = {
   toolType: string
   ok: boolean
   dataUrl?: string
+  imageUrl?: string
   meta?: unknown
   error?: string
 }

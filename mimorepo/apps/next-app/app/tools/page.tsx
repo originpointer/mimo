@@ -45,6 +45,7 @@ type ToolCallResultMessage = {
   toolType: "viewportScreenshot"
   ok: boolean
   dataUrl?: string
+  imageUrl?: string
   meta?: StagehandViewportScreenshotResponse extends { ok: true; meta?: infer M } ? M : never
   error?: string
 }
@@ -142,6 +143,26 @@ function downloadDataUrl(filename: string, dataUrl: string) {
   a.href = dataUrl
   a.download = filename
   a.click()
+}
+
+function downloadUrl(filename: string, url: string) {
+  const a = document.createElement("a")
+  a.href = url
+  a.download = filename
+  a.rel = "noopener"
+  a.click()
+}
+
+function resolveDownloadUrl(baseUrl: string, input: string) {
+  const trimmed = String(input || "").trim()
+  if (!trimmed) return ""
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  try {
+    const base = baseUrl ? baseUrl.replace(/\/+$/, "") + "/" : ""
+    return new URL(trimmed.replace(/^\/+/, ""), base || window.location.origin + "/").toString()
+  } catch {
+    return trimmed
+  }
 }
 
 function makeSampleId() {
@@ -600,6 +621,18 @@ export default function ToolsPage() {
   }
 
   const dataUrl = useMemo(() => (shotResult?.ok ? shotResult.dataUrl : null), [shotResult])
+  const downloadUrlFromApi = useMemo(() => {
+    if (!shotResult?.ok || !shotResult.imageUrl) return null
+    return resolveDownloadUrl(nitroBaseUrl, shotResult.imageUrl)
+  }, [shotResult, nitroBaseUrl])
+  const previewUrl = downloadUrlFromApi || dataUrl
+  const previewHint = shotRunning ? "上传中/等待中" : "（尚未截图）"
+  const shotResultForDisplay = useMemo(() => {
+    if (!shotResult) return null
+    if (!("dataUrl" in shotResult)) return shotResult
+    const { dataUrl: _dataUrl, ...rest } = shotResult as ToolCallResultMessage
+    return rest
+  }, [shotResult])
 
   return (
     <div style={{ padding: 16, fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial" }}>
@@ -686,7 +719,7 @@ export default function ToolsPage() {
             <CardTitle>Viewport Screenshot</CardTitle>
             <p className="text-sm text-muted-foreground">说明：通过扩展后台对目标 Tab 当前可视 viewport 截图。</p>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-hidden">
             <div className="flex flex-wrap gap-4 items-start">
               <div className="flex-1 min-w-[280px]">
                 <div className="flex gap-2 items-center">
@@ -695,9 +728,13 @@ export default function ToolsPage() {
                   </Button>
                   <Button
                     onClick={() => {
-                      if (dataUrl) downloadDataUrl(toFilename(targetTabId), dataUrl)
+                      if (downloadUrlFromApi) {
+                        downloadUrl(toFilename(targetTabId), downloadUrlFromApi)
+                      } else if (dataUrl) {
+                        downloadDataUrl(toFilename(targetTabId), dataUrl)
+                      }
                     }}
-                    disabled={!dataUrl}
+                    disabled={!downloadUrlFromApi && !dataUrl}
                     variant="outline"
                   >
                     Download PNG
@@ -706,18 +743,22 @@ export default function ToolsPage() {
                 {shotTaskId && <p className="mt-2 text-xs text-muted-foreground">TaskId: {shotTaskId}</p>}
                 {shotError && <p className="mt-2 text-sm text-destructive">{shotError}</p>}
               </div>
-              <div className="flex-[1.5] min-w-[320px]">
+              <div className="flex-[1.5] min-w-[320px] min-w-0">
                 <div className="text-xs text-muted-foreground mb-2">预览</div>
-                <div className="min-h-[180px] rounded-md border bg-muted/40 p-2 overflow-auto">
-                  {dataUrl ? (
-                    <img src={dataUrl} alt="viewport screenshot" className="max-w-full h-auto rounded-md" />
+                <div className="min-h-[180px] max-h-[60vh] rounded-md border bg-muted/40 p-2 overflow-auto">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt="viewport screenshot"
+                      className="max-w-full h-auto max-h-full rounded-md object-contain"
+                    />
                   ) : (
-                    <div className="text-xs text-muted-foreground">（尚未截图）</div>
+                    <div className="text-xs text-muted-foreground">{previewHint}</div>
                   )}
                 </div>
                 <div className="text-xs text-muted-foreground mt-3 mb-2">响应（调试）</div>
-                <pre className="m-0 min-h-[120px] rounded-md border bg-muted/40 p-2 overflow-auto text-xs">
-                  {shotResult ? JSON.stringify(shotResult, null, 2) : "（尚未执行）"}
+                <pre className="m-0 min-h-[120px] rounded-md border bg-muted/40 p-2 overflow-auto text-xs whitespace-pre-wrap break-words">
+                  {shotResultForDisplay ? JSON.stringify(shotResultForDisplay, null, 2) : "（尚未执行）"}
                 </pre>
               </div>
             </div>
