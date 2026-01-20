@@ -10,6 +10,7 @@ import {
   RESUME_XPATH_VALIDATE,
   STAGEHAND_VIEWPORT_SCREENSHOT,
   STAGEHAND_XPATH_SCAN,
+  XPATH_GET_HTML,
   XPATH_MARK_ELEMENTS,
   type JsonCommonXpathFindOptions,
   type JsonCommonXpathFindPayload,
@@ -24,6 +25,8 @@ import {
   type StagehandXPathScanOptions,
   type StagehandXPathScanPayload,
   type StagehandXPathScanResponse,
+  type XPathGetHtmlPayload,
+  type XPathGetHtmlResponse,
   type XPathMarkElementsPayload,
   type XPathMarkElementsResponse
 } from "@/types/plasmo"
@@ -88,6 +91,13 @@ const DEFAULT_XPATH_MARK_TEXT = `//a
 //button
 //input`
 
+const DEFAULT_XPATH_GET_HTML_TEXT = `//body`
+const DEFAULT_XPATH_GET_HTML_MAXCHARS = 200_000
+
+type NitroUploadTextResponse =
+  | { ok: true; uploadId: string; fileName: string; mimeType: string; bytes: number; relPath: string; url: string }
+  | { ok: false; error: string }
+
 function safeJsonParse<T>(text: string): { ok: true; value: T } | { ok: false; error: string } {
   try {
     return { ok: true, value: JSON.parse(text) as T }
@@ -148,6 +158,20 @@ function toJsonResumeFilename(tabId: number | "active", url?: string) {
   }
   const safeHost = host ? host.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 60) : "unknown"
   return `mimo-jsonresume-xpath-${safeHost}-${tabId}-${stamp}.json`
+}
+
+function toHtmlUploadFilename(tabId: number | "active", url?: string) {
+  const ts = new Date()
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const stamp = `${ts.getFullYear()}${pad(ts.getMonth() + 1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}`
+  let host = ""
+  try {
+    host = url ? new URL(url).hostname : ""
+  } catch {
+    host = ""
+  }
+  const safeHost = host ? host.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 60) : "unknown"
+  return `mimo-innerhtml-${safeHost}-${tabId}-${stamp}.html`
 }
 
 function downloadJson(filename: string, obj: unknown) {
@@ -283,6 +307,15 @@ export default function ToolsPage() {
   const [markError, setMarkError] = useState<string | null>(null)
   const [markResp, setMarkResp] = useState<XPathMarkElementsResponse | null>(null)
 
+  const [htmlXpathText, setHtmlXpathText] = useState(() => DEFAULT_XPATH_GET_HTML_TEXT)
+  const [htmlMaxCharsText, setHtmlMaxCharsText] = useState(() => String(DEFAULT_XPATH_GET_HTML_MAXCHARS))
+  const [htmlRunning, setHtmlRunning] = useState(false)
+  const [htmlError, setHtmlError] = useState<string | null>(null)
+  const [htmlResp, setHtmlResp] = useState<XPathGetHtmlResponse | null>(null)
+  const [htmlUploadRunning, setHtmlUploadRunning] = useState(false)
+  const [htmlUploadError, setHtmlUploadError] = useState<string | null>(null)
+  const [htmlUploadResp, setHtmlUploadResp] = useState<any>(null)
+
   const [shotRunning, setShotRunning] = useState(false)
   const [shotError, setShotError] = useState<string | null>(null)
   const [shotTaskId, setShotTaskId] = useState<string | null>(null)
@@ -375,6 +408,37 @@ export default function ToolsPage() {
       if (typeof document === "undefined") throw new Error("document 不可用")
       const el = document.createElement("textarea")
       el.value = text
+      el.setAttribute("readonly", "true")
+      el.style.position = "fixed"
+      el.style.left = "-9999px"
+      el.style.top = "0"
+      document.body.appendChild(el)
+      el.focus()
+      el.select()
+      const ok = document.execCommand("copy")
+      document.body.removeChild(el)
+      if (!ok) throw new Error("execCommand(copy) 返回 false")
+    } catch (e) {
+      setError(`复制失败（${label}）：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const copyText = async (label: string, text: string, setError: (v: string | null) => void) => {
+    setError(null)
+    const value = String(text ?? "")
+    try {
+      if (typeof navigator !== "undefined" && navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        return
+      }
+    } catch {
+      // ignore, fallback below
+    }
+
+    try {
+      if (typeof document === "undefined") throw new Error("document 不可用")
+      const el = document.createElement("textarea")
+      el.value = value
       el.setAttribute("readonly", "true")
       el.style.position = "fixed"
       el.style.left = "-9999px"
@@ -554,6 +618,105 @@ export default function ToolsPage() {
       setMarkError(e instanceof Error ? e.message : String(e))
     } finally {
       setMarkRunning(false)
+    }
+  }
+
+  const runXpathGetHtml = async () => {
+    setHtmlError(null)
+    setHtmlResp(null)
+    setHtmlUploadError(null)
+    setHtmlUploadResp(null)
+    if (!ensureExtensionId(setHtmlError)) return
+
+    const xpath = String(htmlXpathText || "").trim()
+    if (!xpath) {
+      setHtmlError("请输入 XPath")
+      return
+    }
+
+    const selectedTab = typeof targetTabId === "number" ? tabs.find((x) => x.id === targetTabId) : tabs.find((x) => x.active)
+    const selectedUrl = selectedTab?.url
+
+    if (typeof targetTabId === "number") {
+      const t = tabs.find((x) => x.id === targetTabId)
+      if (t && !isScannableUrl(t.url)) {
+        setHtmlError(`目标 Tab 不可扫描（URL=${t.url || "unknown"}）。请换一个 http/https 页面。`)
+        return
+      }
+    }
+
+    const rawMaxChars = Number(String(htmlMaxCharsText || "").trim())
+    const maxChars = Number.isFinite(rawMaxChars) && rawMaxChars > 0 ? Math.floor(rawMaxChars) : undefined
+    const payload: XPathGetHtmlPayload = {
+      xpath,
+      ...(typeof maxChars === "number" ? { maxChars } : {}),
+      ...(typeof targetTabId === "number" ? { targetTabId } : {})
+    }
+
+    setHtmlRunning(true)
+    setHtmlUploadRunning(true)
+    try {
+      const out = await sendToExtension<XPathGetHtmlResponse>(
+        {
+          type: XPATH_GET_HTML,
+          payload
+        },
+        extensionId
+      )
+      if (!out) {
+        setHtmlError("未收到响应（可能扩展未就绪或权限不足）")
+        return
+      }
+      setHtmlResp(out)
+      if (out.ok === false) {
+        setHtmlError(out.error)
+        return
+      }
+      if (!out.matched) {
+        setHtmlError("（未命中任何元素，未上传）")
+        return
+      }
+
+      const html = out.html || ""
+      if (!html) {
+        setHtmlError("（innerHTML 为空，未上传）")
+        return
+      }
+
+      const uploadUrl = `${nitroBaseUrl.replace(/\/+$/, "")}/api/upload/innerHTML`
+      const fileName = toHtmlUploadFilename(targetTabId, selectedUrl)
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          content: html,
+          fileName,
+          mimeType: "text/html",
+          meta: {
+            xpath,
+            targetTabId,
+            pageUrl: selectedUrl
+          }
+        })
+      })
+      const json = (await res.json().catch(() => null)) as NitroUploadTextResponse | null
+      if (!res.ok || !json || !json.ok) {
+        const message = json && "error" in json ? json.error : `Nitro upload failed: HTTP ${res.status}`
+        setHtmlUploadError(message)
+        return
+      }
+      setHtmlUploadResp(json)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      // 区分：获取失败 vs 上传失败
+      if (String(msg).toLowerCase().includes("nitro") || String(msg).includes("/api/upload/")) {
+        setHtmlUploadError(msg)
+      } else {
+        setHtmlError(msg)
+      }
+    } finally {
+      setHtmlRunning(false)
+      setHtmlUploadRunning(false)
     }
   }
 
@@ -1088,6 +1251,117 @@ export default function ToolsPage() {
               >
                 {markResp ? JSON.stringify(markResp, null, 2) : "（尚未执行）"}
               </pre>
+            </div>
+          </div>
+        </section>
+
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
+          <h2 style={{ margin: "0 0 8px 0" }}>XPath 获取 innerHTML</h2>
+          <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
+            说明：输入 XPath，点击按钮后通过扩展获取 <code>innerHTML</code>，并立即上传到 Nitro（落盘为 .html 文件）。
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 520px", minWidth: 320 }}>
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>XPath</div>
+              <textarea
+                value={htmlXpathText}
+                onChange={(e) => setHtmlXpathText(e.target.value)}
+                spellCheck={false}
+                placeholder={`//body\n//div[@id='x']`}
+                style={{
+                  width: "100%",
+                  minHeight: 120,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace",
+                  fontSize: 12,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb"
+                }}
+              />
+
+              <div style={{ marginTop: 10, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <div style={{ fontSize: 12, color: "#333" }}>maxChars</div>
+                  <input
+                    value={htmlMaxCharsText}
+                    onChange={(e) => setHtmlMaxCharsText(e.target.value)}
+                    placeholder={String(DEFAULT_XPATH_GET_HTML_MAXCHARS)}
+                    style={{
+                      width: 140,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      border: "1px solid #e5e7eb",
+                      fontSize: 12
+                    }}
+                  />
+                </div>
+
+                <button
+                  onClick={() => void runXpathGetHtml()}
+                  disabled={htmlRunning || htmlUploadRunning}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: htmlRunning ? "not-allowed" : "pointer" }}
+                >
+                  {htmlRunning || htmlUploadRunning ? "Running..." : "Get + Upload"}
+                </button>
+                <button
+                  onClick={() => {
+                    setHtmlXpathText(DEFAULT_XPATH_GET_HTML_TEXT)
+                    setHtmlMaxCharsText(String(DEFAULT_XPATH_GET_HTML_MAXCHARS))
+                    setHtmlUploadError(null)
+                    setHtmlUploadResp(null)
+                  }}
+                  disabled={htmlRunning || htmlUploadRunning}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #ddd", cursor: htmlRunning ? "not-allowed" : "pointer" }}
+                >
+                  Reset
+                </button>
+                <button
+                  onClick={() =>
+                    void copyText(
+                      "Nitro File URL",
+                      htmlUploadResp && htmlUploadResp.ok ? resolveDownloadUrl(nitroBaseUrl, htmlUploadResp.url) : "",
+                      setHtmlUploadError
+                    )
+                  }
+                  disabled={!htmlUploadResp || htmlUploadResp.ok === false}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    cursor: !htmlUploadResp || htmlUploadResp.ok === false ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Copy URL
+                </button>
+              </div>
+
+              {htmlError && <div style={{ marginTop: 10, color: "#b00020", fontSize: 12 }}>{htmlError}</div>}
+              {htmlUploadError && <div style={{ marginTop: 10, color: "#b00020", fontSize: 12 }}>{htmlUploadError}</div>}
+            </div>
+
+            <div className="flex-1 min-w-[320px] min-w-0">
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>结果</div>
+              <div className="min-h-[180px] max-h-[60vh] rounded-md border bg-muted/40 p-2 overflow-auto">
+                <pre className="m-0 text-xs font-mono whitespace-pre break-normal">
+                  {htmlUploadResp
+                    ? htmlUploadResp.ok
+                      ? JSON.stringify(
+                          {
+                            ...htmlUploadResp,
+                            fullUrl: resolveDownloadUrl(nitroBaseUrl, htmlUploadResp.url)
+                          },
+                          null,
+                          2
+                        )
+                      : JSON.stringify(htmlUploadResp, null, 2)
+                    : htmlRunning || htmlUploadRunning
+                      ? "Running..."
+                      : "（尚未执行）"}
+                </pre>
+              </div>
+              {htmlResp && htmlResp.ok && htmlResp.matched && htmlResp.meta?.truncated && (
+                <div style={{ marginTop: 8, color: "#555", fontSize: 12 }}>提示：innerHTML 已截断（meta.truncated=true），上传的是截断后的内容</div>
+              )}
             </div>
           </div>
         </section>

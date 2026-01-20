@@ -33,6 +33,7 @@ import {
   type XPathMarkElementsResponse,
   type XPathMarkMode
 } from "../types/xpath-mark"
+import { XPATH_GET_HTML, type XPathGetHtmlPayload, type XPathGetHtmlResponse } from "../types/xpath-get-html"
 import { LIST_TABS, type ListTabsPayload, type ListTabsResponse } from "../types/list-tabs"
 import { postToolCallResult, registerExtensionId } from "@/apis"
 import { StagehandXPathScanner } from "./libs/StagehandXPathScanner"
@@ -41,6 +42,7 @@ import { ResumeBlocksExtractor } from "./libs/ResumeBlocksExtractor"
 import { ResumeXpathValidator } from "./libs/ResumeXpathValidator"
 import { JsonCommonXpathFinder } from "./libs/JsonCommonXpathFinder"
 import { XpathMarker } from "./libs/XpathMarker"
+import { XpathHtmlGetter } from "./libs/XpathHtmlGetter"
 
 class StagehandXPathManager {
   private readonly scanner = new StagehandXPathScanner()
@@ -49,6 +51,7 @@ class StagehandXPathManager {
   private readonly resumeXpathValidator = new ResumeXpathValidator()
   private readonly jsonCommonXpathFinder = new JsonCommonXpathFinder()
   private readonly xpathMarker = new XpathMarker()
+  private readonly xpathHtmlGetter = new XpathHtmlGetter()
 
   constructor() {
     this.setupMessageListeners()
@@ -493,6 +496,65 @@ class StagehandXPathManager {
         const tabId = tabs?.[0]?.id
         if (!tabId) {
           sendResponse({ ok: false, error: "No active tab found" } satisfies XPathMarkElementsResponse)
+          return
+        }
+        runOnTab(tabId)
+      })
+
+      return true
+    }
+
+    // next-app -> Background: 输入 XPath，获取第一个命中节点的 innerHTML
+    if (message.type === XPATH_GET_HTML) {
+      const payload = message.payload as Partial<XPathGetHtmlPayload> | undefined
+      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
+      const xpath = typeof payload?.xpath === "string" ? payload.xpath.trim() : ""
+      const maxChars = typeof payload?.maxChars === "number" && Number.isFinite(payload.maxChars) ? payload.maxChars : undefined
+
+      if (!xpath) {
+        sendResponse({ ok: false, error: "xpath is empty" } satisfies XPathGetHtmlResponse)
+        return true
+      }
+
+      const runOnTab = (tabId: number) => {
+        chrome.tabs.get(tabId, (tab) => {
+          const tabUrl = tab?.url
+          if (chrome.runtime.lastError) {
+            sendResponse({
+              ok: false,
+              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
+            } satisfies XPathGetHtmlResponse)
+            return
+          }
+          if (!this.isScannableUrl(tabUrl)) {
+            sendResponse({
+              ok: false,
+              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
+            } satisfies XPathGetHtmlResponse)
+            return
+          }
+
+          this.xpathHtmlGetter
+            .get(tabId, { xpath, maxChars })
+            .then((resp) => sendResponse(resp))
+            .catch((e) =>
+              sendResponse({
+                ok: false,
+                error: e instanceof Error ? e.message : String(e)
+              } satisfies XPathGetHtmlResponse)
+            )
+        })
+      }
+
+      if (requestedTabId != null) {
+        runOnTab(requestedTabId)
+        return true
+      }
+
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const tabId = tabs?.[0]?.id
+        if (!tabId) {
+          sendResponse({ ok: false, error: "No active tab found" } satisfies XPathGetHtmlResponse)
           return
         }
         runOnTab(tabId)
