@@ -163,9 +163,15 @@ importers:
       '@letta-ai/letta-client':
         specifier: ^1.6.5
         version: 1.6.5
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.2
+        version: 1.25.2(@cfworker/json-schema@4.1.1)(hono@4.11.4)(zod@3.25.76)
       ai:
         specifier: ^6.0.33
         version: 6.0.33(zod@3.25.76)
+      openai:
+        specifier: ^6.16.0
+        version: 6.16.0(ws@8.19.0(bufferutil@4.1.0))(zod@3.25.76)
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -6758,6 +6764,18 @@ packages:
     peerDependencies:
       ws: ^8.18.0
       zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
+  openai@6.16.0:
+    resolution: {integrity: sha512-fZ1uBqjFUjXzbGc35fFtYKEOxd20kd9fDpFeqWtsOZWiubY8CZ1NAlXHW3iathaFvqmNtCWMIsosCuyeI7Joxg==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       ws:
         optional: true
@@ -15626,6 +15644,11 @@ snapshots:
       zod: 3.25.76
     transitivePeerDependencies:
       - encoding
+
+  openai@6.16.0(ws@8.19.0(bufferutil@4.1.0))(zod@3.25.76):
+    optionalDependencies:
+      ws: 8.19.0(bufferutil@4.1.0)
+      zod: 3.25.76
 
   optionator@0.9.4:
     dependencies:
