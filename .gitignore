@@ -45,6 +45,7 @@ coverage/
 !.sources/*.yml
 !.sources/*.ts
 !.sources/*.md
+.pnpm-store/
 
 # audit artifacts (Phase9/10 evidence chain)
 audit/

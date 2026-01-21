@@ -1,33 +1,32 @@
 import { defineEventHandler, readBody, setResponseHeaders, createError } from "h3";
-import Letta from "@letta-ai/letta-client";
+import { createOpenAI } from "@ai-sdk/openai";
+import { streamText, UI_MESSAGE_STREAM_HEADERS } from "ai";
+import { config } from "dotenv";
+import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
-// Letta client - 连接到 Self-hosted Letta 服务
-const lettaClient = new Letta({
-  baseUrl: process.env.LETTA_BASE_URL || "http://localhost:8283",
-});
+function getTextFromMessage(message: unknown): string | null {
+  if (!message || typeof message !== "object") return null;
+  const record = message as Record<string, unknown>;
 
-// Agent ID - 需要在 Letta 中预先创建
-const AGENT_ID = process.env.LETTA_AGENT_ID;
+  if (Array.isArray(record.parts)) {
+    const text = record.parts
+      .filter(
+        (part): part is { type: "text"; text?: string } =>
+          Boolean(part) && typeof part === "object" && (part as { type?: string }).type === "text",
+      )
+      .map((part) => part.text ?? "")
+      .join("");
 
-// AI SDK v5 UI Message Stream 格式
-function createUIMessageStream(content: string): string {
-  const textId = Math.random().toString(36).substring(2, 15);
-  const lines: string[] = [];
-  
-  // text-start
-  lines.push(JSON.stringify({ type: "text-start", id: textId }));
-  
-  // text-delta (分块发送内容)
-  const words = content.split(" ");
-  for (const word of words) {
-    lines.push(JSON.stringify({ type: "text-delta", id: textId, delta: word + " " }));
+    return text || null;
   }
-  
-  // text-end
-  lines.push(JSON.stringify({ type: "text-end", id: textId }));
-  
-  // 每行用换行符分隔
-  return lines.join("\n") + "\n";
+
+  if (typeof record.content === "string") {
+    return record.content;
+  }
+
+  return null;
 }
 
 export default defineEventHandler(async (event) => {
@@ -38,55 +37,111 @@ export default defineEventHandler(async (event) => {
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
   });
 
+  const requestId = `nitro-chat-${Date.now()}`;
+  console.info("[nitro-chat] request start", { requestId });
   try {
+    if (!process.env.DASHSCOPE_API_KEY) {
+      const cwdEnvPath = path.join(process.cwd(), "apps", "nitro-app", ".env");
+      const appEnvPath = fileURLToPath(new URL("../../../.env", import.meta.url));
+      const repoEnvPath = fileURLToPath(new URL("../../../../../.env", import.meta.url));
+
+      if (existsSync(cwdEnvPath)) {
+        config({ path: cwdEnvPath });
+      } else if (existsSync(appEnvPath)) {
+        config({ path: appEnvPath });
+      } else if (existsSync(repoEnvPath)) {
+        config({ path: repoEnvPath });
+      }
+    }
+
+    const qwenBaseUrl =
+      process.env.QWEN_BASE_URL ??
+      "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    const qwenModel = process.env.QWEN_MODEL ?? "qwen-max";
+    const qwenApiKey = process.env.DASHSCOPE_API_KEY;
+    if (!process.env.OPENAI_API_KEY && qwenApiKey) {
+      process.env.OPENAI_API_KEY = qwenApiKey;
+    }
+    if (!process.env.OPENAI_BASE_URL && qwenBaseUrl) {
+      process.env.OPENAI_BASE_URL = qwenBaseUrl;
+    }
+
+    if (!qwenApiKey) {
+      throw createError({
+        statusCode: 500,
+        message: "DASHSCOPE_API_KEY is not configured",
+      });
+    }
+
     const body = await readBody(event);
     const { messages } = body;
+    console.info("[nitro-chat] body parsed", {
+      requestId,
+      messagesCount: Array.isArray(messages) ? messages.length : 0,
+    });
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.warn("[nitro-chat] invalid messages", { requestId });
       throw createError({
         statusCode: 400,
         message: "Invalid messages format",
       });
     }
 
-    // 获取最后一条用户消息
-    const lastMessage = messages[messages.length - 1];
-    const userContent = lastMessage.content;
+    const textMessages = messages.map((message: unknown) => {
+      const rawRole = (message as { role?: "user" | "assistant" | "system" | "tool" }).role;
+      const content = getTextFromMessage(message) ?? "";
 
-    // 设置 AI SDK v5 流式响应头
-    setResponseHeaders(event, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-      "x-vercel-ai-ui-message-stream": "v1",
-      "x-accel-buffering": "no",
-    });
-
-    if (!AGENT_ID) {
-      // 如果没有配置 Agent ID，返回模拟响应（用于测试）
-      console.warn("LETTA_AGENT_ID not configured, returning mock response");
-      
-      const mockResponse = `I received your message: "${userContent}". However, Letta is not configured yet. Please set LETTA_AGENT_ID environment variable.`;
-      
-      return createUIMessageStream(mockResponse);
-    }
-
-    // 调用 Letta API
-    const lettaResponse = await lettaClient.agents.messages.create(AGENT_ID, {
-      input: userContent,
-    });
-
-    // 提取助手消息
-    let assistantContent = "";
-    for (const message of lettaResponse.messages) {
-      if (message.message_type === "assistant_message" && message.content) {
-        assistantContent += message.content;
+      if (rawRole === "assistant") {
+        return { role: "assistant", content } as const;
       }
+
+      if (rawRole === "system") {
+        return { role: "system", content } as const;
+      }
+
+      return { role: "user", content } as const;
+    });
+
+    if (textMessages.some((message) => !message.content)) {
+      console.warn("[nitro-chat] empty message content", {
+        requestId,
+        textMessagesCount: textMessages.length,
+      });
+      throw createError({
+        statusCode: 400,
+        message: "Invalid message content",
+      });
     }
 
-    return createUIMessageStream(assistantContent);
+    setResponseHeaders(event, UI_MESSAGE_STREAM_HEADERS);
+
+    console.info("[nitro-chat] config", {
+      requestId,
+      qwenModel,
+      qwenBaseUrl,
+      hasApiKey: Boolean(qwenApiKey),
+    });
+    console.debug("[nitro-chat] textMessages", { requestId, textMessages });
+
+    const provider = createOpenAI({
+      apiKey: qwenApiKey,
+      baseURL: qwenBaseUrl,
+    });
+
+    console.info("[nitro-chat] streamText start", { requestId });
+    const result = streamText({
+      model: provider.chat(qwenModel),
+      messages: textMessages,
+      system: "You are a helpful assistant.",
+    });
+
+    console.info("[nitro-chat] streamText created", { requestId });
+
+    console.info("[nitro-chat] response stream ready", { requestId });
+    return result.toUIMessageStreamResponse();
   } catch (error) {
-    console.error("Chat API error:", error);
+    console.error("[nitro-chat] error", { requestId, error });
     throw createError({
       statusCode: 500,
       message: error instanceof Error ? error.message : "Internal server error",

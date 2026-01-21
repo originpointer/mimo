@@ -15,6 +15,7 @@
     "@letta-ai/letta-client": "^1.6.5",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "ai": "^6.0.33",
+    "dotenv": "^16.4.7",
     "openai": "^6.16.0",
     "zod": "^3.25.76"
   }
