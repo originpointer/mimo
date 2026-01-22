@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket Test Client</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    .status { padding: 12px; border-radius: 6px; margin-bottom: 16px; }
+    .status.connected { background: #d4edda; color: #155724; }
+    .status.disconnected { background: #f8d7da; color: #721c24; }
+    #messages { border: 1px solid #ddd; padding: 12px; border-radius: 6px; min-height: 200px; max-height: 400px; overflow-y: auto; background: #f8f9fa; }
+    .message { margin: 4px 0; padding: 6px; border-radius: 4px; background: white; }
+    button { padding: 10px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 8px; }
+    button:hover { background: #0056b3; }
+    input { padding: 8px; border: 1px solid #ddd; border-radius: 4px; width: 200px; }
+  </style>
+</head>
+<body>
+  <h1>WebSocket Test Client</h1>
+  <div id="status" class="status disconnected">Status: Disconnected</div>
+
+  <div>
+    <input type="text" id="messageInput" placeholder="Type a message...">
+    <button onclick="sendMessage()">Send Message</button>
+    <button onclick="joinRoom()">Join Room</button>
+  </div>
+
+  <h3>Messages:</h3>
+  <div id="messages"></div>
+
+  <script>
+    // Use plain WebSocket instead of Socket.IO client
+    const ws = new WebSocket('ws://localhost:6006/socket.io/');
+
+    const statusEl = document.getElementById('status');
+    const messagesEl = document.getElementById('messages');
+
+    function addMessage(text) {
+      const div = document.createElement('div');
+      div.className = 'message';
+      div.textContent = `${new Date().toLocaleTimeString()}: ${text}`;
+      messagesEl.appendChild(div);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    ws.onopen = () => {
+      statusEl.textContent = `Status: Connected`;
+      statusEl.className = 'status connected';
+      addMessage('Connected to server');
+    };
+
+    ws.onclose = (event) => {
+      statusEl.textContent = `Status: Disconnected (${event.code})`;
+      statusEl.className = 'status disconnected';
+      addMessage(`Disconnected: ${event.reason || 'connection closed'}`);
+    };
+
+    ws.onerror = (error) => {
+      addMessage(`Error: ${error}`);
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        addMessage(`Received: ${data.event} - ${JSON.stringify(data.data)}`);
+      } catch {
+        addMessage(`Received: ${event.data}`);
+      }
+    };
+
+    function sendMessage() {
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
+      if (message) {
+        const payload = JSON.stringify({
+          event: 'message',
+          payload: { text: message }
+        });
+        ws.send(payload);
+        addMessage(`Sent: ${message}`);
+        input.value = '';
+      }
+    }
+
+    function joinRoom() {
+      const room = prompt('Enter room name:');
+      if (room) {
+        const payload = JSON.stringify({
+          event: 'join-room',
+          payload: room
+        });
+        ws.send(payload);
+        addMessage(`Requested to join room: ${room}`);
+      }
+    }
+
+    // Allow Enter key to send message
+    document.getElementById('messageInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>

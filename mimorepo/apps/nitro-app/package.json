@@ -7,16 +7,19 @@
     "preview": "NITRO_PORT=6006 node .output/server/index.mjs"
   },
   "devDependencies": {
+    "@types/socket.io": "^3.0.1",
     "h3": "^1.15.4",
     "nitropack": "^2.12.4"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^3.0.9",
+    "@ai-sdk/openai": "^3.0.14",
     "@letta-ai/letta-client": "^1.6.5",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "ai": "^6.0.33",
     "dotenv": "^16.4.7",
+    "engine.io": "^6.6.5",
     "openai": "^6.16.0",
+    "socket.io": "^4.8.3",
     "zod": "^3.25.76"
   }
 }

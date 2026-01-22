@@ -1,0 +1,26 @@
+{
+  "name": "@mimo/agent",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Mimo Agent - Multi-step AI-driven automation",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "uuid": "^11.0.3",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/uuid": "^11.0.0",
+    "tsdown": "^0.20.0-beta.4",
+    "typescript": "5.9.2"
+  }
+}
