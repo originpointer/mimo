@@ -13,8 +13,8 @@ import type {
   FillOptions,
   PageContent,
   Action,
-} from './types';
-import { RemoteLocator, RemoteDeepLocator } from './locator';
+} from './types.js';
+import { RemoteLocator, RemoteDeepLocator } from './locator.js';
 
 /**
  * RemotePage - Proxy for page operations via MimoBus

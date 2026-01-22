@@ -1,9 +1,9 @@
 {
-  "name": "@mimo/core",
+  "name": "@mimo/types",
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Mimo Core - Main Mimo API",
+  "description": "Mimo Types - Shared type definitions",
   "main": "./src/index.ts",
   "exports": {
     ".": {
@@ -15,14 +15,6 @@
     "build": "tsdown",
     "dev": "tsdown -w",
     "check-types": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@mimo/types": "workspace:*",
-    "@mimo/agent": "workspace:*",
-    "@mimo/bus": "workspace:*",
-    "@mimo/context": "workspace:*",
-    "@mimo/llm": "workspace:*",
-    "eventemitter3": "^5.0.1"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

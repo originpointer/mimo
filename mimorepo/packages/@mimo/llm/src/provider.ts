@@ -10,8 +10,8 @@ import type {
   LLMStreamChunk,
   StagehandZodSchema,
   InferStagehandSchema,
-} from './types';
-import { LLMClient } from './client';
+} from './types.js';
+import { LLMClient } from './client.js';
 
 export type {
   ClientOptions,

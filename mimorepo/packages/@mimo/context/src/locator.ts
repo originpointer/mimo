@@ -3,7 +3,7 @@
  * Remote proxy classes for element locators
  */
 
-import type { RemoteResponse, LocatorOptions } from './types';
+import type { RemoteResponse, LocatorOptions } from './types.js';
 
 /**
  * Abstract base class for remote locators

@@ -7,5 +7,5 @@
  * All browser automation operations start here.
  */
 
-export { Mimo } from './mimo';
-export * from './types';
+export { Mimo } from './mimo.js';
+export * from './types.js';

@@ -243,6 +243,15 @@ importers:
 
   packages/@mimo/agent:
     dependencies:
+      '@mimo/bus':
+        specifier: workspace:*
+        version: link:../bus
+      '@mimo/llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@mimo/types':
+        specifier: workspace:*
+        version: link:../types
       uuid:
         specifier: ^11.0.3
         version: 11.1.0
@@ -321,6 +330,9 @@ importers:
       '@mimo/llm':
         specifier: workspace:*
         version: link:../llm
+      '@mimo/types':
+        specifier: workspace:*
+        version: link:../types
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.4
@@ -337,9 +349,24 @@ importers:
 
   packages/@mimo/llm:
     dependencies:
+      '@mimo/types':
+        specifier: workspace:*
+        version: link:../types
       zod:
         specifier: ^3.24.1
         version: 3.25.76
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../typescript-config
+      tsdown:
+        specifier: ^0.20.0-beta.4
+        version: 0.20.0-beta.4(typescript@5.9.2)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/@mimo/types:
     devDependencies:
       '@repo/typescript-config':
         specifier: workspace:*
@@ -386,34 +413,6 @@ importers:
       typescript-eslint:
         specifier: ^8.50.0
         version: 8.50.0(eslint@9.39.1(jiti@2.6.1))(typescript@5.9.2)
-
-  packages/mimo:
-    dependencies:
-      '@mimo/agent':
-        specifier: workspace:*
-        version: link:../@mimo/agent
-      '@mimo/bus':
-        specifier: workspace:*
-        version: link:../@mimo/bus
-      '@mimo/context':
-        specifier: workspace:*
-        version: link:../@mimo/context
-      '@mimo/core':
-        specifier: workspace:*
-        version: link:../@mimo/core
-      '@mimo/llm':
-        specifier: workspace:*
-        version: link:../@mimo/llm
-    devDependencies:
-      '@repo/eslint-config':
-        specifier: workspace:*
-        version: link:../eslint-config
-      '@repo/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      typescript:
-        specifier: 5.9.2
-        version: 5.9.2
 
   packages/sens:
     devDependencies:
@@ -7782,6 +7781,7 @@ packages:
   semver@7.7.3:
     resolution: {integrity: sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q==}
     engines: {node: '>=10'}
+    hasBin: true
 
   send@1.2.1:
     resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}

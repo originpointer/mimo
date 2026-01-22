@@ -10,9 +10,9 @@
  * - MimoContext: Context manager for tabs and pages
  */
 
-export { RemotePage } from './page';
-export { RemoteLocator, RemoteDeepLocator } from './locator';
-export { MimoContext } from './context';
+export { RemotePage } from './page.js';
+export { RemoteLocator, RemoteDeepLocator } from './locator.js';
+export { MimoContext } from './context.js';
 
 export type {
   RemoteResponse,
@@ -25,4 +25,4 @@ export type {
   PageContent,
   ElementInfo,
   Action,
-} from './types';
+} from './types.js';

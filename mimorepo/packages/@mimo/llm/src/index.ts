@@ -8,6 +8,6 @@
  * - LLMProvider: Manager for LLM clients with support for multiple providers
  */
 
-export * from './provider';
-export * from './client';
-export * from './types';
+export * from './provider.js';
+export * from './client.js';
+export * from './types.js';

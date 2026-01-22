@@ -9,7 +9,7 @@ import type {
   LLMStreamChunk,
   StagehandZodSchema,
   InferStagehandSchema,
-} from './types';
+} from './types.js';
 
 /**
  * Abstract base class for LLM clients

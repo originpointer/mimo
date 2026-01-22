@@ -14,15 +14,15 @@ import type {
   AgentAction,
   AgentUsage,
   AgentStreamEvent,
-} from './types';
+} from './types.js';
 import {
   MimoAgentError,
   MimoAgentTimeoutError,
   MimoAgentMaxStepsError,
   MimoAgentExecutionError,
-} from './types';
+} from './types.js';
 
-export * from './types';
+export * from './types.js';
 
 /**
  * MimoAgent - Intelligent agent for multi-step tasks

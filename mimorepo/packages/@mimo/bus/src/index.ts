@@ -17,16 +17,16 @@ import type {
   MimoResponse,
   MimoStreamEvent,
   CommandType,
-} from './types';
+} from './types.js';
 import {
   MimoBusConnectionError,
   MimoBusTimeoutError,
   MimoBusNotConnectedError,
   MimoBusCommandError,
-} from './types';
+} from './types.js';
 
 export { MimoBusOptions, MimoCommand, MimoResponse, MimoStreamEvent, CommandType };
-export * from './types';
+export * from './types.js';
 
 /**
  * MimoBus - Socket.IO communication core

@@ -6,7 +6,10 @@
   "description": "Mimo LLM - Language model integration",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./src/index.ts"
+    }
   },
   "scripts": {
     "build": "tsdown",
@@ -14,6 +17,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@mimo/types": "workspace:*",
     "zod": "^3.24.1"
   },
   "devDependencies": {

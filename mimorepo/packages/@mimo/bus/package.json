@@ -6,7 +6,10 @@
   "description": "Mimo Bus - Socket.IO communication layer",
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.mts",
+      "default": "./src/index.ts"
+    }
   },
   "scripts": {
     "build": "tsdown",

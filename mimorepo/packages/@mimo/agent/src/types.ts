@@ -2,7 +2,7 @@
  * MimoAgent Types
  */
 
-import type { ModelConfiguration } from '@mimo/lib/core';
+import type { ModelConfiguration } from '@mimo/types';
 
 /**
  * Agent configuration

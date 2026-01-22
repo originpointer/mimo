@@ -21,13 +21,13 @@ import type {
   LogLine,
   HistoryEntry,
   MimoMetrics,
-} from './types';
+} from './types.js';
 import {
   MimoInitError,
   MimoTimeoutError,
   MimoNotConnectedError,
   MimoCommandError,
-} from './types';
+} from './types.js';
 
 export {
   MimoOptions,

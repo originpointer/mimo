@@ -2,9 +2,9 @@
  * LLM Types
  */
 
-import type { ModelConfiguration } from '@mimo/lib/core';
+import type { ModelConfiguration } from '@mimo/types';
 
-export type { ModelConfiguration } from '@mimo/lib/core';
+export type { ModelConfiguration } from '@mimo/types';
 
 /**
  * Client options
