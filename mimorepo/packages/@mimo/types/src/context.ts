@@ -3,6 +3,9 @@
  * Types for RemotePage, RemoteLocator, and MimoContext
  */
 
+// Re-export TabInfo from bus to avoid duplication
+export type { TabInfo } from './bus.js';
+
 /**
  * Remote response wrapper
  */
@@ -11,17 +14,6 @@ export interface RemoteResponse<T = any> {
   data?: T;
   error?: string;
   duration?: number;
-}
-
-/**
- * Tab information
- */
-export interface TabInfo {
-  id: string;
-  url: string;
-  title: string;
-  active: boolean;
-  windowId: number;
 }
 
 /**
@@ -103,12 +95,4 @@ export interface ElementInfo {
   clickable: boolean;
 }
 
-/**
- * Action from observe
- */
-export interface Action {
-  selector: string;
-  description: string;
-  method?: string;
-  arguments?: string[];
-}
+// Action is now exported from core.ts with optional selector

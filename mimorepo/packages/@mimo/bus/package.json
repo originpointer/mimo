@@ -17,12 +17,14 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@mimo/types": "workspace:*",
     "socket.io-client": "^4.8.1",
     "uuid": "^11.0.3",
     "eventemitter3": "^5.0.1"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
+    "@types/node": "^22.10.5",
     "@types/uuid": "^11.0.0",
     "tsdown": "^0.20.0-beta.4",
     "typescript": "5.9.2"

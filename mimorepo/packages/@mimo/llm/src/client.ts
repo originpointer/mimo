@@ -9,7 +9,7 @@ import type {
   LLMStreamChunk,
   StagehandZodSchema,
   InferStagehandSchema,
-} from './types.js';
+} from '@mimo/types';
 
 /**
  * Abstract base class for LLM clients

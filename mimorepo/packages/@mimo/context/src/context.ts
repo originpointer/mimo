@@ -2,7 +2,7 @@
  * MimoContext - Context manager for tabs and pages
  */
 
-import type { RemoteResponse, TabInfo } from './types.js';
+import type { RemoteResponse, TabInfo } from '@mimo/types';
 import { RemotePage } from './page.js';
 
 /**

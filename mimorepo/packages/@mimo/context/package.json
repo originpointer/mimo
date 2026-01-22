@@ -17,6 +17,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@mimo/types": "workspace:*",
     "uuid": "^11.0.3"
   },
   "devDependencies": {

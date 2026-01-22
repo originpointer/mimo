@@ -13,7 +13,7 @@ import type {
   FillOptions,
   PageContent,
   Action,
-} from './types.js';
+} from '@mimo/types';
 import { RemoteLocator, RemoteDeepLocator } from './locator.js';
 
 /**

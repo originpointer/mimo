@@ -10,4 +10,15 @@
 
 export * from './provider.js';
 export * from './client.js';
-export * from './types.js';
+
+// Re-export types from @mimo/types
+export type {
+  ModelConfiguration,
+  ClientOptions,
+  ChatMessage,
+  ChatCompletionOptions,
+  LLMResponse,
+  LLMStreamChunk,
+  StagehandZodSchema,
+  InferStagehandSchema,
+} from '@mimo/types';

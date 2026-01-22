@@ -14,15 +14,48 @@ import type {
   AgentAction,
   AgentUsage,
   AgentStreamEvent,
-} from './types.js';
-import {
-  MimoAgentError,
-  MimoAgentTimeoutError,
-  MimoAgentMaxStepsError,
-  MimoAgentExecutionError,
-} from './types.js';
+} from '@mimo/types';
 
-export * from './types.js';
+// Re-export types from @mimo/types
+export type {
+  AgentConfig,
+  AgentExecuteOptions,
+  AgentAction,
+  AgentResult,
+  AgentUsage,
+  AgentStreamEvent,
+} from '@mimo/types';
+
+/**
+ * MimoAgent errors
+ */
+export class MimoAgentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MimoAgentError';
+  }
+}
+
+export class MimoAgentTimeoutError extends MimoAgentError {
+  constructor(message: string, public timeout: number) {
+    super(message);
+    this.name = 'MimoAgentTimeoutError';
+  }
+}
+
+export class MimoAgentMaxStepsError extends MimoAgentError {
+  constructor(message: string, public maxSteps: number) {
+    super(message);
+    this.name = 'MimoAgentMaxStepsError';
+  }
+}
+
+export class MimoAgentExecutionError extends MimoAgentError {
+  constructor(message: string, public step: number, public action: string) {
+    super(message);
+    this.name = 'MimoAgentExecutionError';
+  }
+}
 
 /**
  * MimoAgent - Intelligent agent for multi-step tasks

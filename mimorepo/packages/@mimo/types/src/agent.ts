@@ -1,8 +1,9 @@
 /**
- * MimoAgent Types
+ * Agent Types
+ * Types for MimoAgent configuration and execution
  */
 
-import type { ModelConfiguration } from '@mimo/types';
+import type { ModelConfiguration } from './model.js';
 
 /**
  * Agent configuration
@@ -73,35 +74,4 @@ export interface AgentStreamEvent {
     error?: string;
     result?: AgentResult;
   };
-}
-
-/**
- * Agent errors
- */
-export class MimoAgentError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'MimoAgentError';
-  }
-}
-
-export class MimoAgentTimeoutError extends MimoAgentError {
-  constructor(message: string, public timeout: number) {
-    super(message);
-    this.name = 'MimoAgentTimeoutError';
-  }
-}
-
-export class MimoAgentMaxStepsError extends MimoAgentError {
-  constructor(message: string, public maxSteps: number) {
-    super(message);
-    this.name = 'MimoAgentMaxStepsError';
-  }
-}
-
-export class MimoAgentExecutionError extends MimoAgentError {
-  constructor(message: string, public step: number, public action: string) {
-    super(message);
-    this.name = 'MimoAgentExecutionError';
-  }
 }

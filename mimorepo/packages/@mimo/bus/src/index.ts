@@ -11,22 +11,70 @@
 import EventEmitter from 'eventemitter3';
 import { v4 as uuidv4 } from 'uuid';
 import { io, Socket } from 'socket.io-client';
+import { CommandType, StreamEventType, MimoErrorCode, BusEvent, CoreEvent } from '@mimo/types';
 import type {
   MimoBusOptions,
   MimoCommand,
   MimoResponse,
   MimoStreamEvent,
-  CommandType,
-} from './types.js';
-import {
-  MimoBusConnectionError,
-  MimoBusTimeoutError,
-  MimoBusNotConnectedError,
-  MimoBusCommandError,
-} from './types.js';
+  BusEventPayloads,
+} from '@mimo/types';
 
-export { MimoBusOptions, MimoCommand, MimoResponse, MimoStreamEvent, CommandType };
-export * from './types.js';
+// Re-export types from @mimo/types
+export { CommandType, StreamEventType, BusEvent, CoreEvent };
+export type {
+  MimoBusOptions,
+  MimoCommand,
+  MimoResponse,
+  MimoStreamEvent,
+  BusEventPayloads,
+  TabInfo,
+} from '@mimo/types';
+
+/**
+ * MimoBus errors
+ */
+export class MimoBusError extends Error {
+  constructor(
+    message: string,
+    public code: MimoErrorCode,
+    public command?: MimoCommand
+  ) {
+    super(message);
+    this.name = 'MimoBusError';
+  }
+}
+
+export class MimoBusConnectionError extends MimoBusError {
+  constructor(message: string) {
+    super(message, MimoErrorCode.ConnectionFailed);
+    this.name = 'MimoBusConnectionError';
+  }
+}
+
+export class MimoBusTimeoutError extends MimoBusError {
+  constructor(message: string, public timeout: number) {
+    super(message, MimoErrorCode.ConnectionTimeout);
+    this.name = 'MimoBusTimeoutError';
+  }
+}
+
+export class MimoBusNotConnectedError extends MimoBusError {
+  constructor() {
+    super('Not connected to MimoBus server', MimoErrorCode.NotConnected);
+    this.name = 'MimoBusNotConnectedError';
+  }
+}
+
+export class MimoBusCommandError extends MimoBusError {
+  constructor(message: string, commandId: string, command: MimoCommand) {
+    super(message, MimoErrorCode.CommandFailed, command);
+    this.name = 'MimoBusCommandError';
+    this.commandId = commandId;
+  }
+
+  commandId: string;
+}
 
 /**
  * MimoBus - Socket.IO communication core
@@ -79,7 +127,7 @@ export class MimoBus extends EventEmitter {
       this.socket.once('connect', () => {
         clearTimeout(timeout);
         this.setupEventHandlers();
-        this.emit('connected');
+        this.emit(BusEvent.Connected);
         this.logger('connected to Socket.IO server', { level: 1 });
         resolve();
       });
@@ -98,7 +146,7 @@ export class MimoBus extends EventEmitter {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
-      this.emit('disconnected', { reason: 'manual' });
+      this.emit(BusEvent.Disconnected, { reason: 'manual' });
       this.logger('disconnected from Socket.IO server', { level: 1 });
     }
   }
@@ -140,7 +188,7 @@ export class MimoBus extends EventEmitter {
       });
 
       this.socket!.emit('mimo.command', command);
-      this.emit('command.sent', { command });
+      this.emit(BusEvent.CommandSent, { command });
     });
   }
 
@@ -169,16 +217,16 @@ export class MimoBus extends EventEmitter {
         };
 
         const dataHandler = (data: T) => {
-          controller.enqueue({ type: 'data', data, id: commandId });
+          controller.enqueue({ type: StreamEventType.Data, data, id: commandId });
         };
 
         const errorHandler = (error: string) => {
-          controller.enqueue({ type: 'error', error, id: commandId });
+          controller.enqueue({ type: StreamEventType.Error, error, id: commandId });
           cleanup();
         };
 
         const endHandler = () => {
-          controller.enqueue({ type: 'end', id: commandId });
+          controller.enqueue({ type: StreamEventType.End, id: commandId });
           controller.close();
           cleanup();
         };
@@ -231,7 +279,7 @@ export class MimoBus extends EventEmitter {
     command.timestamp = command.timestamp || Date.now();
 
     this.socket!.emit('mimo.command', command);
-    this.emit('command.sent', { command });
+    this.emit(BusEvent.CommandSent, { command });
   }
 
   /**
@@ -321,7 +369,7 @@ export class MimoBus extends EventEmitter {
 
         if (response.success) {
           pending.resolve(response);
-          this.emit('command.result', { id: response.id, response });
+          this.emit(BusEvent.CommandResult, { id: response.id, response });
         } else {
           pending.reject(new MimoBusCommandError(
             response.error?.message ?? 'Command failed',
@@ -338,8 +386,8 @@ export class MimoBus extends EventEmitter {
     this.socket.on('mimo.stream.data', ({ id, data }: { id: string; data: any }) => {
       const controller = this.streamControllers.get(id);
       if (controller) {
-        controller.controller.enqueue({ type: 'data', data, id });
-        this.emit('stream.data', { id, data });
+        controller.controller.enqueue({ type: StreamEventType.Data, data, id });
+        this.emit(BusEvent.StreamData, { id, data });
       }
     });
 
@@ -347,8 +395,8 @@ export class MimoBus extends EventEmitter {
     this.socket.on('mimo.stream.error', ({ id, error }: { id: string; error: string }) => {
       const controller = this.streamControllers.get(id);
       if (controller) {
-        controller.controller.enqueue({ type: 'error', error, id });
-        this.emit('stream.error', { id, error });
+        controller.controller.enqueue({ type: StreamEventType.Error, error, id });
+        this.emit(BusEvent.StreamError, { id, error });
       }
     });
 
@@ -356,43 +404,43 @@ export class MimoBus extends EventEmitter {
     this.socket.on('mimo.stream.end', ({ id }: { id: string }) => {
       const controller = this.streamControllers.get(id);
       if (controller) {
-        controller.controller.enqueue({ type: 'end', id });
+        controller.controller.enqueue({ type: StreamEventType.End, id });
         controller.controller.close();
         controller.cleanup();
         this.streamControllers.delete(id);
-        this.emit('stream.end', { id });
+        this.emit(BusEvent.StreamEnd, { id });
       }
     });
 
     // Screenshot handler
     this.socket.on('mimo.screenshot', ({ buffer, tabId }: { buffer: Buffer; tabId: string }) => {
-      this.emit('screenshot', { buffer, tabId });
+      this.emit(BusEvent.Screenshot, { buffer: buffer as Uint8Array, tabId });
     });
 
     // DOM changed handler
     this.socket.on('mimo.dom.changed', ({ changes }: { changes: any[] }) => {
-      this.emit('dom.changed', { changes });
+      this.emit(BusEvent.DomChanged, { changes });
     });
 
     // Tab changed handler
     this.socket.on('mimo.tab.changed', ({ tab }: { tab: any }) => {
-      this.emit('tab.changed', { tab });
+      this.emit(BusEvent.TabChanged, { tab });
     });
 
     // Tab closed handler
     this.socket.on('mimo.tab.closed', ({ tabId }: { tabId: string }) => {
-      this.emit('tab.closed', { tabId });
+      this.emit(BusEvent.TabClosed, { tabId });
     });
 
     // Disconnect handler
     this.socket.on('disconnect', (reason) => {
-      this.emit('disconnected', { reason });
+      this.emit(BusEvent.Disconnected, { reason });
       this.logger('disconnected', { level: 1, reason });
     });
 
     // Error handler
     this.socket.on('error', (error) => {
-      this.emit('error', { error });
+      this.emit(BusEvent.Error, { error });
       this.logger('socket error', { level: 0, error });
     });
   }

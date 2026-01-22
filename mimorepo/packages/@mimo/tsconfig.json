@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./types" },
+    { "path": "./bus" },
+    { "path": "./llm" },
+    { "path": "./context" },
+    { "path": "./agent" },
+    { "path": "./core" }
+  ]
+}

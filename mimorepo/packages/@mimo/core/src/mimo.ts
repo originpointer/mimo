@@ -6,7 +6,7 @@
  */
 
 import EventEmitter from 'eventemitter3';
-import { MimoBus } from '@mimo/bus';
+import { CommandType, MimoBus, CoreEvent } from '@mimo/bus';
 import { RemotePage, MimoContext } from '@mimo/context';
 import { MimoAgent } from '@mimo/agent';
 import { LLMProvider } from '@mimo/llm';
@@ -21,26 +21,13 @@ import type {
   LogLine,
   HistoryEntry,
   MimoMetrics,
-} from './types.js';
+} from '@mimo/types';
 import {
   MimoInitError,
   MimoTimeoutError,
   MimoNotConnectedError,
   MimoCommandError,
-} from './types.js';
-
-export {
-  MimoOptions,
-  ActOptions,
-  ActResult,
-  ExtractOptions,
-  ExtractResult,
-  ObserveOptions,
-  Action,
-  LogLine,
-  HistoryEntry,
-  MimoMetrics,
-} from './types';
+} from './index.js';
 
 /**
  * Mimo - Main class for browser automation
@@ -110,7 +97,7 @@ export class Mimo extends EventEmitter {
       await this.bus.connect();
       this.initialized = true;
       this.log('info', 'Mimo', 'Initialized successfully');
-      this.emit('initialized');
+      this.emit(CoreEvent.Initialized);
     } catch (error) {
       throw new MimoInitError(
         `Failed to initialize Mimo: ${error instanceof Error ? error.message : String(error)}`
@@ -136,7 +123,8 @@ export class Mimo extends EventEmitter {
 
       // Send act command
       const response = await this.bus.send({
-        type: 'page.act',
+        id: commandId,
+        type: CommandType.PageAct,
         payload: {
           instruction: typeof input === 'string' ? input : input.description,
           action,
@@ -192,7 +180,8 @@ export class Mimo extends EventEmitter {
 
     try {
       const response = await this.bus.send({
-        type: 'page.extract',
+        id: commandId,
+        type: CommandType.PageExtract,
         payload: {
           instruction,
           schema: schema?.toString(),
@@ -243,7 +232,8 @@ export class Mimo extends EventEmitter {
 
     try {
       const response = await this.bus.send({
-        type: 'dom.observe',
+        id: commandId,
+        type: CommandType.DomObserve,
         payload: {
           instruction,
           selector: options?.selector,
@@ -296,7 +286,8 @@ export class Mimo extends EventEmitter {
       // Send close command
       if (this.initialized && !options?.force) {
         await this.bus.send({
-          type: 'browser.close',
+          id: this.generateId(),
+          type: CommandType.BrowserClose,
           payload: {},
           timestamp: Date.now(),
         });
@@ -305,7 +296,7 @@ export class Mimo extends EventEmitter {
       this.bus.destroy();
       this.initialized = false;
       this.log('info', 'Mimo', 'Closed successfully');
-      this.emit('closed');
+      this.emit(CoreEvent.Closed);
     } catch (error) {
       if (options?.force) {
         this.bus.destroy();
@@ -372,7 +363,7 @@ export class Mimo extends EventEmitter {
    */
   async switchToTab(tabId: string): Promise<void> {
     this.ensureConnected();
-    return this._context.switchToTab(tabId);
+    await this._context.switchToTab(tabId);
   }
 
   /**
@@ -380,7 +371,7 @@ export class Mimo extends EventEmitter {
    */
   async closeTab(tabId: string): Promise<void> {
     this.ensureConnected();
-    return this._context.closeTab(tabId);
+    await this._context.closeTab(tabId);
   }
 
   /**
@@ -407,14 +398,14 @@ export class Mimo extends EventEmitter {
    * Setup event forwarding from bus
    */
   private setupEventForwarding(): void {
-    this.bus.on('connected', () => this.emit('connected'));
-    this.bus.on('disconnected', (data) => this.emit('disconnected', data));
-    this.bus.on('command.sent', (data) => this.emit('command.sent', data));
-    this.bus.on('command.result', (data) => this.emit('command.result', data));
-    this.bus.on('screenshot', (data) => this.emit('screenshot', data));
-    this.bus.on('tab.changed', (data) => this.emit('tab.changed', data));
-    this.bus.on('tab.closed', (data) => this.emit('tab.closed', data));
-    this.bus.on('error', (data) => this.emit('error', data));
+    this.bus.on(CoreEvent.Connected, () => this.emit(CoreEvent.Connected));
+    this.bus.on(CoreEvent.Disconnected, (data) => this.emit(CoreEvent.Disconnected, data));
+    this.bus.on(CoreEvent.CommandSent, (data) => this.emit(CoreEvent.CommandSent, data));
+    this.bus.on(CoreEvent.CommandResult, (data) => this.emit(CoreEvent.CommandResult, data));
+    this.bus.on(CoreEvent.Screenshot, (data) => this.emit(CoreEvent.Screenshot, data));
+    this.bus.on(CoreEvent.TabChanged, (data) => this.emit(CoreEvent.TabChanged, data));
+    this.bus.on(CoreEvent.TabClosed, (data) => this.emit(CoreEvent.TabClosed, data));
+    this.bus.on(CoreEvent.Error, (data) => this.emit(CoreEvent.Error, data));
   }
 
   /**

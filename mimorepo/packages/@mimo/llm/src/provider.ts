@@ -10,7 +10,7 @@ import type {
   LLMStreamChunk,
   StagehandZodSchema,
   InferStagehandSchema,
-} from './types.js';
+} from '@mimo/types';
 import { LLMClient } from './client.js';
 
 export type {
@@ -21,7 +21,7 @@ export type {
   LLMStreamChunk,
   StagehandZodSchema,
   InferStagehandSchema,
-};
+} from '@mimo/types';
 
 /**
  * LLMProvider - Manager for LLM clients

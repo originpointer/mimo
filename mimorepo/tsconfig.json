@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/@mimo/types" },
+    { "path": "./packages/@mimo/bus" },
+    { "path": "./packages/@mimo/llm" },
+    { "path": "./packages/@mimo/context" },
+    { "path": "./packages/@mimo/agent" },
+    { "path": "./packages/@mimo/core" }
+  ]
+}

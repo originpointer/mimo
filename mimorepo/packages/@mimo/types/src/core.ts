@@ -1,8 +1,9 @@
 /**
- * Mimo Core Types
+ * Core Types
+ * Types for Mimo core functionality
  */
 
-export type { ModelConfiguration } from '@mimo/types';
+import type { ModelConfiguration } from './model.js';
 
 /**
  * Log line structure
@@ -22,16 +23,6 @@ export interface ActOptions {
   variables?: Record<string, string>;
   timeout?: number;
   tabId?: string;
-}
-
-/**
- * Action structure
- */
-export interface Action {
-  selector?: string;
-  description: string;
-  method?: string;
-  arguments?: string[];
 }
 
 /**
@@ -72,19 +63,6 @@ export interface ObserveOptions {
   selector?: string;
   tabId?: string;
 }
-
-/**
- * Zod schema type
- */
-export type StagehandZodSchema<T> = {
-  _output: T;
-  parse: (data: unknown) => T;
-};
-
-/**
- * Infer schema output type
- */
-export type InferStagehandSchema<T> = T extends StagehandZodSchema<infer U> ? U : never;
 
 /**
  * History entry
@@ -145,39 +123,11 @@ export interface MimoOptions {
 }
 
 /**
- * Mimo errors
+ * Action structure (selector is optional for flexibility)
  */
-export class MimoError extends Error {
-  constructor(message: string, public code?: string) {
-    super(message);
-    this.name = 'MimoError';
-  }
-}
-
-export class MimoInitError extends MimoError {
-  constructor(message: string) {
-    super(message, 'MIMO_INIT_ERROR');
-    this.name = 'MimoInitError';
-  }
-}
-
-export class MimoTimeoutError extends MimoError {
-  constructor(message: string, public timeout: number) {
-    super(message, 'MIMO_TIMEOUT');
-    this.name = 'MimoTimeoutError';
-  }
-}
-
-export class MimoNotConnectedError extends MimoError {
-  constructor() {
-    super('Not connected to MimoBus', 'MIMO_NOT_CONNECTED');
-    this.name = 'MimoNotConnectedError';
-  }
-}
-
-export class MimoCommandError extends MimoError {
-  constructor(message: string, public commandId: string, public command: any) {
-    super(message, 'MIMO_COMMAND_ERROR');
-    this.name = 'MimoCommandError';
-  }
+export interface Action {
+  selector?: string;
+  description: string;
+  method?: string;
+  arguments?: string[];
 }

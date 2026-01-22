@@ -25,4 +25,4 @@ export type {
   PageContent,
   ElementInfo,
   Action,
-} from './types.js';
+} from '@mimo/types';

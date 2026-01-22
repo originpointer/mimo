@@ -1,10 +1,7 @@
 /**
  * LLM Types
+ * Types for LLM client, messages, and responses
  */
-
-import type { ModelConfiguration } from '@mimo/types';
-
-export type { ModelConfiguration } from '@mimo/types';
 
 /**
  * Client options
