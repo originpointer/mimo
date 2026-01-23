@@ -1,0 +1,29 @@
+{
+  "name": "@mimo/hub",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Mimo Hub - Socket.IO server command relay and message hub",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mimo/types": "workspace:*",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "tsdown": "^0.20.0-beta.4",
+    "typescript": "5.9.2"
+  }
+}

@@ -3,6 +3,7 @@
   "references": [
     { "path": "./types" },
     { "path": "./bus" },
+    { "path": "./hub" },
     { "path": "./llm" },
     { "path": "./context" },
     { "path": "./agent" },
