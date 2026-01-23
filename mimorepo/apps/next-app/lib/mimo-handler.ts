@@ -4,6 +4,8 @@
  * 处理 Mimo 命令，支持从聊天输入中识别和执行 Mimo 命令
  */
 
+import type { MimoCommandOptions, MimoNavigateOptions } from './mimo-client';
+
 export interface MimoCommand {
   type: 'navigate' | 'act' | 'extract' | 'observe';
   params: Record<string, unknown>;
@@ -24,7 +26,7 @@ export function detectMimoCommand(message: string): MimoCommand | null {
 
   if (match) {
     const [, type, params] = match;
-    return parseMimoCommand(type, params);
+    return parseMimoCommand(type || '', params || '');
   }
 
   // 格式 2: @mimo <command> <params>
@@ -33,7 +35,7 @@ export function detectMimoCommand(message: string): MimoCommand | null {
 
   if (atMatch) {
     const [, type, params] = atMatch;
-    return parseMimoCommand(type, params);
+    return parseMimoCommand(type || '', params || '');
   }
 
   // 格式 3: 直接命令 (可选)
@@ -44,8 +46,8 @@ export function detectMimoCommand(message: string): MimoCommand | null {
 
   if (directMatch) {
     const [, type, params] = directMatch;
-    if (['navigate', 'act', 'extract', 'observe'].includes(type)) {
-      return parseMimoCommand(type, params);
+    if (type && ['navigate', 'act', 'extract', 'observe'].includes(type)) {
+      return parseMimoCommand(type, params || '');
     }
   }
 
@@ -101,22 +103,34 @@ export async function executeMimoCommand(command: MimoCommand): Promise<string> 
   try {
     switch (command.type) {
       case 'navigate': {
-        const result = await navigate(command.params.url as string, command.params.options);
+        const result = await navigate(
+          command.params.url as string,
+          command.params.options as MimoNavigateOptions | undefined
+        );
         return `✅ 导航成功: ${result.data.url}`;
       }
 
       case 'act': {
-        const result = await act(command.params.input as string, command.params.options);
+        const result = await act(
+          command.params.input as string,
+          command.params.options as MimoCommandOptions | undefined
+        );
         return `✅ 操作成功: ${result.data.message}`;
       }
 
       case 'extract': {
-        const result = await extract(command.params.instruction as string, command.params.options);
+        const result = await extract(
+          command.params.instruction as string,
+          command.params.options as MimoCommandOptions | undefined
+        );
         return `✅ 提取成功: ${JSON.stringify(result.data.extraction)}`;
       }
 
       case 'observe': {
-        const result = await observe(command.params.instruction as string, command.params.options);
+        const result = await observe(
+          command.params.instruction as string | undefined,
+          command.params.options as MimoCommandOptions | undefined
+        );
         return `✅ 观察完成: 发现 ${result.data.count} 个可操作元素`;
       }
 
