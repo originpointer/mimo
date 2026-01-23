@@ -41,6 +41,9 @@ importers:
       '@mimo/hub':
         specifier: workspace:*
         version: link:../../packages/@mimo/hub
+      '@mimo/types':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/types
       '@radix-ui/react-avatar':
         specifier: ^1.1.11
         version: 1.1.11(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -150,9 +153,24 @@ importers:
       '@letta-ai/letta-client':
         specifier: ^1.6.5
         version: 1.6.5
+      '@mimo/agent':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/agent
+      '@mimo/bus':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/bus
+      '@mimo/context':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/context
       '@mimo/core':
         specifier: workspace:*
         version: link:../../packages/@mimo/core
+      '@mimo/hub':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/hub
+      '@mimo/llm':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/llm
       '@mimo/types':
         specifier: workspace:*
         version: link:../../packages/@mimo/types
@@ -292,6 +310,9 @@ importers:
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.4
+      socket.io:
+        specifier: ^4.8.1
+        version: 4.8.3(bufferutil@4.1.0)
       socket.io-client:
         specifier: ^4.8.1
         version: 4.8.3(bufferutil@4.1.0)

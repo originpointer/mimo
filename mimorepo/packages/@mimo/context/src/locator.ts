@@ -4,6 +4,7 @@
  */
 
 import type { RemoteResponse, LocatorOptions } from '@mimo/types';
+import { HubCommandType } from '@mimo/types';
 
 /**
  * Abstract base class for remote locators
@@ -19,7 +20,7 @@ abstract class BaseRemoteLocator {
    */
   async textContent(): Promise<RemoteResponse<string>> {
     return this.sendCommand({
-      type: 'dom.textContent',
+      type: HubCommandType.DomTextContent,
       payload: { selector: this.selector },
     });
   }
@@ -29,7 +30,7 @@ abstract class BaseRemoteLocator {
    */
   async innerHTML(): Promise<RemoteResponse<string>> {
     return this.sendCommand({
-      type: 'dom.innerHTML',
+      type: HubCommandType.DomInnerHTML,
       payload: { selector: this.selector },
     });
   }
@@ -39,7 +40,7 @@ abstract class BaseRemoteLocator {
    */
   async getAttribute(name: string): Promise<RemoteResponse<string | null>> {
     return this.sendCommand({
-      type: 'dom.getAttribute',
+      type: HubCommandType.DomGetAttribute,
       payload: { selector: this.selector, name },
     });
   }
@@ -49,7 +50,7 @@ abstract class BaseRemoteLocator {
    */
   async isVisible(): Promise<RemoteResponse<boolean>> {
     return this.sendCommand({
-      type: 'dom.isVisible',
+      type: HubCommandType.DomIsVisible,
       payload: { selector: this.selector },
     });
   }
@@ -59,7 +60,7 @@ abstract class BaseRemoteLocator {
    */
   async waitFor(options?: LocatorOptions): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'dom.waitFor',
+      type: HubCommandType.DomWaitFor,
       payload: { selector: this.selector, options },
     });
   }
@@ -78,7 +79,7 @@ export class RemoteLocator extends BaseRemoteLocator {
     delay?: number;
   }): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.click',
+      type: HubCommandType.BrowserClick,
       payload: {
         selector: this.selector,
         ...options,
@@ -91,7 +92,7 @@ export class RemoteLocator extends BaseRemoteLocator {
    */
   async fill(value: string): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.fill',
+      type: HubCommandType.BrowserFill,
       payload: {
         selector: this.selector,
         value,
@@ -104,7 +105,7 @@ export class RemoteLocator extends BaseRemoteLocator {
    */
   async select(value: string): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.select',
+      type: HubCommandType.BrowserSelect,
       payload: {
         selector: this.selector,
         value,
@@ -117,7 +118,7 @@ export class RemoteLocator extends BaseRemoteLocator {
    */
   async hover(): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.hover',
+      type: HubCommandType.BrowserHover,
       payload: { selector: this.selector },
     });
   }
@@ -132,7 +133,7 @@ export class RemoteLocator extends BaseRemoteLocator {
     height: number;
   }>> {
     return this.sendCommand({
-      type: 'dom.boundingBox',
+      type: HubCommandType.DomBoundingBox,
       payload: { selector: this.selector },
     });
   }
@@ -161,7 +162,7 @@ export class RemoteDeepLocator extends BaseRemoteLocator {
     delay?: number;
   }): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.click',
+      type: HubCommandType.BrowserClick,
       payload: {
         selector: this.xpath,
         selectorType: 'xpath',
@@ -175,7 +176,7 @@ export class RemoteDeepLocator extends BaseRemoteLocator {
    */
   async fill(value: string): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.fill',
+      type: HubCommandType.BrowserFill,
       payload: {
         selector: this.xpath,
         selectorType: 'xpath',
@@ -189,7 +190,7 @@ export class RemoteDeepLocator extends BaseRemoteLocator {
    */
   async hover(): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.hover',
+      type: HubCommandType.BrowserHover,
       payload: {
         selector: this.xpath,
         selectorType: 'xpath',
@@ -202,7 +203,7 @@ export class RemoteDeepLocator extends BaseRemoteLocator {
    */
   async all(): Promise<RemoteResponse<Element[]>> {
     return this.sendCommand({
-      type: 'dom.deepLocator.all',
+      type: HubCommandType.DomDeepLocatorAll,
       payload: { xpath: this.xpath },
     });
   }
@@ -212,7 +213,7 @@ export class RemoteDeepLocator extends BaseRemoteLocator {
    */
   async first(): Promise<RemoteResponse<any>> {
     return this.sendCommand({
-      type: 'dom.deepLocator.first',
+      type: HubCommandType.DomDeepLocatorFirst,
       payload: { xpath: this.xpath },
     });
   }

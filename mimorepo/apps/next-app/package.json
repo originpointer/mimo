@@ -21,6 +21,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@mimo/hub": "workspace:*",
+    "@mimo/types": "workspace:*",
     "@repo/sens": "workspace:*",
     "@repo/ui": "workspace:*",
     "ai": "^6.0.42",

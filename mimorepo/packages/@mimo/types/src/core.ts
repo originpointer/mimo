@@ -116,6 +116,7 @@ export interface MimoMetrics {
 export interface MimoOptions {
   socket?: {
     url?: string;
+    port?: number; // Server mode: port to listen on
     autoReconnect?: boolean;
     reconnectInterval?: number;
   };

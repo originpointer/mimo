@@ -1,146 +1,125 @@
+/**
+ * MimoBus Plugin - Socket.IO Server for Browser Client Communication
+ *
+ * This plugin initializes the MimoBus Socket.IO server that receives
+ * connections from browser extensions and pages.
+ *
+ * REFACTORED ARCHITECTURE:
+ *   Nitro Server → MimoBus Server → Socket.IO → Browser Extension
+ */
+
 import { defineNitroPlugin } from "nitropack/runtime"
-import { Server as SocketIOServer } from "socket.io"
-import { createServer } from "http"
+import { MimoBus } from "@mimo/bus"
 import "../types/socket.d.ts"
 
-// Socket.IO server instance
-let io: SocketIOServer | null = null
+// Infer BrowserClient type from MimoBus methods
+type BrowserClient = ReturnType<MimoBus['getClients']>[number]
+
+// MimoBus instance
+let mimoBus: MimoBus | null = null
 
 export default defineNitroPlugin((nitroApp) => {
   // Check if already initialized
-  if (io) {
-    console.log('[Socket.IO] Already initialized')
+  if (mimoBus) {
+    console.log('[MimoBus] Already initialized')
     return
   }
 
-  // Get the underlying Node.js server
-  // Nitro doesn't expose the server directly in dev mode, so we need a different approach
-  // For now, we'll attach Socket.IO to the nitro app context
+  console.log('[MimoBus] Plugin initializing...')
 
-  console.log('[Socket.IO] Plugin initializing...')
-
-  // Store Socket.IO reference for later initialization
-  ;(nitroApp as any)._socketIOConfig = {
+  // Store MimoBus reference for later initialization
+  ;(nitroApp as any)._mimoBusConfig = {
     initialized: false,
-    pendingConnections: [] as any[],
   }
 
-  // Initialize Socket.IO when the server starts
-  nitroApp.hooks.hook('render', () => {
-    if (!(nitroApp as any)._socketIOConfig?.initialized) {
-      try {
-        // Try to get the underlying HTTP server
-        const nodeServer = (nitroApp as any).nodeHandler?.server
-        if (nodeServer) {
-          io = new SocketIOServer(nodeServer, {
-            cors: {
-              origin: "*",
-              methods: ["GET", "POST"]
-            },
-            path: "/socket.io/"
-          })
-
-          setupSocketIOHandlers(io)
-          ;(nitroApp as any)._socketIOConfig.initialized = true
-          ;(nitroApp as any).io = io
-
-          console.log('[Socket.IO] Server initialized with HTTP server')
-        } else {
-          console.warn('[Socket.IO] No HTTP server available, Socket.IO not initialized')
-        }
-      } catch (error) {
-        console.error('[Socket.IO] Initialization failed:', error)
-      }
-    }
+  // Create MimoBus instance (Socket.IO server)
+  mimoBus = new MimoBus({
+    port: 6007,
+    debug: process.env.NODE_ENV === 'development',
   })
 
-  // Alternative: Create a standalone Socket.IO server on a different port
-  const initializeStandaloneServer = () => {
-    const PORT = 6007 // Different from Nitro's port
-    const httpServer = createServer()
-
-    io = new SocketIOServer(httpServer, {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-      },
-      path: "/socket.io/"
-    })
-
-    setupSocketIOHandlers(io)
-
-    httpServer.listen(PORT, () => {
-      console.log(`[Socket.IO] Standalone server listening on port ${PORT}`)
-      console.log(`[Socket.IO] Connect with: ws://localhost:${PORT}/socket.io/`)
-    })
-
-    ;(nitroApp as any).io = io
-    ;(nitroApp as any)._socketIOConfig.initialized = true
+  // Graceful shutdown handler
+  const closeServers = async () => {
+    console.log('[MimoBus] Closing server...')
+    if (mimoBus) {
+      mimoBus.destroy()
+      mimoBus = null
+      console.log('[MimoBus] Server closed')
+    }
   }
 
-  // For development, use standalone server since Nitro dev doesn't expose server
+  // Register shutdown hook
+  nitroApp.hooks.hook('close', async () => {
+    await closeServers()
+  })
+
+  // Initialize the server
+  const initializeServer = async () => {
+    try {
+      await mimoBus!.connect()
+      ;(nitroApp as any)._mimoBusConfig.initialized = true
+
+      console.log('[MimoBus] Server initialized')
+      console.log('[MimoBus] Listening on port 6007')
+      console.log('[MimoBus] Browser extensions can connect to: ws://localhost:6007/socket.io/')
+      console.log('[MimoBus] Namespace: /mimo')
+
+      // Store MimoBus reference for access from other parts of the app
+      ;(global as any).__mimoBus = mimoBus
+
+      // Log connection status changes
+      mimoBus!.on('connected', () => {
+        console.log('[MimoBus] Server started')
+      })
+
+      mimoBus!.on('disconnected', () => {
+        console.log('[MimoBus] Server stopped')
+      })
+
+      mimoBus!.on('commandSent', ({ command }) => {
+        console.log('[MimoBus] Command sent:', {
+          id: command.id,
+          type: command.type,
+        })
+      })
+
+      mimoBus!.on('commandResult', ({ id, response }) => {
+        console.log('[MimoBus] Command result:', {
+          id,
+          success: response.success,
+          duration: response.duration,
+        })
+      })
+
+      // Log client connections
+      setInterval(() => {
+        const clientCount = mimoBus!.getClientCount()
+        if (clientCount > 0) {
+          const clients = mimoBus!.getClients()
+          console.log('[MimoBus] Active clients:', {
+            count: clientCount,
+            clients: clients.map((c) => ({
+              socketId: c.socketId,
+              clientType: c.clientType,
+              tabId: c.tabId,
+            })),
+          })
+        }
+      }, 30000) // Log every 30 seconds
+
+    } catch (error) {
+      console.error('[MimoBus] Initialization failed:', error)
+      throw error
+    }
+  }
+
+  // For development, initialize server
   if (process.env.NODE_ENV === 'development') {
     setTimeout(() => {
-      if (!(nitroApp as any)._socketIOConfig?.initialized) {
-        console.log('[Socket.IO] Initializing standalone server for development...')
-        initializeStandaloneServer()
+      if (!(nitroApp as any)._mimoBusConfig?.initialized) {
+        console.log('[MimoBus] Initializing server for development...')
+        initializeServer()
       }
     }, 1000)
   }
 })
-
-function setupSocketIOHandlers(io: SocketIOServer) {
-  io.on('connection', (socket) => {
-    console.log(`[Socket.IO] Client connected: ${socket.id}`)
-
-    // Handle Mimo commands
-    socket.on('mimo.command', (data) => {
-      console.log(`[Socket.IO] Mimo command received:`, data)
-
-      // Emit response with correct event name (mimo.response, not mimo.response.${id})
-      socket.emit('mimo.response', {
-        id: data.id,
-        success: true,
-        data: { message: 'Command received' },
-        timestamp: Date.now()
-      })
-    })
-
-    // Handle Mimo stream start
-    socket.on('mimo.stream.start', (data) => {
-      console.log(`[Socket.IO] Mimo stream started:`, data)
-    })
-
-    // Handle room join
-    socket.on('mimo.joinRoom', (room, callback) => {
-      socket.join(room)
-      console.log(`[Socket.IO] Client ${socket.id} joined room: ${room}`)
-      if (callback) callback({ success: true, room })
-    })
-
-    // Handle room leave
-    socket.on('mimo.leaveRoom', (room, callback) => {
-      socket.leave(room)
-      console.log(`[Socket.IO] Client ${socket.id} left room: ${room}`)
-      if (callback) callback({ success: true, room })
-    })
-
-    // Handle disconnect
-    socket.on('disconnect', (reason) => {
-      console.log(`[Socket.IO] Client disconnected: ${socket.id}, reason: ${reason}`)
-    })
-
-    // Handle errors
-    socket.on('error', (error) => {
-      console.error(`[Socket.IO] Socket error for ${socket.id}:`, error)
-    })
-
-    // Send welcome message
-    socket.emit('connected', {
-      socketId: socket.id,
-      timestamp: Date.now()
-    })
-  })
-
-  console.log('[Socket.IO] Event handlers configured')
-}

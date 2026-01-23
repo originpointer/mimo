@@ -1,13 +1,25 @@
 /**
- * Mimo Hub - Socket.IO server command relay and message hub
+ * Mimo Hub - Socket.IO Communication Hub
  *
- * This package handles:
- * - Server-side Socket.IO hub (Hub class)
- * - Client-side Socket.IO connector (HubClient class)
+ * This package provides:
+ * - BrowserHubClient: Socket.IO client for browser extensions/pages
+ * - CommandExecutor: Browser operation handlers
+ * - Hub: (Legacy) Server-side Socket.IO hub - DEPRECATED
+ * - HubClient: (Legacy) Client-side connector - DEPRECATED
  */
 
-// Server-side Hub
-export * from './hub';
+// Browser Hub Client (NEW - for refactored architecture)
+export {
+  createBrowserHubClient,
+  BrowserHubClientClass,
+  type BrowserHubClientConfig,
+  type BrowserHubClient,
+} from './hub-client.js';
 
-// Client-side HubClient
-export * from './client';
+// Command Executor (NEW - browser operation handlers)
+export { CommandExecutor } from './command-executor.js';
+export { MimoRouter } from './mimo-router.js';
+
+// Legacy exports (DEPRECATED - kept for backward compatibility)
+export * from './hub.js';
+export * from './client.js';

@@ -4,11 +4,14 @@
   "private": true,
   "type": "module",
   "description": "Mimo Core - Main Mimo API",
-  "main": "./src/index.ts",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
-      "default": "./src/index.ts"
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
     }
   },
   "scripts": {

@@ -14,6 +14,7 @@ import type {
   PageContent,
   Action,
 } from '@mimo/types';
+import { HubCommandType } from '@mimo/types';
 import { RemoteLocator, RemoteDeepLocator } from './locator.js';
 
 /**
@@ -30,7 +31,7 @@ export class RemotePage {
    */
   async goto(url: string, options?: NavigateOptions): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.goto',
+      type: HubCommandType.BrowserNavigate,
       payload: { url, options },
       options: { tabId: this.defaultTabId },
     });
@@ -41,7 +42,7 @@ export class RemotePage {
    */
   async reload(): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.reload',
+      type: HubCommandType.TabReload,
       payload: {},
       options: { tabId: this.defaultTabId },
     });
@@ -52,7 +53,7 @@ export class RemotePage {
    */
   async goBack(): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.goBack',
+      type: HubCommandType.TabGoBack,
       payload: {},
       options: { tabId: this.defaultTabId },
     });
@@ -63,7 +64,7 @@ export class RemotePage {
    */
   async goForward(): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.goForward',
+      type: HubCommandType.TabGoForward,
       payload: {},
       options: { tabId: this.defaultTabId },
     });
@@ -74,7 +75,7 @@ export class RemotePage {
    */
   async url(): Promise<RemoteResponse<string>> {
     return this.sendCommand({
-      type: 'page.getUrl',
+      type: HubCommandType.PageGetUrl,
       payload: {},
       options: { tabId: this.defaultTabId },
     });
@@ -85,7 +86,7 @@ export class RemotePage {
    */
   async title(): Promise<RemoteResponse<string>> {
     return this.sendCommand({
-      type: 'page.getTitle',
+      type: HubCommandType.PageGetTitle,
       payload: {},
       options: { tabId: this.defaultTabId },
     });
@@ -96,7 +97,7 @@ export class RemotePage {
    */
   async content(options?: { html?: boolean; text?: boolean }): Promise<RemoteResponse<PageContent>> {
     return this.sendCommand({
-      type: 'page.getContent',
+      type: HubCommandType.BrowserGetContent,
       payload: options,
       options: { tabId: this.defaultTabId },
     });
@@ -107,7 +108,7 @@ export class RemotePage {
    */
   async click(selector: string, options?: ClickOptions): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.click',
+      type: HubCommandType.BrowserClick,
       payload: { selector, ...options },
       options: { tabId: this.defaultTabId },
     });
@@ -118,7 +119,7 @@ export class RemotePage {
    */
   async fill(selector: string, value: string, options?: FillOptions): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.fill',
+      type: HubCommandType.BrowserFill,
       payload: { selector, value, options },
       options: { tabId: this.defaultTabId },
     });
@@ -129,7 +130,7 @@ export class RemotePage {
    */
   async select(selector: string, value: string): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.select',
+      type: HubCommandType.BrowserSelect,
       payload: { selector, value },
       options: { tabId: this.defaultTabId },
     });
@@ -140,7 +141,7 @@ export class RemotePage {
    */
   async hover(selector: string): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.hover',
+      type: HubCommandType.BrowserHover,
       payload: { selector },
       options: { tabId: this.defaultTabId },
     });
@@ -151,7 +152,7 @@ export class RemotePage {
    */
   async screenshot(options?: ScreenshotOptions): Promise<RemoteResponse<Buffer>> {
     return this.sendCommand({
-      type: 'page.screenshot',
+      type: HubCommandType.BrowserScreenshot,
       payload: options ?? {},
       options: { tabId: this.defaultTabId },
     });
@@ -163,7 +164,7 @@ export class RemotePage {
   async evaluate<T>(handler: () => T | Promise<T>): Promise<RemoteResponse<T>> {
     const fnString = handler.toString();
     return this.sendCommand({
-      type: 'page.evaluate',
+      type: HubCommandType.BrowserEvaluate,
       payload: { fn: fnString },
       options: { tabId: this.defaultTabId },
     });
@@ -177,7 +178,7 @@ export class RemotePage {
     options?: { timeout?: number; state?: 'attached' | 'detached' | 'visible' | 'hidden' }
   ): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'page.waitFor',
+      type: HubCommandType.PageWaitFor,
       payload: { selector, options },
       options: { tabId: this.defaultTabId },
     });
@@ -188,7 +189,7 @@ export class RemotePage {
    */
   async observe(instruction?: string): Promise<RemoteResponse<Action[]>> {
     return this.sendCommand({
-      type: 'dom.observe',
+      type: HubCommandType.DomObserve,
       payload: { instruction },
       options: { tabId: this.defaultTabId },
     });

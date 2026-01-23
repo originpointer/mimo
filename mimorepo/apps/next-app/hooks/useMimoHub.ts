@@ -2,25 +2,31 @@
  * useMimoHub Hook
  *
  * 管理 Mimo Hub Socket.IO 连接
- * 在 layout 中使用此 hook 可确保连接在整个应用生命周期中保持活跃
+ * 连接到 Nitro 中的 MimoBus 服务端，接收并处理命令
  *
  * 默认禁用连接，通过环境变量 NEXT_PUBLIC_MIMO_HUB_ENABLED=true 启用
  */
 
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { HubClient, type HubClientState } from '@mimo/hub';
+import { useEffect, useMemo, useState, useRef } from 'react';
+import { createBrowserHubClient, MimoRouter } from '@mimo/hub';
 
 // 默认禁用，通过环境变量启用
 const HUB_ENABLED = process.env.NEXT_PUBLIC_MIMO_HUB_ENABLED === 'true';
 
-export interface MimoHubState extends HubClientState {
-  isEnabled: boolean;
+// 服务器 URL
+const HUB_URL = process.env.NEXT_PUBLIC_MIMO_HUB_URL || 'http://localhost:6007';
+
+export interface MimoHubState {
+  isConnected: boolean;
+  isConnecting: boolean;
+  error: string | null;
 }
 
 export interface MimoHubReturn extends MimoHubState {
-  client: HubClient | null;
+  client: ReturnType<typeof createBrowserHubClient> | null;
+  isEnabled: boolean;
 }
 
 export interface UseMimoHubOptions {
@@ -28,10 +34,22 @@ export interface UseMimoHubOptions {
   enabled?: boolean;
   /** 静默模式，减少控制台输出 */
   silent?: boolean;
+  /** 服务器 URL */
+  url?: string;
+  /** Socket.IO namespace */
+  namespace?: string;
+  /** 客户端类型 */
+  clientType?: 'extension' | 'page';
+  /** Tab ID */
+  tabId?: string;
+  /** 自动重连 */
+  autoReconnect?: boolean;
 }
 
 /**
  * Mimo Hub 连接 Hook
+ *
+ * 使用新的 BrowserHubClient 连接到 MimoBus 服务端
  *
  * @example
  * ```tsx
@@ -41,64 +59,74 @@ export interface UseMimoHubOptions {
  *   return <html><body>{children}</body></html>;
  * }
  * ```
- *
- * @example
- * ```tsx
- * // 在组件中使用
- * function MyComponent() {
- *   const { isConnected, client, isEnabled } = useMimoHub();
- *
- *   useEffect(() => {
- *     if (client && isConnected) {
- *       // 使用 client 发送命令
- *       client.sendMimoCommand('test', { foo: 'bar' });
- *
- *       // 监听消息
- *       const unsubscribe = client.onMessage((data) => {
- *         console.log('Received:', data);
- *       });
- *       return unsubscribe;
- *     }
- *   }, [client, isConnected]);
- *
- *   if (!isEnabled) return <div>Hub 未启用</div>;
- *   return <div>Hub: {isConnected ? '已连接' : '未连接'}</div>;
- * }
- * ```
  */
 export function useMimoHub(options: UseMimoHubOptions = {}): MimoHubReturn {
-  const { enabled = HUB_ENABLED, silent = true } = options;
-  const [state, setState] = useState<HubClientState>({
+  const { enabled = HUB_ENABLED, silent = true, url, namespace, clientType, tabId, autoReconnect } = options;
+  const [state, setState] = useState<MimoHubState>({
     isConnected: false,
     isConnecting: false,
     error: null,
   });
 
-  // 创建 HubClient 实例（单例）
+  // 跟踪是否已注册命令处理器（只注册一次）
+  const handlersRegisteredRef = useRef(false);
+
+  // 创建 BrowserHubClient 实例（单例）
   const client = useMemo(() => {
     if (!enabled) return null;
-    return new HubClient({ silent });
-  }, [enabled, silent]);
+    return createBrowserHubClient({
+      url: url || HUB_URL,
+      namespace: namespace || '/mimo',
+      clientType: clientType || 'page',
+      autoReconnect: autoReconnect ?? true,
+      debug: !silent,
+      tabId,
+    });
+  }, [enabled, silent, url, namespace, clientType, tabId, autoReconnect]);
 
   useEffect(() => {
     if (!client) return;
 
-    // 监听状态变化
-    const unsubscribe = client.onStateChange((newState: HubClientState) => {
-      setState(newState);
-    });
+    let mounted = true;
 
-    // 连接到服务器
-    client.connect().catch((error: unknown) => {
-      console.error('[useMimoHub] Failed to connect:', error);
-    });
+    const connect = async () => {
+      if (!mounted) return;
+      setState((prev) => ({ ...prev, isConnecting: true, error: null }));
+
+      try {
+        await client.connect();
+        if (!mounted) return;
+        setState((prev) => ({ ...prev, isConnected: true, isConnecting: false }));
+
+        if (!silent) {
+          console.log('[useMimoHub] Connected to MimoBus server');
+        }
+
+        // 注册命令处理器（只注册一次）
+        if (!handlersRegisteredRef.current) {
+          MimoRouter.registerAll(client);
+          handlersRegisteredRef.current = true;
+          if (!silent) {
+            console.log('[useMimoHub] Command handlers registered');
+          }
+        }
+      } catch (error) {
+        if (!mounted) return;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        setState({ isConnected: false, isConnecting: false, error: errorMessage });
+        console.error('[useMimoHub] Failed to connect:', error);
+      }
+    };
+
+    connect();
 
     // 清理函数
     return () => {
-      unsubscribe();
+      mounted = false;
       client.disconnect();
+      setState({ isConnected: false, isConnecting: false, error: null });
     };
-  }, [client]);
+  }, [client, silent]);
 
   return {
     client,
@@ -106,4 +134,3 @@ export function useMimoHub(options: UseMimoHubOptions = {}): MimoHubReturn {
     isEnabled: enabled,
   };
 }
-

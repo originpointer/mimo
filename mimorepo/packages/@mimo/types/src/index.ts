@@ -11,6 +11,7 @@ export type { ModelConfiguration } from './model.js';
 export { MimoErrorCode } from './error.js';
 
 // Command types
+/** @deprecated Use HubCommandType from './protocol.js' instead */
 export { CommandType, type MimoCommand } from './command.js';
 
 // Response types
@@ -22,6 +23,16 @@ export type { BusEventPayloads, CoreEventPayloads } from './events.js';
 
 // Bus types
 export type { MimoBusOptions, TabInfo } from './bus.js';
+
+// Protocol types (Bus ↔ Hub communication)
+export { ProtocolEvent, HubCommandType } from './protocol.js';
+export type {
+  HubCommandRequest,
+  HubCommandResponse,
+  HubStreamEvent,
+  CommandHandler,
+  StreamHandler,
+} from './protocol.js';
 
 // Context types
 export type {

@@ -13,16 +13,3 @@
 export { RemotePage } from './page.js';
 export { RemoteLocator, RemoteDeepLocator } from './locator.js';
 export { MimoContext } from './context.js';
-
-export type {
-  RemoteResponse,
-  TabInfo,
-  NavigateOptions,
-  ScreenshotOptions,
-  ClickOptions,
-  FillOptions,
-  LocatorOptions,
-  PageContent,
-  ElementInfo,
-  Action,
-} from '@mimo/types';

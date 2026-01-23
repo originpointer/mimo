@@ -3,6 +3,7 @@
  */
 
 import type { RemoteResponse, TabInfo } from '@mimo/types';
+import { HubCommandType } from '@mimo/types';
 import { RemotePage } from './page.js';
 
 /**
@@ -20,7 +21,7 @@ export class MimoContext {
    */
   async tabs(): Promise<RemoteResponse<TabInfo[]>> {
     return this.sendCommand({
-      type: 'browser.getTabs',
+      type: HubCommandType.TabGetList,
       payload: {},
     });
   }
@@ -30,7 +31,7 @@ export class MimoContext {
    */
   async activeTab(): Promise<RemoteResponse<TabInfo>> {
     return this.sendCommand({
-      type: 'browser.getActiveTab',
+      type: HubCommandType.TabGetActive,
       payload: {},
     });
   }
@@ -40,7 +41,7 @@ export class MimoContext {
    */
   async switchToTab(tabId: string): Promise<RemoteResponse<void>> {
     return this.sendCommand({
-      type: 'browser.switchTab',
+      type: HubCommandType.TabSwitch,
       payload: { tabId },
     });
   }
@@ -50,7 +51,7 @@ export class MimoContext {
    */
   async newTab(url?: string): Promise<RemoteResponse<TabInfo>> {
     return this.sendCommand({
-      type: 'browser.newTab',
+      type: HubCommandType.TabCreate,
       payload: { url },
     });
   }
@@ -60,7 +61,7 @@ export class MimoContext {
    */
   async closeTab(tabId: string): Promise<RemoteResponse<void>> {
     const result = await this.sendCommand({
-      type: 'browser.closeTab',
+      type: HubCommandType.TabClose,
       payload: { tabId },
     });
 

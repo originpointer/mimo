@@ -2,11 +2,15 @@
  * Mimo - Core class for browser automation
  *
  * Mimo is the main entry point for the Mimo Library.
- * It runs in the Nitro server and communicates with the frontend via MimoBus.
+ * It runs in the Nitro server and communicates with browser extensions via MimoBus.
+ *
+ * REFACTORED: MimoBus now runs as a server in Nitro, and browser extensions
+ * connect as clients. Mimo uses the global MimoBus instance created by the plugin.
  */
 
 import EventEmitter from 'eventemitter3';
-import { CommandType, MimoBus, CoreEvent } from '@mimo/bus';
+import { MimoBus } from '@mimo/bus';
+import { CoreEvent, HubCommandType } from '@mimo/types';
 import { RemotePage, MimoContext } from '@mimo/context';
 import { MimoAgent } from '@mimo/agent';
 import { LLMProvider } from '@mimo/llm';
@@ -36,6 +40,7 @@ import {
  */
 export class Mimo extends EventEmitter {
   private bus: MimoBus;
+  private ownsBus: boolean; // Whether this instance owns the bus (for cleanup)
   private llmProvider: LLMProvider;
   private _context: MimoContext;
   private _page: RemotePage;
@@ -62,13 +67,25 @@ export class Mimo extends EventEmitter {
   constructor(private opts: MimoOptions = {}) {
     super();
 
-    // Create MimoBus
-    this.bus = new MimoBus({
-      url: opts.socket?.url,
-      autoReconnect: opts.socket?.autoReconnect,
-      reconnectInterval: opts.socket?.reconnectInterval,
-      debug: (opts.verbose ?? 1) >= 2,
-    });
+    // Try to use global MimoBus instance created by Nitro plugin
+    const globalBus = (global as any).__mimoBus as MimoBus | undefined;
+
+    if (globalBus) {
+      this.log('info', 'Mimo', 'Using global MimoBus instance from Nitro plugin');
+      this.bus = globalBus;
+      this.ownsBus = false;
+    } else {
+      // Create new MimoBus instance (for testing or standalone usage)
+      this.log('warn', 'Mimo', 'No global MimoBus found, creating new instance');
+      this.bus = new MimoBus({
+        url: opts.socket?.url,
+        port: opts.socket?.port,
+        autoReconnect: opts.socket?.autoReconnect,
+        reconnectInterval: opts.socket?.reconnectInterval,
+        debug: (opts.verbose ?? 1) >= 2,
+      });
+      this.ownsBus = true;
+    }
 
     // Create LLM provider
     this.llmProvider = new LLMProvider();
@@ -96,7 +113,10 @@ export class Mimo extends EventEmitter {
     }
 
     try {
-      await this.bus.connect();
+      // Only connect if we own the bus (not using global instance)
+      if (this.ownsBus) {
+        await this.bus.connect();
+      }
       this.initialized = true;
       this.log('info', 'Mimo', 'Initialized successfully');
       this.emit(CoreEvent.Initialized);
@@ -126,7 +146,7 @@ export class Mimo extends EventEmitter {
       // Send act command
       const response = await this.bus.send({
         id: commandId,
-        type: CommandType.PageAct,
+        type: HubCommandType.PageAct,
         payload: {
           instruction: typeof input === 'string' ? input : input.description,
           action,
@@ -179,7 +199,7 @@ export class Mimo extends EventEmitter {
     try {
       const response = await this.bus.send({
         id: commandId,
-        type: CommandType.PageGoto,
+        type: HubCommandType.BrowserNavigate,
         payload: {
           url,
           waitUntil: options?.waitUntil ?? 'load',
@@ -235,7 +255,7 @@ export class Mimo extends EventEmitter {
     try {
       const response = await this.bus.send({
         id: commandId,
-        type: CommandType.PageExtract,
+        type: HubCommandType.PageExtract,
         payload: {
           instruction,
           schema: schema?.toString(),
@@ -287,7 +307,7 @@ export class Mimo extends EventEmitter {
     try {
       const response = await this.bus.send({
         id: commandId,
-        type: CommandType.DomObserve,
+        type: HubCommandType.DomObserve,
         payload: {
           instruction,
           selector: options?.selector,
@@ -341,7 +361,7 @@ export class Mimo extends EventEmitter {
       if (this.initialized && !options?.force) {
         await this.bus.send({
           id: this.generateId(),
-          type: CommandType.BrowserClose,
+          type: HubCommandType.BrowserClose,
           payload: {},
           timestamp: Date.now(),
         });

@@ -19,7 +19,12 @@ export default defineEventHandler(async (event) => {
     }
 
     const mimo = await getMimoInstance()
+
+    console.log('[Navigate API] Calling navigate with:', { url, options })
+
     const result = await mimo.navigate(url, options)
+
+    console.log('[Navigate API] Navigate result:', result)
 
     return {
       success: true,

@@ -1,9 +1,14 @@
 /**
  * Command types
+ *
+ * @deprecated This enum is deprecated. Use HubCommandType from './protocol.js' instead.
+ * CommandType will be removed in a future version.
  */
 
 /**
  * Command types that can be sent through MimoBus
+ *
+ * @deprecated Use HubCommandType from './protocol.js' instead
  */
 export enum CommandType {
   // Page operations
@@ -48,6 +53,8 @@ export enum CommandType {
 
 /**
  * MimoBus command structure
+ *
+ * @deprecated Use HubCommandRequest from './protocol.js' instead
  */
 export interface MimoCommand {
   id: string;

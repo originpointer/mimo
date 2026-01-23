@@ -9,26 +9,6 @@
 
 export { Mimo } from './mimo.js';
 
-// Re-export event types from @mimo/bus
-export { CoreEvent } from '@mimo/bus';
-export type { CoreEventPayloads } from '@mimo/types';
-
-// Re-export types from @mimo/types
-export type {
-  LogLine,
-  ActOptions,
-  ActResult,
-  NavigateOptions,
-  NavigateResult,
-  ExtractOptions,
-  ExtractResult,
-  ObserveOptions,
-  HistoryEntry,
-  MimoMetrics,
-  MimoOptions,
-  Action,
-} from '@mimo/types';
-
 /**
  * Mimo errors
  */

@@ -7,21 +7,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { MimoBus } from '@mimo/bus';
 import type { LLMProvider } from '@mimo/llm';
+import { HubCommandType } from '@mimo/types';
 import type {
   AgentConfig,
   AgentExecuteOptions,
   AgentResult,
   AgentAction,
-  AgentUsage,
-  AgentStreamEvent,
-} from '@mimo/types';
-
-// Re-export types from @mimo/types
-export type {
-  AgentConfig,
-  AgentExecuteOptions,
-  AgentAction,
-  AgentResult,
   AgentUsage,
   AgentStreamEvent,
 } from '@mimo/types';
@@ -101,7 +92,8 @@ export class MimoAgent {
       for (let step = 0; step < maxSteps; step++) {
         // Observe current page state
         const observeResponse = await this.bus.send({
-          type: 'agent.observe',
+          id: uuidv4(),
+          type: HubCommandType.AgentObserve,
           payload: {
             instruction: options.instruction,
             includeScreenshot: this.mode !== 'dom',
@@ -192,7 +184,8 @@ Example response:
 
         // Execute the action
         const actionResponse = await this.bus.send({
-          type: 'agent.step',
+          id: uuidv4(),
+          type: HubCommandType.AgentStep,
           payload: {
             stepNumber: step,
             action: decisionData.action,

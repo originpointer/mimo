@@ -14,7 +14,7 @@ import { useEffect } from 'react';
 
 export function MimoHubProvider({ children }: { children: React.ReactNode }) {
   // 默认使用静默模式，减少控制台输出
-  const { isConnected, isConnecting, error, socket, isEnabled } = useMimoHub({
+  const { isConnected, isConnecting, error, client, isEnabled } = useMimoHub({
     silent: false,
   });
 
@@ -25,25 +25,9 @@ export function MimoHubProvider({ children }: { children: React.ReactNode }) {
       console.log('[MimoHubProvider] Hub is ready');
     }
     if (error) {
-      console.error('[MimoHubProvider] Hub error:', error.message);
+      console.error('[MimoHubProvider] Hub error:', error);
     }
   }, [isConnected, isConnecting, error, isEnabled]);
-
-  // 可以在这里添加全局的事件监听器
-  useEffect(() => {
-    if (!socket || !isConnected) return;
-
-    const handleMimoMessage = (data: unknown) => {
-      console.log('[MimoHubProvider] Received message:', data);
-      // 处理来自 hub 的消息
-    };
-
-    socket.on('message', handleMimoMessage);
-
-    return () => {
-      socket.off('message', handleMimoMessage);
-    };
-  }, [socket, isConnected]);
 
   return <>{children}</>;
 }

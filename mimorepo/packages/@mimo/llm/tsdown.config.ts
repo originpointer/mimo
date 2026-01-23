@@ -5,7 +5,7 @@ export default defineConfig({
   format: 'esm',
   outDir: './dist',
   dts: true,
-  clean: true,
+  clean: false,
   sourcemap: true,
   external: ['zod'],
 });
