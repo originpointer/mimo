@@ -14,6 +14,8 @@
   "dependencies": {
     "@ai-sdk/openai": "^3.0.14",
     "@letta-ai/letta-client": "^1.6.5",
+    "@mimo/core": "workspace:*",
+    "@mimo/types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "ai": "^6.0.33",
     "dotenv": "^16.4.7",

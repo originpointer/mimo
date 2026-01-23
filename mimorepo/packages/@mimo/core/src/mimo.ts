@@ -14,6 +14,8 @@ import type {
   MimoOptions,
   ActOptions,
   ActResult,
+  NavigateOptions,
+  NavigateResult,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,
@@ -161,6 +163,58 @@ export class Mimo extends EventEmitter {
         error instanceof Error ? error.message : String(error),
         commandId,
         { input, options }
+      );
+    }
+  }
+
+  /**
+   * Navigate browser to a URL
+   */
+  async navigate(url: string, options?: NavigateOptions): Promise<NavigateResult> {
+    this.ensureConnected();
+
+    const startTime = Date.now();
+    const commandId = this.generateId();
+
+    try {
+      const response = await this.bus.send({
+        id: commandId,
+        type: CommandType.PageGoto,
+        payload: {
+          url,
+          waitUntil: options?.waitUntil ?? 'load',
+          referer: options?.referer,
+        },
+        options: {
+          timeout: options?.timeout ?? this.opts.commandTimeout,
+          tabId: options?.tabId ?? this.opts.defaultTabId,
+        },
+        timestamp: Date.now(),
+      });
+
+      const duration = Date.now() - startTime;
+      const result: NavigateResult = {
+        success: response.success,
+        message: response.success ? 'Navigated successfully' : response.error?.message ?? 'Navigation failed',
+        url,
+      };
+
+      // Record history
+      this.recordHistory({
+        method: 'navigate',
+        parameters: { url, options },
+        result,
+        timestamp: new Date().toISOString(),
+        commandId,
+        tabId: options?.tabId ?? this.opts.defaultTabId,
+      });
+
+      return result;
+    } catch (error) {
+      throw new MimoCommandError(
+        error instanceof Error ? error.message : String(error),
+        commandId,
+        { url, options }
       );
     }
   }

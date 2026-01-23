@@ -18,6 +18,8 @@ export type {
   LogLine,
   ActOptions,
   ActResult,
+  NavigateOptions,
+  NavigateResult,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,

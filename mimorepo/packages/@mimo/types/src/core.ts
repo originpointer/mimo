@@ -36,6 +36,15 @@ export interface ActResult {
 }
 
 /**
+ * Navigate result
+ */
+export interface NavigateResult {
+  success: boolean;
+  message: string;
+  url: string;
+}
+
+/**
  * Extract options
  */
 export interface ExtractOptions {

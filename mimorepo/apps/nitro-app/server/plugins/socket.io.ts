@@ -1,228 +1,146 @@
 import { defineNitroPlugin } from "nitropack/runtime"
-import { defineEventHandler } from "h3"
+import { Server as SocketIOServer } from "socket.io"
+import { createServer } from "http"
 import "../types/socket.d.ts"
 
-// Simple Socket.IO-like interface for WebSocket support
-interface PeerLike {
-  send(data: string): void
-  close(): void
-  readyState: number
-}
-
-interface SocketLike {
-  id: string
-  emit(event: string, data: unknown): void
-  on(event: string, handler: (...args: any[]) => void): void
-  join(room: string): void
-  leave(room: string): void
-  rooms: Set<string>
-}
-
-// Store socket data by peer reference (using Map with peer as key)
-const peerToSocketId = new Map<PeerLike, string>()
-const socketIdToPeer = new Map<string, PeerLike>()
-const messageHandlers = new Map<string, Map<string, Set<(data: unknown) => void>>>() // socketId -> event -> handlers
-
-// Room management
-const rooms = new Map<string, Set<string>>()
-const socketRooms = new Map<string, Set<string>>()
+// Socket.IO server instance
+let io: SocketIOServer | null = null
 
 export default defineNitroPlugin((nitroApp) => {
   // Check if already initialized
-  if (nitroApp.io) return
-
-  // Broadcast helper
-  const broadcast = (event: string, data: unknown, targetRoom?: string) => {
-    const message = JSON.stringify({ event, data })
-    for (const [id, peer] of socketIdToPeer) {
-      if (peer.readyState === 1) { // OPEN
-        if (targetRoom) {
-          const clientRooms = socketRooms.get(id) || new Set()
-          if (clientRooms.has(targetRoom)) {
-            peer.send(message)
-          }
-        } else {
-          peer.send(message)
-        }
-      }
-    }
+  if (io) {
+    console.log('[Socket.IO] Already initialized')
+    return
   }
 
-  // Create Socket.IO-like interface
-  const io = {
-    emit(event: string, data: unknown) {
-      broadcast(event, data)
-    },
-    to(room: string) {
-      return {
-        emit(event: string, data: unknown) {
-          broadcast(event, data, room)
-        }
-      }
-    },
-    on(event: string, handler: (...args: any[]) => void) {
-      if (event === "connection") {
-        ;(io as any)._connectionHandler = handler
-      }
-    },
-    close() {
-      for (const peer of socketIdToPeer.values()) {
-        peer.close()
-      }
-      peerToSocketId.clear()
-      socketIdToPeer.clear()
-    }
-  } as any
+  // Get the underlying Node.js server
+  // Nitro doesn't expose the server directly in dev mode, so we need a different approach
+  // For now, we'll attach Socket.IO to the nitro app context
 
-  // Attach to nitroApp using proper types
-  nitroApp.io = io
+  console.log('[Socket.IO] Plugin initializing...')
 
-  // Handle WebSocket connections
-  nitroApp.router.use("/socket.io/", defineEventHandler({
-    handler() {
-      // HTTP handler - return upgrade hint for WebSocket
-    },
-    websocket: {
-      open(peer) {
-        const ws = peer as unknown as PeerLike
+  // Store Socket.IO reference for later initialization
+  ;(nitroApp as any)._socketIOConfig = {
+    initialized: false,
+    pendingConnections: [] as any[],
+  }
 
-        // Generate socket ID
-        const socketId = `ws_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
-
-        // Store mappings
-        peerToSocketId.set(ws, socketId)
-        socketIdToPeer.set(socketId, ws)
-        socketRooms.set(socketId, new Set())
-        messageHandlers.set(socketId, new Map())
-
-        // Create socket-like object
-        const socket: SocketLike = {
-          id: socketId,
-          emit(event: string, data: unknown) {
-            if (ws.readyState === 1) {
-              ws.send(JSON.stringify({ event, data }))
-            }
-          },
-          on(event: string, handler: (...args: any[]) => void) {
-            const handlers = messageHandlers.get(socketId)
-            if (handlers) {
-              let eventHandlers = handlers.get(event)
-              if (!eventHandlers) {
-                eventHandlers = new Set()
-                handlers.set(event, eventHandlers)
-              }
-              eventHandlers.add(handler as any)
-            }
-          },
-          join(room: string) {
-            const clientRooms = socketRooms.get(socketId) || new Set()
-            clientRooms.add(room)
-            socketRooms.set(socketId, clientRooms)
-
-            const roomClients = rooms.get(room) || new Set()
-            roomClients.add(socketId)
-            rooms.set(room, roomClients)
-          },
-          leave(room: string) {
-            const clientRooms = socketRooms.get(socketId)
-            if (clientRooms) {
-              clientRooms.delete(room)
-              const roomClients = rooms.get(room)
-              if (roomClients) {
-                roomClients.delete(socketId)
-              }
-            }
-          },
-          rooms: new Set()
-        }
-
-        // Call connection handler
-        const connectionHandler = (io as any)._connectionHandler
-        if (connectionHandler) {
-          connectionHandler(socket)
-        }
-
-        console.log(`[Socket.IO] Client connected: ${socketId}`)
-      },
-      message(peer, message) {
-        const ws = peer as unknown as PeerLike
-        const socketId = peerToSocketId.get(ws)
-
-        if (!socketId) return
-
-        try {
-          const data = message.toString()
-          const { event, payload } = JSON.parse(data)
-
-          // Create a temporary socket object for emitting responses
-          const socket: SocketLike = {
-            id: socketId,
-            emit(evt: string, data: unknown) {
-              if (ws.readyState === 1) {
-                ws.send(JSON.stringify({ event: evt, data }))
-              }
+  // Initialize Socket.IO when the server starts
+  nitroApp.hooks.hook('render', () => {
+    if (!(nitroApp as any)._socketIOConfig?.initialized) {
+      try {
+        // Try to get the underlying HTTP server
+        const nodeServer = (nitroApp as any).nodeHandler?.server
+        if (nodeServer) {
+          io = new SocketIOServer(nodeServer, {
+            cors: {
+              origin: "*",
+              methods: ["GET", "POST"]
             },
-            on() {},
-            join(room: string) {
-              const clientRooms = socketRooms.get(socketId) || new Set()
-              clientRooms.add(room)
-              socketRooms.set(socketId, clientRooms)
+            path: "/socket.io/"
+          })
 
-              const roomClients = rooms.get(room) || new Set()
-              roomClients.add(socketId)
-              rooms.set(room, roomClients)
-            },
-            leave(room: string) {
-              const clientRooms = socketRooms.get(socketId)
-              if (clientRooms) {
-                clientRooms.delete(room)
-                const roomClients = rooms.get(room)
-                if (roomClients) {
-                  roomClients.delete(socketId)
-                }
-              }
-            },
-            rooms: new Set()
-          }
+          setupSocketIOHandlers(io)
+          ;(nitroApp as any)._socketIOConfig.initialized = true
+          ;(nitroApp as any).io = io
 
-          // Handle special events
-          if (event === "message") {
-            const handlers = messageHandlers.get(socketId)?.get("message") || new Set()
-            for (const handler of handlers) {
-              handler(payload)
-            }
-            socket.emit("message-ack", { received: true, timestamp: Date.now() })
-          } else if (event === "join-room") {
-            socket.join(payload)
-            socket.emit("room-joined", { roomId: payload, socketId })
-          }
-        } catch {
-          // Ignore parse errors
+          console.log('[Socket.IO] Server initialized with HTTP server')
+        } else {
+          console.warn('[Socket.IO] No HTTP server available, Socket.IO not initialized')
         }
-      },
-      close(peer) {
-        const ws = peer as unknown as PeerLike
-        const socketId = peerToSocketId.get(ws)
-
-        if (socketId) {
-          console.log(`[Socket.IO] Client disconnected: ${socketId}`)
-
-          // Clean up rooms
-          const clientRooms = socketRooms.get(socketId) || new Set()
-          for (const room of clientRooms) {
-            const roomClients = rooms.get(room)
-            if (roomClients) {
-              roomClients.delete(socketId)
-            }
-          }
-          socketRooms.delete(socketId)
-          messageHandlers.delete(socketId)
-          peerToSocketId.delete(ws)
-          socketIdToPeer.delete(socketId)
-        }
+      } catch (error) {
+        console.error('[Socket.IO] Initialization failed:', error)
       }
     }
-  }))
+  })
 
-  console.log("[Socket.IO] Plugin initialized successfully (WebSocket mode)")
+  // Alternative: Create a standalone Socket.IO server on a different port
+  const initializeStandaloneServer = () => {
+    const PORT = 6007 // Different from Nitro's port
+    const httpServer = createServer()
+
+    io = new SocketIOServer(httpServer, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+      },
+      path: "/socket.io/"
+    })
+
+    setupSocketIOHandlers(io)
+
+    httpServer.listen(PORT, () => {
+      console.log(`[Socket.IO] Standalone server listening on port ${PORT}`)
+      console.log(`[Socket.IO] Connect with: ws://localhost:${PORT}/socket.io/`)
+    })
+
+    ;(nitroApp as any).io = io
+    ;(nitroApp as any)._socketIOConfig.initialized = true
+  }
+
+  // For development, use standalone server since Nitro dev doesn't expose server
+  if (process.env.NODE_ENV === 'development') {
+    setTimeout(() => {
+      if (!(nitroApp as any)._socketIOConfig?.initialized) {
+        console.log('[Socket.IO] Initializing standalone server for development...')
+        initializeStandaloneServer()
+      }
+    }, 1000)
+  }
 })
+
+function setupSocketIOHandlers(io: SocketIOServer) {
+  io.on('connection', (socket) => {
+    console.log(`[Socket.IO] Client connected: ${socket.id}`)
+
+    // Handle Mimo commands
+    socket.on('mimo.command', (data) => {
+      console.log(`[Socket.IO] Mimo command received:`, data)
+
+      // Emit response with correct event name (mimo.response, not mimo.response.${id})
+      socket.emit('mimo.response', {
+        id: data.id,
+        success: true,
+        data: { message: 'Command received' },
+        timestamp: Date.now()
+      })
+    })
+
+    // Handle Mimo stream start
+    socket.on('mimo.stream.start', (data) => {
+      console.log(`[Socket.IO] Mimo stream started:`, data)
+    })
+
+    // Handle room join
+    socket.on('mimo.joinRoom', (room, callback) => {
+      socket.join(room)
+      console.log(`[Socket.IO] Client ${socket.id} joined room: ${room}`)
+      if (callback) callback({ success: true, room })
+    })
+
+    // Handle room leave
+    socket.on('mimo.leaveRoom', (room, callback) => {
+      socket.leave(room)
+      console.log(`[Socket.IO] Client ${socket.id} left room: ${room}`)
+      if (callback) callback({ success: true, room })
+    })
+
+    // Handle disconnect
+    socket.on('disconnect', (reason) => {
+      console.log(`[Socket.IO] Client disconnected: ${socket.id}, reason: ${reason}`)
+    })
+
+    // Handle errors
+    socket.on('error', (error) => {
+      console.error(`[Socket.IO] Socket error for ${socket.id}:`, error)
+    })
+
+    // Send welcome message
+    socket.emit('connected', {
+      socketId: socket.id,
+      timestamp: Date.now()
+    })
+  })
+
+  console.log('[Socket.IO] Event handlers configured')
+}

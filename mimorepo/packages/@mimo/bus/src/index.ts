@@ -112,7 +112,16 @@ export class MimoBus extends EventEmitter {
     }
 
     return new Promise<void>((resolve, reject) => {
-      this.socket = io(this.opts.url!, {
+      // Parse URL to extract server URL and path
+      // Socket.IO client needs server URL without path, and path as separate option
+      const urlObj = new URL(this.opts.url!);
+      const serverUrl = `${urlObj.protocol}//${urlObj.host}`;
+      const path = urlObj.pathname || '/socket.io/';
+
+      this.logger('Connecting to Socket.IO server', { level: 1, serverUrl, path });
+
+      this.socket = io(serverUrl, {
+        path,
         autoConnect: true,
         reconnection: this.opts.autoReconnect,
         reconnectionDelay: this.opts.reconnectInterval,

@@ -23,6 +23,7 @@ export interface NavigateOptions {
   waitUntil?: 'load' | 'domcontentloaded' | 'networkidle';
   timeout?: number;
   referer?: string;
+  tabId?: string;
 }
 
 /**

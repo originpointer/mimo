@@ -65,6 +65,7 @@ export type {
   LogLine,
   ActOptions,
   ActResult,
+  NavigateResult,
   ExtractOptions,
   ExtractResult,
   ObserveOptions,

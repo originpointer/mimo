@@ -44,10 +44,33 @@ export default function ChatRuntime({
     setDraft(e.target.value);
   };
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!draft.trim() || status !== "ready") return;
-    sendMessage({ text: draft.trim() });
+
+    const input = draft.trim();
+
+    // 检测 Mimo 命令
+    try {
+      const { detectMimoCommand, executeMimoCommand } = await import('@/lib/mimo-handler');
+      const mimoCommand = detectMimoCommand(input);
+
+      if (mimoCommand) {
+        // 处理 Mimo 命令
+        setDraft("");
+        sendMessage({ text: input }); // 添加用户消息
+
+        // 执行 Mimo 命令并显示结果
+        const result = await executeMimoCommand(mimoCommand);
+        sendMessage({ text: result }); // 添加结果消息
+        return;
+      }
+    } catch (error) {
+      console.error('[ChatRuntime] Mimo command detection failed:', error);
+    }
+
+    // 原有的聊天逻辑
+    sendMessage({ text: input });
     setDraft("");
   };
 
