@@ -32,7 +32,8 @@
     "permissions": [
       "debugger",
       "tabs",
-      "downloads"
+      "downloads",
+      "tabGroups"
     ],
     "externally_connectable": {
       "matches": [

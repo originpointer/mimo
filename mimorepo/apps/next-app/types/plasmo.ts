@@ -199,3 +199,58 @@ export type XPathGetHtmlResponse =
       meta?: { durationMs?: number; tabId?: number; truncated?: boolean }
     }
   | { ok: false; error: string }
+
+// Tab Groups API 类型定义
+export const CREATE_TAB_GROUP = "CREATE_TAB_GROUP" as const
+export const UPDATE_TAB_GROUP = "UPDATE_TAB_GROUP" as const
+export const DELETE_TAB_GROUP = "DELETE_TAB_GROUP" as const
+export const QUERY_TAB_GROUPS = "QUERY_TAB_GROUPS" as const
+export const ADD_TABS_TO_GROUP = "ADD_TABS_TO_GROUP" as const
+
+export type TabGroupColor =
+  | "grey"
+  | "blue"
+  | "red"
+  | "yellow"
+  | "green"
+  | "pink"
+  | "purple"
+  | "cyan"
+  | "orange"
+
+export type CreateTabGroupPayload = {
+  taskName: string
+  urls?: string[]
+  color?: TabGroupColor
+  collapsed?: boolean
+}
+
+export type UpdateTabGroupPayload = {
+  groupId: number
+  taskName?: string
+  color?: TabGroupColor
+  collapsed?: boolean
+}
+
+export type DeleteTabGroupPayload = {
+  groupId: number
+}
+
+export type QueryTabGroupsPayload = {
+  title?: string
+  color?: TabGroupColor
+  collapsed?: boolean
+}
+
+export type AddTabsToGroupPayload = {
+  groupId: number
+  urls: string[]
+}
+
+export type TabGroupResponse =
+  | { ok: true; groupId?: number; group?: chrome.tabGroups.TabGroup }
+  | { ok: false; error: string }
+
+export type QueryTabGroupsResponse =
+  | { ok: true; groups: chrome.tabGroups.TabGroup[] }
+  | { ok: false; error: string }

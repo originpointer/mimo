@@ -35,6 +35,20 @@ import {
 } from "../types/xpath-mark"
 import { XPATH_GET_HTML, type XPathGetHtmlPayload, type XPathGetHtmlResponse } from "../types/xpath-get-html"
 import { LIST_TABS, type ListTabsPayload, type ListTabsResponse } from "../types/list-tabs"
+import {
+  CREATE_TAB_GROUP,
+  UPDATE_TAB_GROUP,
+  DELETE_TAB_GROUP,
+  QUERY_TAB_GROUPS,
+  ADD_TABS_TO_GROUP,
+  type CreateTabGroupPayload,
+  type UpdateTabGroupPayload,
+  type DeleteTabGroupPayload,
+  type QueryTabGroupsPayload,
+  type AddTabsToGroupPayload,
+  type TabGroupResponse,
+  type QueryTabGroupsResponse
+} from "../types/tab-groups"
 import { postToolCallResult, registerExtensionId } from "@/apis"
 import { StagehandXPathScanner } from "./libs/StagehandXPathScanner"
 import { StagehandViewportScreenshotter } from "./libs/StagehandViewportScreenshotter"
@@ -43,6 +57,7 @@ import { ResumeXpathValidator } from "./libs/ResumeXpathValidator"
 import { JsonCommonXpathFinder } from "./libs/JsonCommonXpathFinder"
 import { XpathMarker } from "./libs/XpathMarker"
 import { XpathHtmlGetter } from "./libs/XpathHtmlGetter"
+import { TabGroupManager } from "./libs/TabGroupManager"
 
 class StagehandXPathManager {
   private readonly scanner = new StagehandXPathScanner()
@@ -52,6 +67,7 @@ class StagehandXPathManager {
   private readonly jsonCommonXpathFinder = new JsonCommonXpathFinder()
   private readonly xpathMarker = new XpathMarker()
   private readonly xpathHtmlGetter = new XpathHtmlGetter()
+  private readonly tabGroupManager = new TabGroupManager()
 
   constructor() {
     this.setupMessageListeners()
@@ -313,6 +329,90 @@ class StagehandXPathManager {
     return true
   }
 
+  private handleCreateTabGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
+    const payload = message.payload as CreateTabGroupPayload
+    const taskName = payload.taskName
+    const urls = payload.urls || []
+    const color = payload.color || "blue"
+    const collapsed = payload.collapsed || false
+
+    this.tabGroupManager
+      .createGroup(taskName, urls, color, collapsed)
+      .then((result) => sendResponse(result))
+      .catch((e) =>
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e)
+        } satisfies TabGroupResponse)
+      )
+  }
+
+  private handleUpdateTabGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
+    const payload = message.payload as UpdateTabGroupPayload
+    const groupId = payload.groupId
+    const taskName = payload.taskName
+    const color = payload.color
+    const collapsed = payload.collapsed
+
+    this.tabGroupManager
+      .updateGroup(groupId, { taskName, color, collapsed })
+      .then((result) => sendResponse(result))
+      .catch((e) =>
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e)
+        } satisfies TabGroupResponse)
+      )
+  }
+
+  private handleDeleteTabGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
+    const payload = message.payload as DeleteTabGroupPayload
+    const groupId = payload.groupId
+
+    this.tabGroupManager
+      .deleteGroup(groupId)
+      .then((result) => sendResponse(result))
+      .catch((e) =>
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e)
+        } satisfies TabGroupResponse)
+      )
+  }
+
+  private handleQueryTabGroups(message: any, sendResponse: (resp: QueryTabGroupsResponse) => void): void {
+    const payload = message.payload as QueryTabGroupsPayload
+    const title = payload.title
+    const color = payload.color
+    const collapsed = payload.collapsed
+
+    this.tabGroupManager
+      .queryGroups({ title, color, collapsed })
+      .then((result) => sendResponse(result))
+      .catch((e) =>
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e)
+        } satisfies QueryTabGroupsResponse)
+      )
+  }
+
+  private handleAddTabsToGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
+    const payload = message.payload as AddTabsToGroupPayload
+    const groupId = payload.groupId
+    const urls = payload.urls
+
+    this.tabGroupManager
+      .addTabsToGroup(groupId, urls)
+      .then((result) => sendResponse(result))
+      .catch((e) =>
+        sendResponse({
+          ok: false,
+          error: e instanceof Error ? e.message : String(e)
+        } satisfies TabGroupResponse)
+      )
+  }
+
   private handleRuntimeMessage(message: any, sendResponse: (resp: any) => void): boolean {
     // Tab Page -> Background -> Content: 扫描当前活动标签页并生成 XPath
     if (message.type === STAGEHAND_XPATH_SCAN) {
@@ -565,6 +665,36 @@ class StagehandXPathManager {
 
     if (message.type === LIST_TABS) {
       return this.handleListTabs(message, sendResponse as any)
+    }
+
+    // Tab Groups: 创建选项卡组
+    if (message.type === CREATE_TAB_GROUP) {
+      this.handleCreateTabGroup(message, sendResponse as any)
+      return true
+    }
+
+    // Tab Groups: 更新选项卡组
+    if (message.type === UPDATE_TAB_GROUP) {
+      this.handleUpdateTabGroup(message, sendResponse as any)
+      return true
+    }
+
+    // Tab Groups: 删除选项卡组
+    if (message.type === DELETE_TAB_GROUP) {
+      this.handleDeleteTabGroup(message, sendResponse as any)
+      return true
+    }
+
+    // Tab Groups: 查询选项卡组
+    if (message.type === QUERY_TAB_GROUPS) {
+      this.handleQueryTabGroups(message, sendResponse as any)
+      return true
+    }
+
+    // Tab Groups: 添加选项卡到组
+    if (message.type === ADD_TABS_TO_GROUP) {
+      this.handleAddTabsToGroup(message, sendResponse as any)
+      return true
     }
 
     return false

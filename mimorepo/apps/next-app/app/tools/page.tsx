@@ -12,6 +12,8 @@ import {
   STAGEHAND_XPATH_SCAN,
   XPATH_GET_HTML,
   XPATH_MARK_ELEMENTS,
+  CREATE_TAB_GROUP,
+  QUERY_TAB_GROUPS,
   type JsonCommonXpathFindOptions,
   type JsonCommonXpathFindPayload,
   type JsonCommonXpathFindResponse,
@@ -28,7 +30,12 @@ import {
   type XPathGetHtmlPayload,
   type XPathGetHtmlResponse,
   type XPathMarkElementsPayload,
-  type XPathMarkElementsResponse
+  type XPathMarkElementsResponse,
+  type CreateTabGroupPayload,
+  type QueryTabGroupsPayload,
+  type TabGroupResponse,
+  type QueryTabGroupsResponse,
+  type TabGroupColor
 } from "@/types/plasmo"
 import ExtensionTabSelector from "./_components/ExtensionTabSelector"
 import { isScannableUrl, useExtensionTabsStore } from "./_stores/extensionTabsStore"
@@ -331,6 +338,14 @@ export default function ToolsPage() {
   const [llmSampleId, setLlmSampleId] = useState<string | null>(null)
   const [validateOut, setValidateOut] = useState<ResumeXpathValidateResponse | null>(null)
   const shotTaskIdRef = useRef<string | null>(null)
+
+  // Tab Groups 状态
+  const [tabGroupName, setTabGroupName] = useState("")
+  const [tabGroupUrls, setTabGroupUrls] = useState("")
+  const [tabGroupColor, setTabGroupColor] = useState<TabGroupColor>("blue")
+  const [tabGroupRunning, setTabGroupRunning] = useState(false)
+  const [tabGroupError, setTabGroupError] = useState<string | null>(null)
+  const [tabGroupResult, setTabGroupResult] = useState<TabGroupResponse | QueryTabGroupsResponse | null>(null)
 
   type ParsedResumeConfig = ReturnType<typeof safeJsonParse<Partial<ResumeBlocksExtractOptions>>>
   const parsedResume = useMemo<ParsedResumeConfig>(() => safeJsonParse<Partial<ResumeBlocksExtractOptions>>(resumeConfigText), [resumeConfigText])
@@ -968,6 +983,79 @@ export default function ToolsPage() {
       }
     } catch (e) {
       setResumeError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  // Tab Groups 处理函数
+  const runCreateTabGroup = async () => {
+    setTabGroupError(null)
+    setTabGroupResult(null)
+
+    if (!ensureExtensionId(setTabGroupError)) return
+
+    const taskName = tabGroupName.trim()
+    if (!taskName) {
+      setTabGroupError("请输入任务名称")
+      return
+    }
+
+    // 解析 URL 列表
+    const urls = tabGroupUrls
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && (line.startsWith("http://") || line.startsWith("https://")))
+
+    const payload: CreateTabGroupPayload = {
+      taskName,
+      urls: urls.length > 0 ? urls : undefined,
+      color: tabGroupColor,
+      collapsed: false
+    }
+
+    setTabGroupRunning(true)
+    try {
+      const out = await sendToExtension<TabGroupResponse>({ type: CREATE_TAB_GROUP, payload }, extensionId)
+
+      if (!out) {
+        setTabGroupError("未收到响应（可能扩展未就绪或权限不足）")
+        return
+      }
+
+      setTabGroupResult(out)
+      if (out.ok === false) setTabGroupError(out.error)
+    } catch (e) {
+      setTabGroupError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTabGroupRunning(false)
+    }
+  }
+
+  const runQueryTabGroups = async () => {
+    setTabGroupError(null)
+    setTabGroupResult(null)
+
+    if (!ensureExtensionId(setTabGroupError)) return
+
+    const payload: QueryTabGroupsPayload = {}
+
+    setTabGroupRunning(true)
+    try {
+      const out = await sendToExtension<QueryTabGroupsResponse>(
+        { type: QUERY_TAB_GROUPS, payload },
+        extensionId
+      )
+
+      if (!out) {
+        setTabGroupError("未收到响应（可能扩展未就绪或权限不足）")
+        return
+      }
+
+      setTabGroupResult(out)
+      if (out.ok === false) setTabGroupError(out.error)
+    } catch (e) {
+      setTabGroupError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTabGroupRunning(false)
     }
   }
 
@@ -1621,6 +1709,134 @@ export default function ToolsPage() {
                 }}>
                 {validateOut ? JSON.stringify(validateOut, null, 2) : "（尚未验证）"}
               </pre>
+            </div>
+          </div>
+        </section>
+
+        {/* 新增：Tab Groups 控制区块 */}
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
+          <h2 style={{ margin: "0 0 8px 0" }}>Tab Groups 管理</h2>
+          <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
+            说明：创建和管理浏览器选项卡组，用于任务相关选项卡的分组管理。
+          </div>
+
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+            {/* 左侧：表单输入 */}
+            <div style={{ flex: "1 1 400px", minWidth: 320 }}>
+              {/* 任务名称输入 */}
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>任务名称</div>
+              <input
+                type="text"
+                value={tabGroupName}
+                onChange={(e) => setTabGroupName(e.target.value)}
+                placeholder="例如：数据抓取任务"
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  fontSize: 12,
+                  marginBottom: 12
+                }}
+              />
+
+              {/* 颜色选择 */}
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>颜色</div>
+              <select
+                value={tabGroupColor}
+                onChange={(e) => setTabGroupColor(e.target.value as TabGroupColor)}
+                style={{
+                  width: "100%",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  fontSize: 12,
+                  marginBottom: 12
+                }}
+              >
+                <option value="grey">灰色 - 待处理</option>
+                <option value="blue">蓝色 - 执行中</option>
+                <option value="green">绿色 - 成功</option>
+                <option value="yellow">黄色 - 警告</option>
+                <option value="red">红色 - 错误</option>
+                <option value="cyan">青色 - 信息</option>
+                <option value="orange">橙色 - 注意</option>
+                <option value="pink">粉色</option>
+                <option value="purple">紫色</option>
+              </select>
+
+              {/* URL 列表输入 */}
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>URL 列表（每行一个，可选）</div>
+              <textarea
+                value={tabGroupUrls}
+                onChange={(e) => setTabGroupUrls(e.target.value)}
+                placeholder={`https://example.com/page1&#10;https://example.com/page2`}
+                style={{
+                  width: "100%",
+                  minHeight: 120,
+                  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                  fontSize: 12,
+                  padding: 10,
+                  borderRadius: 8,
+                  border: "1px solid #e5e7eb",
+                  marginBottom: 12
+                }}
+              />
+
+              {/* 操作按钮 */}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => void runCreateTabGroup()}
+                  disabled={tabGroupRunning}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", cursor: tabGroupRunning ? "not-allowed" : "pointer" }}
+                >
+                  {tabGroupRunning ? "Creating..." : "创建 Tab Group"}
+                </button>
+                <button
+                  onClick={() => void runQueryTabGroups()}
+                  disabled={tabGroupRunning}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", cursor: tabGroupRunning ? "not-allowed" : "pointer" }}
+                >
+                  查询所有 Groups
+                </button>
+                <button
+                  onClick={() => {
+                    setTabGroupName("")
+                    setTabGroupUrls("")
+                    setTabGroupColor("blue")
+                    setTabGroupError(null)
+                  }}
+                  disabled={tabGroupRunning}
+                  style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", cursor: tabGroupRunning ? "not-allowed" : "pointer" }}
+                >
+                  Reset
+                </button>
+              </div>
+
+              {tabGroupError && <div style={{ marginTop: 10, color: "#b00020", fontSize: 12 }}>{tabGroupError}</div>}
+            </div>
+
+            {/* 右侧：结果展示 */}
+            <div style={{ flex: "1 1 400px", minWidth: 320 }}>
+              <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>结果</div>
+              <div style={{ minHeight: 200, maxHeight: 400, overflow: "auto" }}>
+                {tabGroupResult ? (
+                  <pre
+                    style={{
+                      margin: 0,
+                      padding: 10,
+                      borderRadius: 8,
+                      border: "1px solid #e5e7eb",
+                      background: "#fafafa",
+                      fontSize: 12
+                    }}
+                  >
+                    {JSON.stringify(tabGroupResult, null, 2)}
+                  </pre>
+                ) : (
+                  <div style={{ padding: 10, color: "#999", fontSize: 12 }}>（尚未执行）</div>
+                )}
+              </div>
             </div>
           </div>
         </section>
