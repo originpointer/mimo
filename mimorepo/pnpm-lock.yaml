@@ -208,6 +208,9 @@ importers:
 
   apps/plasmo-app:
     dependencies:
+      '@mimo/engine':
+        specifier: workspace:*
+        version: link:../../packages/@mimo/engine
       '@repo/sens':
         specifier: workspace:*
         version: link:../../packages/sens
@@ -382,6 +385,28 @@ importers:
       '@repo/typescript-config':
         specifier: workspace:*
         version: link:../../typescript-config
+      tsdown:
+        specifier: ^0.20.0-beta.4
+        version: 0.20.0-beta.4(typescript@5.9.2)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+
+  packages/@mimo/engine:
+    dependencies:
+      '@mimo/hub':
+        specifier: workspace:*
+        version: link:../hub
+      '@mimo/types':
+        specifier: workspace:*
+        version: link:../types
+    devDependencies:
+      '@repo/typescript-config':
+        specifier: workspace:*
+        version: link:../../typescript-config
+      '@types/chrome':
+        specifier: 0.0.258
+        version: 0.0.258
       tsdown:
         specifier: ^0.20.0-beta.4
         version: 0.20.0-beta.4(typescript@5.9.2)

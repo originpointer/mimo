@@ -8,6 +8,10 @@
     "./**/*.ts",
     "./**/*.tsx"
   ],
+  "references": [
+    { "path": "../../packages/@mimo/types" },
+    { "path": "../../packages/@mimo/engine" }
+  ],
   "compilerOptions": {
     "paths": {
       "~*": [

@@ -1,0 +1,15 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "composite": true,
+    "incremental": true
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../types" }
+  ]
+}

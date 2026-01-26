@@ -1,0 +1,32 @@
+{
+  "name": "@mimo/engine",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Engine for processing messages from hub",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mimo/types": "workspace:*",
+    "@mimo/hub": "workspace:*"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/chrome": "0.0.258",
+    "tsdown": "^0.20.0-beta.4",
+    "typescript": "5.9.2"
+  }
+}

@@ -58,6 +58,7 @@ import { JsonCommonXpathFinder } from "./libs/JsonCommonXpathFinder"
 import { XpathMarker } from "./libs/XpathMarker"
 import { XpathHtmlGetter } from "./libs/XpathHtmlGetter"
 import { TabGroupManager } from "./libs/TabGroupManager"
+import { MessageHandler } from "@mimo/engine"
 
 class StagehandXPathManager {
   private readonly scanner = new StagehandXPathScanner()
@@ -72,6 +73,37 @@ class StagehandXPathManager {
   constructor() {
     this.setupMessageListeners()
     this.reportExtensionId()
+    this.setupMimoEngine()
+  }
+
+  /**
+   * 设置 MimoEngine 消息处理器
+   *
+   * 注册来自 next-app 的 Hub 命令处理器
+   */
+  private setupMimoEngine() {
+    const chromeRuntimeHandler = MessageHandler.createChromeRuntimeHandler()
+
+    // 注册到 chrome.runtime.onMessage
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      const handled = chromeRuntimeHandler(message, sender, sendResponse)
+      if (handled) {
+        console.log('[StagehandXPathManager] Message handled by MimoEngine')
+      }
+      // 返回 false 表示让其他处理器继续处理
+      return false
+    })
+
+    // 同时注册到 onMessageExternal（允许来自 next-app 的消息）
+    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+      const handled = chromeRuntimeHandler(message, sender, sendResponse)
+      if (handled) {
+        console.log('[StagehandXPathManager] External message handled by MimoEngine')
+      }
+      return false
+    })
+
+    console.log('[StagehandXPathManager] MimoEngine registered for HubCommandType messages')
   }
 
   private isScannableUrl(url: string | undefined): boolean {
