@@ -49,3 +49,6 @@ coverage/
 
 # audit artifacts (Phase9/10 evidence chain)
 audit/
+
+# reverse engineering / browser messages
+.reverse/
