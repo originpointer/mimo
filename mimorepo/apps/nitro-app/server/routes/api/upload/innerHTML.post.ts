@@ -56,6 +56,16 @@ export default eventHandler(async (event) => {
     svgReplacedCount = countA + countB
   }
 
+  let base64ReplacedCount = 0
+  if (mimeType === "text/html") {
+    const placeholder = `<base64>`
+    const reBase64DataUrl = /data:([^;,]+);base64,([^"'\s)\]]+)/gi
+
+    const matches = content.matchAll(reBase64DataUrl)
+    base64ReplacedCount = [...matches].length
+    content = content.replace(reBase64DataUrl, placeholder)
+  }
+
   const bytes = Buffer.from(content, "utf-8")
   if (!bytes.length) {
     event.node.res.statusCode = 400
@@ -83,6 +93,7 @@ export default eventHandler(async (event) => {
     mimeType,
     bytes: bytes.length,
     svgReplacedCount,
+    base64ReplacedCount,
     relPath,
     url
   }
