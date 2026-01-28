@@ -21,6 +21,12 @@ export enum ProtocolEvent {
   StreamError = 'mimo.stream.error',
   /** Server signals stream end */
   StreamEnd = 'mimo.stream.end',
+  /** Client sends heartbeat ping */
+  HeartbeatPing = 'mimo.heartbeat.ping',
+  /** Server responds with heartbeat pong */
+  HeartbeatPong = 'mimo.heartbeat.pong',
+  /** Client notifies it's going away */
+  ClientGoingAway = 'mimo.client.going_away',
 }
 
 /**
@@ -168,4 +174,44 @@ export interface StreamHandler {
     request: HubCommandRequest,
     emit: (event: { type: 'data' | 'error' | 'end'; data?: unknown; error?: string }) => void
   ): Promise<void>;
+}
+
+/**
+ * Heartbeat ping message (client → server)
+ */
+export interface HeartbeatPing {
+  /** Client socket ID */
+  socketId: string;
+  /** Timestamp when ping was sent */
+  timestamp: number;
+  /** Client-reported status */
+  status?: 'active' | 'idle' | 'busy';
+}
+
+/**
+ * Heartbeat pong message (server → client)
+ */
+export interface HeartbeatPong {
+  /** Server timestamp */
+  serverTimestamp: number;
+  /** Client's original timestamp */
+  clientTimestamp: number;
+  /** Calculated round-trip time in milliseconds */
+  rtt: number;
+}
+
+/**
+ * Connection status information
+ */
+export interface ConnectionStatus {
+  /** Socket ID */
+  socketId: string;
+  /** Connection state */
+  state: 'connecting' | 'connected' | 'disconnected' | 'reconnecting';
+  /** Last successful heartbeat timestamp */
+  lastHeartbeat: number;
+  /** Current heartbeat interval in milliseconds */
+  heartbeatInterval: number;
+  /** Connection quality score (0-1, 1 = excellent) */
+  quality: number;
 }

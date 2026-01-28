@@ -1,769 +1,251 @@
 /**
- * Background Script - Stagehand XPath (CDP)
- * 
- * 在 MV3 background service worker 中运行，通过 chrome.debugger (CDP) 扫描页面并构建 XPath。
+ * Background Script - Main Entry Point
  *
- * 目标：该 app 只保留“使用 CDP 构建 XPath”的能力；页面状态监听/同步等能力已移除。
+ * 在 MV3 background service worker 中运行。
+ *
+ * 这是统一的消息路由入口点，负责：
+ * - 初始化所有管理器（StagehandXPathManager, MimoEngineManager）
+ * - 初始化处理器注册表（LegacyHandlerRegistry, HubCommandHandlerRegistry）
+ * - 创建统一的消息路由器（MessageRouter）
+ * - 注册 chrome.runtime 消息监听器
+ * - 管理 Service Worker 生命周期（基于 Manus Chrome Extension v0.0.47 模式）
+ *
+ * 架构说明：
+ * - MessageRouter: 统一入口点，根据消息类型分发到相应的处理器
+ * - LegacyHandlerRegistry: 处理13种传统消息类型
+ * - HubCommandHandlerRegistry: 处理HubCommandType消息
+ * - StagehandXPathManager: CDP工具协调（XPath扫描、截图等）
+ * - MimoEngineManager: Socket.IO连接管理
+ * - ServiceWorkerLifecycleManager: 生命周期管理（onSuspend 清理）
+ * - KeepAliveManager: 保活轮询（每10秒 Chrome API 调用）
+ * - StateManager: 状态管理和重启检测
  */
 
-import { STAGEHAND_XPATH_SCAN, type StagehandXPathScanPayload, type StagehandXPathScanResponse } from "../types/stagehand-xpath"
-import {
-  STAGEHAND_VIEWPORT_SCREENSHOT,
-  type StagehandViewportScreenshotPayload,
-  type StagehandViewportScreenshotResponse
-} from "../types/stagehand-screenshot"
-import {
-  RESUME_BLOCKS_EXTRACT,
-  type ResumeBlocksExtractPayload,
-  type ResumeBlocksExtractResponse
-} from "../types/resume-blocks"
-import {
-  RESUME_XPATH_VALIDATE,
-  type ResumeXpathValidatePayload,
-  type ResumeXpathValidateResponse
-} from "../types/resume-validate"
-import {
-  JSON_COMMON_XPATH_FIND,
-  type JsonCommonXpathFindPayload,
-  type JsonCommonXpathFindResponse
-} from "../types/json-common-xpath"
-import {
-  XPATH_MARK_ELEMENTS,
-  type XPathMarkElementsPayload,
-  type XPathMarkElementsResponse,
-  type XPathMarkMode
-} from "../types/xpath-mark"
-import { XPATH_GET_HTML, type XPathGetHtmlPayload, type XPathGetHtmlResponse } from "../types/xpath-get-html"
-import { LIST_TABS, type ListTabsPayload, type ListTabsResponse } from "../types/list-tabs"
-import {
-  CREATE_TAB_GROUP,
-  UPDATE_TAB_GROUP,
-  DELETE_TAB_GROUP,
-  QUERY_TAB_GROUPS,
-  ADD_TABS_TO_GROUP,
-  type CreateTabGroupPayload,
-  type UpdateTabGroupPayload,
-  type DeleteTabGroupPayload,
-  type QueryTabGroupsPayload,
-  type AddTabsToGroupPayload,
-  type TabGroupResponse,
-  type QueryTabGroupsResponse
-} from "../types/tab-groups"
-import { postToolCallResult, registerExtensionId } from "@/apis"
-import { StagehandXPathScanner } from "./libs/StagehandXPathScanner"
-import { StagehandViewportScreenshotter } from "./libs/StagehandViewportScreenshotter"
-import { ResumeBlocksExtractor } from "./libs/ResumeBlocksExtractor"
-import { ResumeXpathValidator } from "./libs/ResumeXpathValidator"
-import { JsonCommonXpathFinder } from "./libs/JsonCommonXpathFinder"
-import { XpathMarker } from "./libs/XpathMarker"
-import { XpathHtmlGetter } from "./libs/XpathHtmlGetter"
-import { TabGroupManager } from "./libs/TabGroupManager"
-import { MessageHandler } from "@mimo/engine"
+import { MessageRouter } from './message-router';
+import { LegacyHandlerRegistry } from './handlers/legacy-handler-registry';
+import { HubCommandHandlerRegistry } from './handlers/hub-command-handler-registry';
+import { StagehandXPathManager } from './managers/stagehand-xpath-manager';
+import { MimoEngineManager } from './managers/mimo-engine-manager';
 
-class StagehandXPathManager {
-  private readonly scanner = new StagehandXPathScanner()
-  private readonly screenshotter = new StagehandViewportScreenshotter()
-  private readonly resumeBlocksExtractor = new ResumeBlocksExtractor()
-  private readonly resumeXpathValidator = new ResumeXpathValidator()
-  private readonly jsonCommonXpathFinder = new JsonCommonXpathFinder()
-  private readonly xpathMarker = new XpathMarker()
-  private readonly xpathHtmlGetter = new XpathHtmlGetter()
-  private readonly tabGroupManager = new TabGroupManager()
+// Import lifecycle management components (Manus-based patterns)
+import { ServiceWorkerLifecycleManager } from './managers/lifecycle-manager';
+import { KeepAliveManager } from './managers/keep-alive-manager';
+import { StateManager } from './managers/state-manager';
 
-  constructor() {
-    this.setupMessageListeners()
-    this.reportExtensionId()
-    this.setupMimoEngine()
+// ==================== 初始化管理器 ====================
+
+/**
+ * StagehandXPathManager - CDP工具协调
+ *
+ * 负责XPath扫描、截图、简历抽取等CDP相关功能。
+ * 不再负责消息路由和Socket.IO连接管理。
+ */
+const stagehandManager = new StagehandXPathManager();
+
+/**
+ * MimoEngineManager - Socket.IO连接管理
+ *
+ * 负责与MimoBus服务器的Socket.IO连接。
+ * 独立于StagehandXPathManager，保持清晰的关注点分离。
+ *
+ * 增强功能（基于 Manus 模式）：
+ * - 自动重连（指数退避：1s → 30s）
+ * - 实现 LifecycleAware 接口
+ * - 生命周期管理
+ */
+const mimoEngineManager = new MimoEngineManager({
+  busUrl: process.env.PLASMO_PUBLIC_MIMO_BUS_URL || 'http://localhost:6007',
+  namespace: '/mimo',
+  clientType: 'extension',
+  heartbeatInterval: 30000,
+  autoReconnect: true,
+  debug: process.env.NODE_ENV === 'development',
+});
+
+// ==================== 初始化生命周期管理组件 (Manus 模式) ====================
+
+/**
+ * ServiceWorkerLifecycleManager - 生命周期管理器
+ *
+ * 基于 Manus Chrome Extension v0.0.47 的设计模式
+ * 负责：
+ * - 注册 chrome.runtime.onSuspend 监听器
+ * - 在 Service Worker 终止前清理所有资源
+ * - 防止资源泄漏
+ */
+const lifecycleManager = new ServiceWorkerLifecycleManager();
+
+/**
+ * StateManager - 状态管理器
+ *
+ * 基于 Manus Chrome Extension v0.0.47 的设计模式
+ * 负责：
+ * - 检测 Service Worker 重启（通过心跳时间戳）
+ * - 持久化关键状态到 chrome.storage.local
+ * - 提供状态保存/加载功能
+ */
+const stateManager = new StateManager({
+  heartbeatInterval: 10000,  // 10秒心跳
+  restartThreshold: 30000,    // 30秒重启检测阈值
+});
+
+/**
+ * KeepAliveManager - 保活管理器
+ *
+ * 基于 Manus Chrome Extension v0.0.47 的设计模式
+ * 负责：
+ * - 每 10 秒执行 Chrome API 调用（chrome.tabs.query）
+ * - 重置 Service Worker 的空闲计时器
+ * - 确保 Service Worker 永远不会达到 30 秒空闲超时
+ *
+ * 核心思想：10 秒轮询 < 30 秒超时 = 持续活跃
+ */
+const keepAliveManager = new KeepAliveManager({
+  pollInterval: 10000,  // 10秒（与 Manus 一致）
+  onKeepAlive: async () => {
+    // 发送 WebSocket 心跳
+    if (mimoEngineManager.isConnected()) {
+      await mimoEngineManager.sendHeartbeat();
+    }
+  },
+});
+
+// ==================== 注册生命周期感知组件 ====================
+
+/**
+ * 将所有需要清理的组件注册到生命周期管理器
+ *
+ * 当 Service Worker 即将终止时（onSuspend），
+ * 生命周期管理器会调用所有组件的 stop() 方法。
+ */
+lifecycleManager.addManager(keepAliveManager);
+lifecycleManager.addManager(mimoEngineManager);
+// stateManager implements LifecycleAware, add it if needed
+// lifecycleManager.addManager(stateManager);
+
+// ==================== 初始化处理器注册表 ====================
+
+/**
+ * LegacyHandlerRegistry - 传统消息处理器
+ *
+ * 处理13种自定义消息类型：
+ * - STAGEHAND_XPATH_SCAN: XPath扫描
+ * - STAGEHAND_VIEWPORT_SCREENSHOT: 视口截图
+ * - RESUME_BLOCKS_EXTRACT: 简历块抽取
+ * - RESUME_XPATH_VALIDATE: XPath验证
+ * - JSON_COMMON_XPATH_FIND: JSON到XPath
+ * - XPATH_MARK_ELEMENTS: 元素标记
+ * - XPATH_GET_HTML: HTML获取
+ * - LIST_TABS: 标签页列表
+ * - Tab group operations (5 types): 选项卡组操作
+ */
+const legacyRegistry = new LegacyHandlerRegistry(stagehandManager);
+
+/**
+ * HubCommandHandlerRegistry - Hub命令处理器
+ *
+ * 处理HubCommandType消息，集成CommandExecutor。
+ */
+const hubRegistry = new HubCommandHandlerRegistry();
+
+// ==================== 创建统一消息路由器 ====================
+
+/**
+ * MessageRouter - 统一消息路由器
+ *
+ * 所有chrome.runtime消息的单一入口点。
+ * 根据消息类型（legacy vs hub）分发到相应的处理器注册表。
+ */
+const messageRouter = new MessageRouter(legacyRegistry, hubRegistry, {
+  debug: process.env.NODE_ENV === 'development',
+  slowMessageThreshold: 1000,
+});
+
+// ==================== 注册消息监听器 ====================
+
+/**
+ * 注册chrome.runtime消息监听器
+ *
+ * 使用统一的MessageRouter处理所有消息。
+ */
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  return messageRouter.route(message, sender, sendResponse);
+});
+
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  return messageRouter.route(message, sender, sendResponse);
+});
+
+console.log('[Background] Unified message router registered');
+
+// ==================== 初始化和启动 (Manus 模式) ====================
+
+/**
+ * 初始化函数
+ *
+ * 基于 Manus Chrome Extension v0.0.47 的初始化模式
+ * 负责：
+ * 1. 检测 Service Worker 是否刚重启
+ * 2. 注册生命周期监听器
+ * 3. 启动心跳
+ * 4. 启动保活轮询
+ * 5. 连接到 MimoBus
+ */
+async function initialize(): Promise<void> {
+  console.info('[Background] ===== Initialization Start =====');
+
+  // 1. 检测是否是 Service Worker 重启
+  const isRestart = await stateManager.isServiceWorkerRestart();
+  if (isRestart) {
+    console.info('[Background] Service Worker restart detected');
   }
 
-  /**
-   * 设置 MimoEngine 消息处理器
-   *
-   * 注册来自 next-app 的 Hub 命令处理器
-   */
-  private setupMimoEngine() {
-    const chromeRuntimeHandler = MessageHandler.createChromeRuntimeHandler()
+  // 2. 注册生命周期监听器（onSuspend）
+  lifecycleManager.register();
+  console.info('[Background] Lifecycle handlers registered');
 
-    // 注册到 chrome.runtime.onMessage
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      const handled = chromeRuntimeHandler(message, sender, sendResponse)
-      if (handled) {
-        console.log('[StagehandXPathManager] Message handled by MimoEngine')
-      }
-      // 返回 false 表示让其他处理器继续处理
-      return false
-    })
+  // 3. 启动心跳（用于重启检测）
+  stateManager.startHeartbeat(10000);  // 10秒
+  console.info('[Background] Heartbeat started');
 
-    // 同时注册到 onMessageExternal（允许来自 next-app 的消息）
-    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-      const handled = chromeRuntimeHandler(message, sender, sendResponse)
-      if (handled) {
-        console.log('[StagehandXPathManager] External message handled by MimoEngine')
-      }
-      return false
-    })
+  // 4. 启动保活轮询（每10秒执行 Chrome API 调用）
+  keepAliveManager.start();
+  console.info('[Background] Keep-alive polling started');
 
-    console.log('[StagehandXPathManager] MimoEngine registered for HubCommandType messages')
+  // 5. 连接到 MimoBus
+  try {
+    await mimoEngineManager.connect();
+    console.info('[Background] MimoBus connection established');
+  } catch (error) {
+    // MimoEngineManager 会自动重连，这里只记录错误
+    console.error('[Background] Failed to connect to MimoBus:', error);
+    console.info('[Background] Auto-reconnect will be attempted');
   }
 
-  private isScannableUrl(url: string | undefined): boolean {
-    // 扩展/内部页不允许注入或不允许 debugger attach，提前拦截给出可读错误。
-    const u = String(url || "")
-    if (!u) return false
-    const blocked = [
-      "chrome://",
-      "edge://",
-      "about:",
-      "devtools://",
-      "chrome-extension://",
-      "moz-extension://",
-      "view-source:",
-      "file://"
-    ]
-    return !blocked.some((p) => u.startsWith(p))
-  }
-
-  private handleViewportScreenshot(
-    message: any,
-    sendResponse: (resp: StagehandViewportScreenshotResponse) => void
-  ): true {
-    const payload = message.payload as Partial<StagehandViewportScreenshotPayload> | undefined
-    const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-    const taskId = typeof payload?.taskId === "string" ? payload.taskId : undefined
-    const extensionId = chrome.runtime?.id || ""
-
-    const reportToolCallResult = (input: { ok: boolean; dataUrl?: string; base64?: string; meta?: unknown; error?: string }) => {
-      if (!taskId) return
-      void postToolCallResult({
-        taskId,
-        extensionId,
-        toolType: "viewportScreenshot",
-        ...input
-      })
-    }
-
-    const runOnTab = (tabId: number) => {
-      chrome.tabs.get(tabId, (tab) => {
-        const tabUrl = tab?.url
-        if (chrome.runtime.lastError) {
-          reportToolCallResult({ ok: false, error: `tabs.get failed: ${chrome.runtime.lastError.message}` })
-          sendResponse({
-            ok: false,
-            error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-          } satisfies StagehandViewportScreenshotResponse)
-          return
-        }
-        if (!this.isScannableUrl(tabUrl)) {
-          reportToolCallResult({ ok: false, error: `目标 Tab 不可截图（url=${tabUrl || "unknown"}）。请使用 http/https 页面。` })
-          sendResponse({
-            ok: false,
-            error: `目标 Tab 不可截图（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-          } satisfies StagehandViewportScreenshotResponse)
-          return
-        }
-
-        this.screenshotter
-          .screenshotViewport(tabId)
-          .then((resp) => {
-            if (resp.ok) {
-              reportToolCallResult({
-                ok: true,
-                dataUrl: resp.dataUrl,
-                base64: resp.base64,
-                meta: resp.meta
-              })
-            } else {
-              const errorMessage = "error" in resp ? resp.error : "viewport screenshot failed"
-              reportToolCallResult({ ok: false, error: errorMessage })
-            }
-            sendResponse(resp)
-          })
-          .catch((e) => {
-            const message = e instanceof Error ? e.message : String(e)
-            reportToolCallResult({ ok: false, error: message })
-            sendResponse({
-              ok: false,
-              error: message
-            } satisfies StagehandViewportScreenshotResponse)
-          })
-      })
-    }
-
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId)
-      return true
-    }
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs?.[0]?.id
-      if (!tabId) {
-        reportToolCallResult({ ok: false, error: "No active tab found" })
-        sendResponse({ ok: false, error: "No active tab found" } satisfies StagehandViewportScreenshotResponse)
-        return
-      }
-      runOnTab(tabId)
-    })
-
-    return true
-  }
-
-  private handleResumeBlocksExtract(message: any, sendResponse: (resp: ResumeBlocksExtractResponse) => void): true {
-    const payload = message.payload as Partial<ResumeBlocksExtractPayload> | undefined
-    const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-
-    const runOnTab = (tabId: number) => {
-      chrome.tabs.get(tabId, (tab) => {
-        const tabUrl = tab?.url
-        if (chrome.runtime.lastError) {
-          sendResponse({
-            ok: false,
-            error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-          } satisfies ResumeBlocksExtractResponse)
-          return
-        }
-        if (!this.isScannableUrl(tabUrl)) {
-          sendResponse({
-            ok: false,
-            error: `目标 Tab 不可抽取（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-          } satisfies ResumeBlocksExtractResponse)
-          return
-        }
-
-        const maxBlocks =
-          typeof payload?.maxBlocks === "number" && Number.isFinite(payload.maxBlocks) && payload.maxBlocks > 0
-            ? Math.floor(payload.maxBlocks)
-            : 60
-        const minTextLen =
-          typeof payload?.minTextLen === "number" && Number.isFinite(payload.minTextLen) && payload.minTextLen >= 0
-            ? Math.floor(payload.minTextLen)
-            : 80
-        const maxTextLen =
-          typeof payload?.maxTextLen === "number" && Number.isFinite(payload.maxTextLen) && payload.maxTextLen > 0
-            ? Math.floor(payload.maxTextLen)
-            : 2000
-        const includeShadow = Boolean(payload?.includeShadow)
-        const noiseSelectors =
-          typeof payload?.noiseSelectors === "string" && payload.noiseSelectors.trim()
-            ? payload.noiseSelectors.trim()
-            : "header,nav,footer,aside,[role=banner],[role=navigation]"
-        const noiseClassIdRegex =
-          typeof payload?.noiseClassIdRegex === "string" && payload.noiseClassIdRegex.trim()
-            ? payload.noiseClassIdRegex.trim()
-            : "nav|menu|footer|header|sidebar|toolbar|pagination|breadcrumb|ads|comment"
-
-        this.resumeBlocksExtractor
-          .extract(tabId, { maxBlocks, minTextLen, maxTextLen, includeShadow, noiseSelectors, noiseClassIdRegex })
-          .then((resp) => sendResponse(resp))
-          .catch((e) =>
-            sendResponse({
-              ok: false,
-              error: e instanceof Error ? e.message : String(e)
-            } satisfies ResumeBlocksExtractResponse)
-          )
-      })
-    }
-
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId)
-      return true
-    }
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs?.[0]?.id
-      if (!tabId) {
-        sendResponse({ ok: false, error: "No active tab found" } satisfies ResumeBlocksExtractResponse)
-        return
-      }
-      runOnTab(tabId)
-    })
-
-    return true
-  }
-
-  private handleResumeXpathValidate(message: any, sendResponse: (resp: ResumeXpathValidateResponse) => void): true {
-    const payload = message.payload as Partial<ResumeXpathValidatePayload> | undefined
-    const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-    const xpaths = Array.isArray(payload?.xpaths) ? payload!.xpaths : []
-    if (!xpaths.length) {
-      sendResponse({ ok: false, error: "xpaths is empty" } satisfies ResumeXpathValidateResponse)
-      return true
-    }
-
-    const runOnTab = (tabId: number) => {
-      chrome.tabs.get(tabId, (tab) => {
-        const tabUrl = tab?.url
-        if (chrome.runtime.lastError) {
-          sendResponse({
-            ok: false,
-            error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-          } satisfies ResumeXpathValidateResponse)
-          return
-        }
-        if (!this.isScannableUrl(tabUrl)) {
-          sendResponse({
-            ok: false,
-            error: `目标 Tab 不可验证（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-          } satisfies ResumeXpathValidateResponse)
-          return
-        }
-
-        this.resumeXpathValidator
-          .validate(tabId, xpaths)
-          .then((resp) => sendResponse(resp))
-          .catch((e) =>
-            sendResponse({
-              ok: false,
-              error: e instanceof Error ? e.message : String(e)
-            } satisfies ResumeXpathValidateResponse)
-          )
-      })
-    }
-
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId)
-      return true
-    }
-
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      const tabId = tabs?.[0]?.id
-      if (!tabId) {
-        sendResponse({ ok: false, error: "No active tab found" } satisfies ResumeXpathValidateResponse)
-        return
-      }
-      runOnTab(tabId)
-    })
-
-    return true
-  }
-
-  private handleListTabs(message: any, sendResponse: (resp: ListTabsResponse) => void): true {
-    const payload = message.payload as ListTabsPayload | undefined
-    const query = payload?.includeAllWindows ? {} : { currentWindow: true }
-    chrome.tabs.query(query as chrome.tabs.QueryInfo, (tabs) => {
-      if (chrome.runtime.lastError) {
-        sendResponse({
-          ok: false,
-          error: `tabs.query failed: ${chrome.runtime.lastError.message}`
-        } satisfies ListTabsResponse)
-        return
-      }
-      const cleaned = (tabs || [])
-        .filter((t) => typeof t.id === "number")
-        .map((t) => ({
-          id: t.id as number,
-          url: t.url,
-          title: t.title,
-          windowId: t.windowId,
-          active: t.active
-        }))
-      sendResponse({ ok: true, tabs: cleaned } satisfies ListTabsResponse)
-    })
-    return true
-  }
-
-  private handleCreateTabGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
-    const payload = message.payload as CreateTabGroupPayload
-    const taskName = payload.taskName
-    const urls = payload.urls || []
-    const color = payload.color || "blue"
-    const collapsed = payload.collapsed || false
-
-    this.tabGroupManager
-      .createGroup(taskName, urls, color, collapsed)
-      .then((result) => sendResponse(result))
-      .catch((e) =>
-        sendResponse({
-          ok: false,
-          error: e instanceof Error ? e.message : String(e)
-        } satisfies TabGroupResponse)
-      )
-  }
-
-  private handleUpdateTabGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
-    const payload = message.payload as UpdateTabGroupPayload
-    const groupId = payload.groupId
-    const taskName = payload.taskName
-    const color = payload.color
-    const collapsed = payload.collapsed
-
-    this.tabGroupManager
-      .updateGroup(groupId, { taskName, color, collapsed })
-      .then((result) => sendResponse(result))
-      .catch((e) =>
-        sendResponse({
-          ok: false,
-          error: e instanceof Error ? e.message : String(e)
-        } satisfies TabGroupResponse)
-      )
-  }
-
-  private handleDeleteTabGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
-    const payload = message.payload as DeleteTabGroupPayload
-    const groupId = payload.groupId
-
-    this.tabGroupManager
-      .deleteGroup(groupId)
-      .then((result) => sendResponse(result))
-      .catch((e) =>
-        sendResponse({
-          ok: false,
-          error: e instanceof Error ? e.message : String(e)
-        } satisfies TabGroupResponse)
-      )
-  }
-
-  private handleQueryTabGroups(message: any, sendResponse: (resp: QueryTabGroupsResponse) => void): void {
-    const payload = message.payload as QueryTabGroupsPayload
-    const title = payload.title
-    const color = payload.color
-    const collapsed = payload.collapsed
-
-    this.tabGroupManager
-      .queryGroups({ title, color, collapsed })
-      .then((result) => sendResponse(result))
-      .catch((e) =>
-        sendResponse({
-          ok: false,
-          error: e instanceof Error ? e.message : String(e)
-        } satisfies QueryTabGroupsResponse)
-      )
-  }
-
-  private handleAddTabsToGroup(message: any, sendResponse: (resp: TabGroupResponse) => void): void {
-    const payload = message.payload as AddTabsToGroupPayload
-    const groupId = payload.groupId
-    const urls = payload.urls
-
-    this.tabGroupManager
-      .addTabsToGroup(groupId, urls)
-      .then((result) => sendResponse(result))
-      .catch((e) =>
-        sendResponse({
-          ok: false,
-          error: e instanceof Error ? e.message : String(e)
-        } satisfies TabGroupResponse)
-      )
-  }
-
-  private handleRuntimeMessage(message: any, sendResponse: (resp: any) => void): boolean {
-    // Tab Page -> Background -> Content: 扫描当前活动标签页并生成 XPath
-    if (message.type === STAGEHAND_XPATH_SCAN) {
-      const payload = message.payload as Partial<StagehandXPathScanPayload> | undefined
-      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-
-      const runOnTab = (tabId: number) => {
-        chrome.tabs.get(tabId, (tab) => {
-          const tabUrl = tab?.url
-          if (chrome.runtime.lastError) {
-            sendResponse({
-              ok: false,
-              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-            } satisfies StagehandXPathScanResponse)
-            return
-          }
-          if (!this.isScannableUrl(tabUrl)) {
-            sendResponse({
-              ok: false,
-              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-            } satisfies StagehandXPathScanResponse)
-            return
-          }
-
-          const maxItems =
-            typeof payload?.maxItems === "number" && Number.isFinite(payload.maxItems) && payload.maxItems > 0
-              ? Math.floor(payload.maxItems)
-              : 200
-          const selector =
-            typeof payload?.selector === "string" && payload.selector.trim()
-              ? payload.selector.trim()
-              : "a,button,input,textarea,select,[role='button'],[onclick]"
-          const includeShadow = Boolean(payload?.includeShadow)
-
-          // 核心流程：通过 chrome.debugger 走 CDP，把页面/各 iframe 中的候选元素映射到稳定的 XPath。
-          const run = this.scanner.scan(tabId, { maxItems, selector, includeShadow })
-          run
-            .then((resp) => sendResponse(resp))
-            .catch((e) =>
-              sendResponse({
-                ok: false,
-                error: e instanceof Error ? e.message : String(e)
-              } satisfies StagehandXPathScanResponse)
-            )
-        })
-      }
-
-      if (requestedTabId != null) {
-        runOnTab(requestedTabId)
-        return true
-      }
-
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tabId = tabs?.[0]?.id
-        if (!tabId) {
-          sendResponse({ ok: false, error: "No active tab found" } satisfies StagehandXPathScanResponse)
-          return
-        }
-        runOnTab(tabId)
-      })
-
-      return true
-    }
-
-    // Tab Page -> Background: 截取目标 Tab 当前可视 viewport 的截图（天然包含 iframe）
-    if (message.type === STAGEHAND_VIEWPORT_SCREENSHOT) {
-      return this.handleViewportScreenshot(message, sendResponse as any)
-    }
-
-    // Tab Page -> Background: 抽取简历候选块 blocks（站点无关）
-    if (message.type === RESUME_BLOCKS_EXTRACT) {
-      return this.handleResumeBlocksExtract(message, sendResponse as any)
-    }
-
-    // Tab Page -> Background: 校验一组 XPath 在目标页面是否可命中
-    if (message.type === RESUME_XPATH_VALIDATE) {
-      return this.handleResumeXpathValidate(message, sendResponse as any)
-    }
-
-    // next-app -> Background: JSON kv -> contains -> common ancestor xpaths
-    if (message.type === JSON_COMMON_XPATH_FIND) {
-      const payload = message.payload as Partial<JsonCommonXpathFindPayload> | undefined
-      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-
-      const runOnTab = (tabId: number) => {
-        chrome.tabs.get(tabId, (tab) => {
-          const tabUrl = tab?.url
-          if (chrome.runtime.lastError) {
-            sendResponse({
-              ok: false,
-              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-            } satisfies JsonCommonXpathFindResponse)
-            return
-          }
-          if (!this.isScannableUrl(tabUrl)) {
-            sendResponse({
-              ok: false,
-              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-            } satisfies JsonCommonXpathFindResponse)
-            return
-          }
-
-          this.jsonCommonXpathFinder
-            .find(tabId, (payload || {}) as JsonCommonXpathFindPayload)
-            .then((resp) => sendResponse(resp))
-            .catch((e) =>
-              sendResponse({
-                ok: false,
-                error: e instanceof Error ? e.message : String(e)
-              } satisfies JsonCommonXpathFindResponse)
-            )
-        })
-      }
-
-      if (requestedTabId != null) {
-        runOnTab(requestedTabId)
-        return true
-      }
-
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tabId = tabs?.[0]?.id
-        if (!tabId) {
-          sendResponse({ ok: false, error: "No active tab found" } satisfies JsonCommonXpathFindResponse)
-          return
-        }
-        runOnTab(tabId)
-      })
-
-      return true
-    }
-
-    // next-app -> Background: 输入一组 XPath，在目标页面标记/清除命中元素
-    if (message.type === XPATH_MARK_ELEMENTS) {
-      const payload = message.payload as Partial<XPathMarkElementsPayload> | undefined
-      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-      const rawMode = typeof payload?.mode === "string" ? payload.mode : "mark"
-      const mode: XPathMarkMode = rawMode === "clear" ? "clear" : "mark"
-      const xpaths = Array.isArray(payload?.xpaths) ? payload!.xpaths : []
-
-      const runOnTab = (tabId: number) => {
-        chrome.tabs.get(tabId, (tab) => {
-          const tabUrl = tab?.url
-          if (chrome.runtime.lastError) {
-            sendResponse({
-              ok: false,
-              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-            } satisfies XPathMarkElementsResponse)
-            return
-          }
-          if (!this.isScannableUrl(tabUrl)) {
-            sendResponse({
-              ok: false,
-              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-            } satisfies XPathMarkElementsResponse)
-            return
-          }
-
-          if (mode !== "clear" && !xpaths.length) {
-            sendResponse({ ok: false, error: "xpaths is empty" } satisfies XPathMarkElementsResponse)
-            return
-          }
-
-          this.xpathMarker
-            .run(tabId, { mode, xpaths })
-            .then((resp) => sendResponse(resp))
-            .catch((e) =>
-              sendResponse({
-                ok: false,
-                error: e instanceof Error ? e.message : String(e)
-              } satisfies XPathMarkElementsResponse)
-            )
-        })
-      }
-
-      if (requestedTabId != null) {
-        runOnTab(requestedTabId)
-        return true
-      }
-
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tabId = tabs?.[0]?.id
-        if (!tabId) {
-          sendResponse({ ok: false, error: "No active tab found" } satisfies XPathMarkElementsResponse)
-          return
-        }
-        runOnTab(tabId)
-      })
-
-      return true
-    }
-
-    // next-app -> Background: 输入 XPath，获取第一个命中节点的 innerHTML
-    if (message.type === XPATH_GET_HTML) {
-      const payload = message.payload as Partial<XPathGetHtmlPayload> | undefined
-      const requestedTabId = payload && typeof payload.targetTabId === "number" ? payload.targetTabId : undefined
-      const xpath = typeof payload?.xpath === "string" ? payload.xpath.trim() : ""
-      const maxChars = typeof payload?.maxChars === "number" && Number.isFinite(payload.maxChars) ? payload.maxChars : undefined
-
-      if (!xpath) {
-        sendResponse({ ok: false, error: "xpath is empty" } satisfies XPathGetHtmlResponse)
-        return true
-      }
-
-      const runOnTab = (tabId: number) => {
-        chrome.tabs.get(tabId, (tab) => {
-          const tabUrl = tab?.url
-          if (chrome.runtime.lastError) {
-            sendResponse({
-              ok: false,
-              error: `tabs.get failed: ${chrome.runtime.lastError.message}`
-            } satisfies XPathGetHtmlResponse)
-            return
-          }
-          if (!this.isScannableUrl(tabUrl)) {
-            sendResponse({
-              ok: false,
-              error: `目标 Tab 不可扫描（url=${tabUrl || "unknown"}）。请使用 http/https 页面。`
-            } satisfies XPathGetHtmlResponse)
-            return
-          }
-
-          this.xpathHtmlGetter
-            .get(tabId, { xpath, maxChars })
-            .then((resp) => sendResponse(resp))
-            .catch((e) =>
-              sendResponse({
-                ok: false,
-                error: e instanceof Error ? e.message : String(e)
-              } satisfies XPathGetHtmlResponse)
-            )
-        })
-      }
-
-      if (requestedTabId != null) {
-        runOnTab(requestedTabId)
-        return true
-      }
-
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const tabId = tabs?.[0]?.id
-        if (!tabId) {
-          sendResponse({ ok: false, error: "No active tab found" } satisfies XPathGetHtmlResponse)
-          return
-        }
-        runOnTab(tabId)
-      })
-
-      return true
-    }
-
-    if (message.type === LIST_TABS) {
-      return this.handleListTabs(message, sendResponse as any)
-    }
-
-    // Tab Groups: 创建选项卡组
-    if (message.type === CREATE_TAB_GROUP) {
-      this.handleCreateTabGroup(message, sendResponse as any)
-      return true
-    }
-
-    // Tab Groups: 更新选项卡组
-    if (message.type === UPDATE_TAB_GROUP) {
-      this.handleUpdateTabGroup(message, sendResponse as any)
-      return true
-    }
-
-    // Tab Groups: 删除选项卡组
-    if (message.type === DELETE_TAB_GROUP) {
-      this.handleDeleteTabGroup(message, sendResponse as any)
-      return true
-    }
-
-    // Tab Groups: 查询选项卡组
-    if (message.type === QUERY_TAB_GROUPS) {
-      this.handleQueryTabGroups(message, sendResponse as any)
-      return true
-    }
-
-    // Tab Groups: 添加选项卡到组
-    if (message.type === ADD_TABS_TO_GROUP) {
-      this.handleAddTabsToGroup(message, sendResponse as any)
-      return true
-    }
-
-    return false
-  }
-
-  /**
-   * 设置消息监听
-   */
-  private setupMessageListeners() {
-    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-      return this.handleRuntimeMessage(message, sendResponse)
-    })
-    chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
-      return this.handleRuntimeMessage(message, sendResponse)
-    })
-  }
-
-  private reportExtensionId() {
-    const extensionId = chrome.runtime?.id
-    if (!extensionId) {
-      console.warn("extensionId not available")
-      return
-    }
-    const extensionName = chrome.runtime.getManifest?.().name
-    if (!extensionName) {
-      console.warn("extensionName not available")
-      return
-    }
-    registerExtensionId(extensionId, extensionName).catch((e) => {
-      console.warn("report extensionId failed", e)
-    })
-  }
-  // 说明：该类只负责“扫描并生成 XPath”，不再维护页面状态。
+  console.info('[Background] ===== Initialization Complete =====');
 }
 
-// 初始化 XPath 扫描管理器
-const stagehandXPathManager = new StagehandXPathManager();
+// 执行初始化
+initialize().catch((error) => {
+  console.error('[Background] Initialization failed:', error);
+});
 
-// 导出供其他模块使用
-export default stagehandXPathManager;
+// ==================== 导出供其他模块使用 ====================
+
+/**
+ * 导出管理器实例供其他模块使用
+ */
+export {
+  stagehandManager,
+  mimoEngineManager,
+  lifecycleManager,
+  keepAliveManager,
+  stateManager,
+};
+
+/**
+ * 默认导出 - 向后兼容
+ *
+ * 保持向后兼容性，允许其他模块使用默认导入。
+ */
+export default stagehandManager;

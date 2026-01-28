@@ -24,6 +24,9 @@ export type { BusEventPayloads, CoreEventPayloads } from './events.js';
 // Bus types
 export type { MimoBusOptions, TabInfo } from './bus.js';
 
+// Engine types
+export type { MimoEngine, MimoEngineConfig } from './engine.js';
+
 // Protocol types (Bus ↔ Hub communication)
 export { ProtocolEvent, HubCommandType } from './protocol.js';
 export type {
@@ -32,6 +35,9 @@ export type {
   HubStreamEvent,
   CommandHandler,
   StreamHandler,
+  HeartbeatPing,
+  HeartbeatPong,
+  ConnectionStatus,
 } from './protocol.js';
 
 // Context types

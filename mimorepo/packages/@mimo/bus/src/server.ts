@@ -79,10 +79,20 @@ export function createMimoBusServer(config: MimoBusServerConfig = {}): MimoBusSe
 
   const stop = async (): Promise<void> => {
     return new Promise((resolve) => {
-      // Close all socket connections
+      // Force close all socket connections first
       io.close(() => {
-        // Close HTTP server
+        // Close all existing connections forcefully
+        httpServer.closeAllConnections();
+
+        // Then close the HTTP server with a timeout
+        const timeout = setTimeout(() => {
+          httpServer.destroy();
+          log('Server forcefully closed (timeout)');
+          resolve();
+        }, 5000); // 5 second timeout
+
         httpServer.close(() => {
+          clearTimeout(timeout);
           log('Server stopped');
           resolve();
         });

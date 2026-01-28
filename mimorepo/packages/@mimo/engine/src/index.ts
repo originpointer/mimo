@@ -1,14 +1,23 @@
 /**
  * @mimo/engine
  *
- * Engine for processing messages from hub.
+ * Engine for processing messages from hub and connecting to bus.
  *
- * This package receives commands from the hub and processes them.
- * Currently, it logs all received messages to the console.
+ * This package:
+ * - Receives commands from the hub via Chrome runtime messaging
+ * - Connects to MimoBus as a Socket.IO client
+ * - Routes commands between bus and CommandExecutor
+ * - Maintains heartbeat connection with bus
  */
 
 export { MessageHandler } from './message-handler.js';
 
+// New exports
+export { MimoEngine } from './mimo-engine.js';
+export { createMimoEngine, createMimoEngineAndConnect } from './factory.js';
+export { ReconnectionManager } from './reconnection-manager.js';
+
 // Re-export types for convenience
 export type { CommandHandler, HubCommandRequest, HubCommandResponse } from '@mimo/types';
-export { HubCommandType } from '@mimo/types';
+export { HubCommandType, ProtocolEvent, BusEvent } from '@mimo/types';
+export type { MimoEngine, MimoEngineConfig, ConnectionStatus } from '@mimo/types';

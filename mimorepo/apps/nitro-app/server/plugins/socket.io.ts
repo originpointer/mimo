@@ -36,6 +36,7 @@ export default defineNitroPlugin((nitroApp) => {
   mimoBus = new MimoBus({
     port: 6007,
     debug: process.env.NODE_ENV === 'development',
+    logLevel: 'debug', // Enable debug level logging for heartbeats
   })
 
   // Graceful shutdown handler
@@ -52,6 +53,18 @@ export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('close', async () => {
     await closeServers()
   })
+
+  // Also handle process termination signals for dev mode
+  if (process.env.NODE_ENV === 'development') {
+    const shutdown = async (signal: string) => {
+      console.log(`[MimoBus] Received ${signal}, shutting down gracefully...`)
+      await closeServers()
+      process.exit(0)
+    }
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'))
+    process.on('SIGINT', () => shutdown('SIGINT'))
+  }
 
   // Initialize the server
   const initializeServer = async () => {

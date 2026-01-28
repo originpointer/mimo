@@ -26,3 +26,8 @@ export { MimoBus } from './mimobus.js';
 export { createMimoBusServer, type MimoBusServer, type MimoBusServerConfig } from './server.js';
 export { createClientTracker, type ClientTracker, type BrowserClient } from './client-tracker.js';
 export { createCommandRouter, type CommandRouter, type PendingCommand } from './command-router.js';
+export { createHeartbeatMonitor, type HeartbeatMonitor, type HeartbeatMonitorConfig } from './heartbeat-monitor.js';
+
+// Logger and connection stats
+export { createLogger, createChildLogger, type LoggerConfig } from './logger.js';
+export { createConnectionStatsTracker, type ConnectionStats, type ConnectionStatsTracker, type ConnectionSummary } from './connection-stats.js';

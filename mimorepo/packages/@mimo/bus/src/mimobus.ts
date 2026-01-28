@@ -11,20 +11,29 @@
 import EventEmitter from 'eventemitter3';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { Socket } from 'socket.io';
-import type { HubCommandRequest, HubCommandResponse, HubStreamEvent, MimoBusOptions, BusEvent } from '@mimo/types';
+import type { HubCommandRequest, HubCommandResponse, HubStreamEvent, MimoBusOptions, HeartbeatPing, HeartbeatPong } from '@mimo/types';
+import { BusEvent } from '@mimo/types';
 import { ProtocolEvent, BusEvent as BusEventEnum } from '@mimo/types';
 import { createMimoBusServer, type MimoBusServer } from './server.js';
 import { createClientTracker, type ClientTracker, type BrowserClient } from './client-tracker.js';
 import { createCommandRouter, type CommandRouter } from './command-router.js';
+import { createHeartbeatMonitor, type HeartbeatMonitor } from './heartbeat-monitor.js';
 import { MimoBusNotConnectedError, MimoBusTimeoutError } from './errors.js';
+import { createLogger } from './logger.js';
+import { createConnectionStatsTracker, type ConnectionStats, type ConnectionStatsTracker } from './connection-stats.js';
 import { v4 as uuidv4 } from 'uuid';
+import type pino from 'pino';
 
 export class MimoBus extends EventEmitter {
   private server: MimoBusServer;
   private clientTracker: ClientTracker;
   private commandRouter: CommandRouter;
+  private heartbeatMonitor: HeartbeatMonitor;
+  private connectionStats: ConnectionStatsTracker;
+  private logger: pino.Logger;
   private opts: MimoBusOptions;
   private isConnectedFlag = false;
+  private statsLoggingInterval: NodeJS.Timeout | null = null;
 
   constructor(opts: MimoBusOptions = {}) {
     super();
@@ -35,7 +44,22 @@ export class MimoBus extends EventEmitter {
       reconnectInterval: opts.reconnectInterval ?? 1000,
       timeout: opts.timeout ?? 30000,
       debug: opts.debug ?? false,
+      enableHeartbeat: opts.enableHeartbeat ?? true,
+      heartbeatInterval: opts.heartbeatInterval ?? 30000,
+      heartbeatTimeout: opts.heartbeatTimeout ?? 90000,
+      onHeartbeatFail: opts.onHeartbeatFail ?? (() => {}),
+      onClientStale: opts.onClientStale ?? (() => {}),
+      logLevel: opts.logLevel ?? 'info',
+      logDir: opts.logDir ?? '/Users/sodaabe/codes/coding/mimo/mimorepo/apps/nitro-app/.data/logs',
+      enableConnectionStats: opts.enableConnectionStats ?? true,
     };
+
+    // Create logger
+    this.logger = createLogger({
+      level: this.opts.logLevel,
+      logDir: this.opts.logDir,
+      prettyPrint: this.opts.debug,
+    });
 
     // Create Socket.IO server
     this.server = createMimoBusServer({
@@ -49,7 +73,29 @@ export class MimoBus extends EventEmitter {
     // Create command router
     this.commandRouter = createCommandRouter(this.clientTracker);
 
-    this.log('MimoBus initialized', { port: this.opts.port });
+    // Create connection stats tracker
+    this.connectionStats = createConnectionStatsTracker();
+
+    // Create heartbeat monitor
+    this.heartbeatMonitor = createHeartbeatMonitor(this.clientTracker, {
+      enabled: this.opts.enableHeartbeat!,
+      checkInterval: Math.min(this.opts.heartbeatInterval! / 3, 10000), // Check at least every 10s
+      staleThreshold: this.opts.heartbeatTimeout!,
+      onClientStale: (client) => {
+        this.opts.onClientStale!(client.socketId, client.lastHeartbeat);
+        this.emit(BusEvent.Error, {
+          socketId: client.socketId,
+          error: `Client stale: no heartbeat for ${Date.now() - client.lastHeartbeat}ms`,
+        });
+      },
+      onClientTimeout: (client) => {
+        this.logger.warn({ socketId: client.socketId }, 'Client timeout - disconnecting');
+        this.clientTracker.unregister(client.socketId);
+        this.commandRouter.cleanupPendingCommands(client.socketId);
+      },
+    });
+
+    this.logger.info({ port: this.opts.port }, 'MimoBus initialized');
   }
 
   /**
@@ -65,8 +111,14 @@ export class MimoBus extends EventEmitter {
       this.handleClientConnection(socket);
     });
 
+    // Start heartbeat monitor
+    this.heartbeatMonitor.start();
+
+    // Start periodic stats logging
+    this.startStatsLogging();
+
     this.isConnectedFlag = true;
-    this.log('Server started and listening for connections');
+    this.logger.info({ port: this.opts.port, event: 'server:start' }, 'Server started and listening for connections');
     this.emit(BusEventEnum.Connected, { port: this.opts.port });
   }
 
@@ -74,9 +126,11 @@ export class MimoBus extends EventEmitter {
    * Disconnect from Socket.IO server (stop the server)
    */
   async disconnect(): Promise<void> {
+    this.stopStatsLogging();
+    this.heartbeatMonitor.stop();
     await this.server.stop();
     this.isConnectedFlag = false;
-    this.log('Server stopped');
+    this.logger.info({ event: 'server:stop' }, 'Server stopped');
     this.emit(BusEventEnum.Disconnected);
   }
 
@@ -103,12 +157,12 @@ export class MimoBus extends EventEmitter {
     command.id = commandId;
     command.timestamp = command.timestamp || Date.now();
 
-    this.log('Sending command', {
-      id: commandId,
-      type: command.type,
-      tabId: command.options?.tabId,
-    });
+    const targetClient = this.clientTracker.getTargetClient(command.options?.tabId);
+    if (targetClient) {
+      this.connectionStats.trackCommandSent(targetClient.socketId);
+    }
 
+    this.logger.info({ id: commandId, type: command.type, tabId: command.options?.tabId, event: 'command:sent' }, 'Sending command');
     this.emit(BusEventEnum.CommandSent, { command });
 
     try {
@@ -117,15 +171,26 @@ export class MimoBus extends EventEmitter {
         command.options?.timeout ?? this.opts.timeout!
       );
 
+      if (targetClient) {
+        this.connectionStats.trackCommandReceived(targetClient.socketId);
+      }
+
       this.emit(BusEventEnum.CommandResult, { id: commandId, response });
 
       return response as HubCommandResponse<T>;
     } catch (error) {
       if (error instanceof Error && error.message.includes('timeout')) {
+        if (targetClient) {
+          this.connectionStats.trackError(targetClient.socketId, error);
+        }
+        this.logger.warn({ id: commandId, timeout: command.options?.timeout ?? this.opts.timeout!, event: 'command:timeout' }, 'Command timeout');
         throw new MimoBusTimeoutError(
           `Command ${commandId} timeout`,
           command.options?.timeout ?? this.opts.timeout!
         );
+      }
+      if (targetClient) {
+        this.connectionStats.trackError(targetClient.socketId, error as Error);
       }
       throw error;
     }
@@ -148,13 +213,16 @@ export class MimoBus extends EventEmitter {
     command.id = commandId;
     command.timestamp = command.timestamp || Date.now();
 
-    this.log('Sending stream command', { id: commandId, type: command.type });
+    this.logger.info({ id: commandId, type: command.type, event: 'command:sent' }, 'Sending stream command');
 
     const targetClient = this.clientTracker.getTargetClient(command.options?.tabId);
 
     if (!targetClient) {
       throw new Error('No available browser client for stream command');
     }
+
+    // Track command sent
+    this.connectionStats.trackCommandSent(targetClient.socketId);
 
     // Create async generator for stream events
     const streamController = this.createStreamController(commandId, targetClient);
@@ -185,6 +253,12 @@ export class MimoBus extends EventEmitter {
   destroy(): void {
     this.removeAllListeners();
 
+    // Stop stats logging
+    this.stopStatsLogging();
+
+    // Stop heartbeat monitor
+    this.heartbeatMonitor.stop();
+
     // Stop server
     this.server.stop();
 
@@ -194,7 +268,14 @@ export class MimoBus extends EventEmitter {
     }
 
     this.isConnectedFlag = false;
-    this.log('MimoBus destroyed');
+    this.logger.info({ event: 'server:destroy' }, 'MimoBus destroyed');
+  }
+
+  /**
+   * Get heartbeat monitor status
+   */
+  getHeartbeatStatus() {
+    return this.heartbeatMonitor.getStatus();
   }
 
   /**
@@ -211,11 +292,13 @@ export class MimoBus extends EventEmitter {
       tabId,
     });
 
-    this.log('Client connected', {
-      socketId: socket.id,
-      clientType,
-      tabId,
-    });
+    // Track connection in stats
+    const client = this.clientTracker.getClient(socket.id);
+    if (client) {
+      this.connectionStats.trackConnection(socket.id, client);
+    }
+
+    this.logger.info({ socketId: socket.id, clientType, tabId, event: 'client:connect' }, 'Client connected');
 
     // Send welcome message
     socket.emit('connected', {
@@ -223,8 +306,36 @@ export class MimoBus extends EventEmitter {
       timestamp: Date.now(),
     });
 
+    // Handle heartbeat ping
+    socket.on(ProtocolEvent.HeartbeatPing, (ping: HeartbeatPing) => {
+      this.clientTracker.updateHeartbeat(socket.id);
+
+      const rtt = Date.now() - ping.timestamp;
+
+      // Track heartbeat in stats
+      this.connectionStats.trackHeartbeat(socket.id, rtt);
+
+      // Send pong
+      socket.emit(ProtocolEvent.HeartbeatPong, {
+        serverTimestamp: Date.now(),
+        clientTimestamp: ping.timestamp,
+        rtt,
+      } as HeartbeatPong);
+
+      this.logger.debug({ socketId: socket.id, rtt, event: 'heartbeat' }, 'Heartbeat received');
+    });
+
+    // Handle client going away
+    socket.on(ProtocolEvent.ClientGoingAway, (data) => {
+      this.logger.info({ socketId: socket.id, event: 'client:disconnect', reason: 'going_away' }, 'Client going away');
+      this.connectionStats.trackDisconnection(socket.id, 'going_away');
+      this.clientTracker.unregister(socket.id);
+      this.commandRouter.cleanupPendingCommands(socket.id);
+    });
+
     // Handle command responses
     socket.on(ProtocolEvent.CommandResponse, (response: HubCommandResponse) => {
+      this.connectionStats.trackCommandReceived(socket.id);
       this.commandRouter.handleResponse(response);
     });
 
@@ -246,14 +357,16 @@ export class MimoBus extends EventEmitter {
 
     // Handle disconnect
     socket.on('disconnect', (reason) => {
-      this.log('Client disconnected', { socketId: socket.id, reason });
+      this.logger.info({ socketId: socket.id, reason, event: 'client:disconnect' }, 'Client disconnected');
+      this.connectionStats.trackDisconnection(socket.id, reason);
       this.clientTracker.unregister(socket.id);
       this.commandRouter.cleanupPendingCommands(socket.id);
     });
 
     // Handle errors
     socket.on('error', (error) => {
-      this.log('Socket error', { socketId: socket.id, error });
+      this.logger.error({ socketId: socket.id, error, event: 'error' }, 'Socket error');
+      this.connectionStats.trackError(socket.id, error as Error);
       this.emit(BusEventEnum.Error, { socketId: socket.id, error });
     });
   }
@@ -321,11 +434,54 @@ export class MimoBus extends EventEmitter {
   }
 
   /**
-   * Logger
+   * Get connection statistics for all clients (including disconnected)
    */
-  private log(message: string, data?: Record<string, unknown>): void {
-    if (this.opts.debug) {
-      console.log(`[MimoBus] ${message}`, data ?? '');
+  getConnectionStats(): ConnectionStats[] {
+    return this.connectionStats.getAllStats();
+  }
+
+  /**
+   * Get connection statistics summary
+   */
+  getStatsSummary() {
+    return this.connectionStats.getSummary();
+  }
+
+  /**
+   * Get statistics for a specific socket
+   */
+  getSocketStats(socketId: string): ConnectionStats | undefined {
+    return this.connectionStats.getStats(socketId);
+  }
+
+  /**
+   * Start periodic stats logging
+   */
+  private startStatsLogging(): void {
+    if (this.statsLoggingInterval) {
+      return; // Already started
+    }
+
+    // Log stats every 60 seconds
+    this.statsLoggingInterval = setInterval(() => {
+      const summary = this.connectionStats.getSummary();
+      this.logger.info({
+        event: 'stats:summary',
+        ...summary,
+      }, 'Connection stats summary');
+
+      // Cleanup old stats (older than 7 days)
+      this.connectionStats.cleanup();
+    }, 60000);
+  }
+
+  /**
+   * Stop periodic stats logging
+   */
+  private stopStatsLogging(): void {
+    if (this.statsLoggingInterval) {
+      clearInterval(this.statsLoggingInterval);
+      this.statsLoggingInterval = null;
     }
   }
 }

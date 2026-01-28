@@ -21,11 +21,16 @@
   },
   "dependencies": {
     "@mimo/types": "workspace:*",
-    "@mimo/hub": "workspace:*"
+    "@mimo/hub": "workspace:*",
+    "socket.io-client": "^4.8.1",
+    "eventemitter3": "^5.0.1",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/chrome": "0.0.258",
+    "@types/node": "^22.10.5",
+    "@types/uuid": "^11.0.0",
     "tsdown": "^0.20.0-beta.4",
     "typescript": "5.9.2"
   }
