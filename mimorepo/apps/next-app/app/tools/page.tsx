@@ -14,6 +14,8 @@ import {
   XPATH_MARK_ELEMENTS,
   CREATE_TAB_GROUP,
   QUERY_TAB_GROUPS,
+  WINDOW_FOCUS,
+  CDP_CLICK_BY_XPATH,
   type JsonCommonXpathFindOptions,
   type JsonCommonXpathFindPayload,
   type JsonCommonXpathFindResponse,
@@ -35,7 +37,11 @@ import {
   type QueryTabGroupsPayload,
   type TabGroupResponse,
   type QueryTabGroupsResponse,
-  type TabGroupColor
+  type TabGroupColor,
+  type WindowFocusPayload,
+  type WindowFocusResponse,
+  type CdpClickByXPathPayload,
+  type CdpClickByXPathResponse
 } from "@/types/plasmo"
 import ExtensionTabSelector from "./_components/ExtensionTabSelector"
 import { isScannableUrl, useExtensionTabsStore } from "./_stores/extensionTabsStore"
@@ -346,6 +352,15 @@ export default function ToolsPage() {
   const [tabGroupRunning, setTabGroupRunning] = useState(false)
   const [tabGroupError, setTabGroupError] = useState<string | null>(null)
   const [tabGroupResult, setTabGroupResult] = useState<TabGroupResponse | QueryTabGroupsResponse | null>(null)
+
+  // 点击功能状态
+  const [focusRunning, setFocusRunning] = useState(false)
+  const [focusError, setFocusError] = useState<string | null>(null)
+  const [focusResult, setFocusResult] = useState<WindowFocusResponse | null>(null)
+  const [clickXPathText, setClickXPathText] = useState("")
+  const [clickRunning, setClickRunning] = useState(false)
+  const [clickError, setClickError] = useState<string | null>(null)
+  const [clickResult, setClickResult] = useState<CdpClickByXPathResponse | null>(null)
 
   type ParsedResumeConfig = ReturnType<typeof safeJsonParse<Partial<ResumeBlocksExtractOptions>>>
   const parsedResume = useMemo<ParsedResumeConfig>(() => safeJsonParse<Partial<ResumeBlocksExtractOptions>>(resumeConfigText), [resumeConfigText])
@@ -1059,6 +1074,70 @@ export default function ToolsPage() {
     }
   }
 
+  // 点击功能处理函数
+  const runWindowFocus = async () => {
+    setFocusError(null)
+    setFocusResult(null)
+    if (!ensureExtensionId(setFocusError)) return
+
+    const payload: WindowFocusPayload = {
+      ...(typeof targetTabId === "number" ? { targetTabId } : {})
+    }
+
+    setFocusRunning(true)
+    try {
+      const out = await sendToExtension<WindowFocusResponse>({
+        type: WINDOW_FOCUS,
+        payload
+      }, extensionId)
+      if (!out) {
+        setFocusError("未收到响应")
+        return
+      }
+      setFocusResult(out)
+      if (out.ok === false) setFocusError(out.error)
+    } catch (e) {
+      setFocusError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFocusRunning(false)
+    }
+  }
+
+  const runCdpClickByXPath = async () => {
+    setClickError(null)
+    setClickResult(null)
+    if (!ensureExtensionId(setClickError)) return
+
+    const xpath = clickXPathText.trim()
+    if (!xpath) {
+      setClickError("请输入 XPath")
+      return
+    }
+
+    const payload: CdpClickByXPathPayload = {
+      xpath,
+      ...(typeof targetTabId === "number" ? { targetTabId } : {})
+    }
+
+    setClickRunning(true)
+    try {
+      const out = await sendToExtension<CdpClickByXPathResponse>({
+        type: CDP_CLICK_BY_XPATH,
+        payload
+      }, extensionId)
+      if (!out) {
+        setClickError("未收到响应")
+        return
+      }
+      setClickResult(out)
+      if (out.ok === false) setClickError(out.error)
+    } catch (e) {
+      setClickError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setClickRunning(false)
+    }
+  }
+
   const dataUrl = useMemo(() => (shotResult?.ok ? shotResult.dataUrl : null), [shotResult])
   const downloadUrlFromApi = useMemo(() => {
     if (!shotResult?.ok || !shotResult.imageUrl) return null
@@ -1088,7 +1167,7 @@ export default function ToolsPage() {
           targetTabId={targetTabId}
           setTargetTabId={setTargetTabId}
           tabs={tabs}
-          isBusy={xpathRunning || jsonCommonRunning || markRunning || shotRunning || resumeRunning}
+          isBusy={xpathRunning || jsonCommonRunning || markRunning || shotRunning || resumeRunning || focusRunning || clickRunning}
           refreshTabs={refreshTabs}
           isScannableUrl={isScannableUrl}
         />
@@ -1836,6 +1915,81 @@ export default function ToolsPage() {
                 ) : (
                   <div style={{ padding: 10, color: "#999", fontSize: 12 }}>（尚未执行）</div>
                 )}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* 点击功能模块 */}
+        <section style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 12 }}>
+          <h2 style={{ margin: "0 0 8px 0" }}>点击功能模块</h2>
+          <div style={{ marginBottom: 8, color: "#555", fontSize: 12 }}>
+            说明：window.focus() 和 CDP Input.dispatchMouseEvent 点击功能。
+          </div>
+
+          {/* window.focus() 部分 */}
+          <div style={{ marginBottom: 16, paddingBottom: 16, borderBottom: "1px solid #e5e7eb" }}>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 14 }}>window.focus()</h3>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={() => void runWindowFocus()}
+                disabled={focusRunning}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", cursor: focusRunning ? "not-allowed" : "pointer" }}
+              >
+                {focusRunning ? "Focusing..." : "执行 window.focus()"}
+              </button>
+              {focusError && <div style={{ color: "#b00020", fontSize: 12 }}>{focusError}</div>}
+              {focusResult?.ok && <div style={{ color: "#059669", fontSize: 12 }}>✓ Focus 成功</div>}
+            </div>
+          </div>
+
+          {/* CDP 点击部分 */}
+          <div>
+            <h3 style={{ margin: "0 0 8px 0", fontSize: 14 }}>CDP 点击 (by XPath)</h3>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 400px", minWidth: 320 }}>
+                <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>XPath</div>
+                <textarea
+                  value={clickXPathText}
+                  onChange={(e) => setClickXPathText(e.target.value)}
+                  placeholder={`//button[@id='submit']\n//a[contains(text(),'点击')]`}
+                  style={{
+                    width: "100%",
+                    minHeight: 100,
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    fontSize: 12,
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    marginBottom: 10
+                  }}
+                />
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button
+                    onClick={() => void runCdpClickByXPath()}
+                    disabled={clickRunning}
+                    style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #ddd", cursor: clickRunning ? "not-allowed" : "pointer" }}
+                  >
+                    {clickRunning ? "Clicking..." : "执行 CDP 点击"}
+                  </button>
+                  {clickError && <div style={{ color: "#b00020", fontSize: 12 }}>{clickError}</div>}
+                </div>
+              </div>
+              <div style={{ flex: "1 1 400px", minWidth: 320 }}>
+                <div style={{ fontSize: 12, color: "#333", marginBottom: 6 }}>结果</div>
+                <pre
+                  style={{
+                    margin: 0,
+                    minHeight: 100,
+                    padding: 10,
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    background: "#fafafa",
+                    fontSize: 12
+                  }}
+                >
+                  {clickResult ? JSON.stringify(clickResult, null, 2) : "（尚未执行）"}
+                </pre>
               </div>
             </div>
           </div>

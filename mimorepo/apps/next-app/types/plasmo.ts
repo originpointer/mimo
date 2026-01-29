@@ -7,6 +7,10 @@ export const JSON_COMMON_XPATH_FIND = "JSON_COMMON_XPATH_FIND" as const
 export const XPATH_MARK_ELEMENTS = "XPATH_MARK_ELEMENTS" as const
 export const XPATH_GET_HTML = "XPATH_GET_HTML" as const
 
+// 点击功能消息类型
+export const WINDOW_FOCUS = "WINDOW_FOCUS" as const
+export const CDP_CLICK_BY_XPATH = "CDP_CLICK_BY_XPATH" as const
+
 export type StagehandXPathScanOptions = {
   maxItems: number
   selector: string
@@ -253,4 +257,30 @@ export type TabGroupResponse =
 
 export type QueryTabGroupsResponse =
   | { ok: true; groups: chrome.tabGroups.TabGroup[] }
+  | { ok: false; error: string }
+
+// 点击功能类型定义
+export type WindowFocusPayload = {
+  targetTabId?: number
+}
+
+export type WindowFocusResponse =
+  | { ok: true; hasFocus?: boolean; visibilityState?: string; activeElement?: string }
+  | { ok: false; error: string }
+
+export type CdpClickByXPathPayload = {
+  xpath: string
+  targetTabId?: number
+}
+
+export type CdpClickByXPathResponse =
+  | {
+      ok: true
+      clicked: boolean
+      elementInfo?: {
+        tagName: string
+        text: string
+        coordinates: { x: number; y: number }
+      }
+    }
   | { ok: false; error: string }

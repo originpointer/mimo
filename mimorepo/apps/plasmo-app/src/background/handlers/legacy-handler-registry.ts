@@ -59,6 +59,8 @@ import {
   QUERY_TAB_GROUPS,
   ADD_TABS_TO_GROUP,
 } from '../../types/tab-groups';
+import { WINDOW_FOCUS, handleWindowFocus } from '../../types/window-focus';
+import { CDP_CLICK_BY_XPATH, handleCdpClickByXPath } from '../../types/cdp-click-by-xpath';
 import type { HandlerContext, ResponseCallback } from './types';
 
 /**
@@ -111,6 +113,10 @@ export class LegacyHandlerRegistry {
         return this.handleQueryTabGroups(message, sender, sendResponse);
       case ADD_TABS_TO_GROUP:
         return this.handleAddTabsToGroup(message, sender, sendResponse);
+      case WINDOW_FOCUS:
+        return handleWindowFocus(message, sender, sendResponse);
+      case CDP_CLICK_BY_XPATH:
+        return handleCdpClickByXPath(message, sender, sendResponse);
       default:
         return false;
     }
