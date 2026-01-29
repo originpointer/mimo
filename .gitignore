@@ -51,4 +51,7 @@ coverage/
 audit/
 
 # reverse engineering / browser messages
-.reverse/
+# Ignore specific subdirectories, but allow other files to be tracked
+.reverse/projects/
+.reverse/messages/
+.reverse/sources/

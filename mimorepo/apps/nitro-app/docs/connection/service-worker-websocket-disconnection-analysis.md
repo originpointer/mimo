@@ -166,10 +166,18 @@ const io = new SocketIOServer(httpServer, {
 1. **[Extension Service Worker 生命周期](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)**
    > "Active WebSocket connections now extend extension service worker lifetimes. Sending or receiving messages across a WebSocket in an extension prevents the service worker from being terminated."
 
-   **关键点**: 需要在30秒窗口内有 WebSocket 消息交换才能保持 Service Worker 活跃。
+   **关键点**: 从 Chrome 116 开始，WebSocket 连接确实**可以延长** Service Worker 生命周期，但有重要限制：
+   - 需要**持续**在 30 秒窗口内有 WebSocket 消息交换（双向）
+   - 单纯建立连接**不足以**保持活跃，必须有定期消息往返
+   - 如果超过 30 秒没有消息交换，Service Worker 仍会被终止
 
 2. **[Use WebSockets in service workers](https://developer.chrome.com/docs/extensions/how-to/web-platform/websockets)**
    > From Chrome 116 onwards, you can keep a service worker with a WebSocket connection active by exchanging messages within the 30-second service worker timeout window.
+
+   **关键限制**:
+   - "exchanging messages" 强调的是**消息交换**，而不仅仅是"保持连接"
+   - 心跳间隔必须**小于 30 秒**才能持续重置空闲计时器
+   - 默认 Socket.IO pingInterval (25秒) 接近极限，存在风险
 
 ### 5.2 Chromium Issues
 
