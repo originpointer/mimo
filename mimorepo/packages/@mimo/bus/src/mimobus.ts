@@ -50,7 +50,7 @@ export class MimoBus extends EventEmitter {
       onHeartbeatFail: opts.onHeartbeatFail ?? (() => {}),
       onClientStale: opts.onClientStale ?? (() => {}),
       logLevel: opts.logLevel ?? 'info',
-      logDir: opts.logDir ?? '/Users/sodaabe/codes/coding/mimo/mimorepo/apps/nitro-app/.data/logs',
+      logDir: opts.logDir ?? '.data/logs',
       enableConnectionStats: opts.enableConnectionStats ?? true,
     };
 

@@ -34,7 +34,8 @@
       "debugger",
       "tabs",
       "downloads",
-      "tabGroups"
+      "tabGroups",
+      "storage"
     ],
     "externally_connectable": {
       "matches": [
