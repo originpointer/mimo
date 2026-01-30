@@ -1,0 +1,30 @@
+# Third-party sources manifest
+#
+# This repo uses `.sources/` as a local folder to store 3rd-party open-source projects
+# for AI coding reference. The `.sources/` folder itself is NOT managed by git.
+#
+# After moving to a new machine, run:
+#   pnpm sources:sync
+#
+# This file (manifest) IS managed by git, and tells the sync script what to clone.
+
+# Default target directory to materialize sources (relative to repo root).
+rootDir: .sources
+
+# List of repositories to clone/update under `rootDir`.
+sources:
+  # Example:
+  # - name: example-repo
+  #   repo: https://github.com/org/repo.git
+  #   # Optional: branch/tag/commit. If omitted, uses the default branch.
+  #   ref: main
+  #   # Optional: use shallow clone for faster downloads (default true).
+  #   shallow: true
+  #   # Optional: human notes.
+  #   notes: "Used as reference only"
+  - name: ai-chatbot
+    repo: git@github.com:vercel/ai-chatbot.git
+    ref: main
+    shallow: true
+    notes: "Reference implementation for AI chatbots by Vercel"
+
