@@ -4,6 +4,8 @@
 	},
 	"dependencies": {
 		"@radix-ui/react-slot": "^1.2.4",
-		"socket.io-client": "^4.8.3"
+		"nanoid": "^5.1.6",
+		"socket.io-client": "^4.8.3",
+		"uuid": "^13.0.0"
 	}
 }

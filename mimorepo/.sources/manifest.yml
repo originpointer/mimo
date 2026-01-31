@@ -27,4 +27,23 @@ sources:
     ref: main
     shallow: true
     notes: "Reference implementation for AI chatbots by Vercel"
+  - name: openclaw
+    repo: git@github.com:openclaw/openclaw.git
+    ref: main
+    shallow: true
+    notes: "Open-source AI coding assistant"
+  - name: browser-use
+    repo: git@github.com:browser-use/browser-use.git
+    ref: main
+    shallow: true
+  - name: stagehand
+    repo: git@github.com:browserbase/stagehand.git
+    ref: main
+    shallow: true
+    notes: "Used as reference only"
+  - name: MetaGPT
+    repo: git@github.com:FoundationAgents/MetaGPT.git
+    ref: main
+    shallow: true
+    notes: "Used as reference only"
 
