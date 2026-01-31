@@ -1,30 +1,70 @@
 /**
- * LLMProvider - Manager for LLM clients with support for multiple providers
+ * LLMProvider - Manager for LLM clients with automatic provider detection
  */
 
-import type {
-  ClientOptions,
-  ChatMessage,
-  ChatCompletionOptions,
-  LLMResponse,
-  LLMStreamChunk,
-  StagehandZodSchema,
-  InferStagehandSchema,
-} from '@mimo/types';
+import type { ClientOptions } from '@mimo/types';
 import { LLMClient } from './client.js';
+import { AISdkClient } from './clients/aisdk.js';
+import { parseModelString } from './utils/parser.js';
 
-export type {
-  ClientOptions,
-  ChatMessage,
-  ChatCompletionOptions,
-  LLMResponse,
-  LLMStreamChunk,
-  StagehandZodSchema,
-  InferStagehandSchema,
-} from '@mimo/types';
+// Import client implementations
+import { OpenAIClient } from './clients/openai.js';
+import { AnthropicClient } from './clients/anthropic.js';
+import { AIGatewayClient } from './clients/gateway.js';
+
+// Re-export types for convenience
+export type { ClientOptions } from '@mimo/types';
+
+// Re-export client classes for direct usage
+export { OpenAIClient } from './clients/openai.js';
+export { AnthropicClient } from './clients/anthropic.js';
+export { AISdkClient } from './clients/aisdk.js';
+export { AIGatewayClient } from './clients/gateway.js';
 
 /**
- * LLMProvider - Manager for LLM clients
+ * Google client (stub - to be implemented)
+ */
+export class GoogleClient extends LLMClient {
+  getProviderType(): 'google' {
+    return 'google';
+  }
+
+  protected async doChatCompletion(): Promise<any> {
+    throw new Error('Google client not implemented yet');
+  }
+
+  protected async *doStreamChatCompletion(): AsyncGenerator<any> {
+    throw new Error('Google client not implemented yet');
+  }
+
+  protected async doGenerateStructure(): Promise<any> {
+    throw new Error('Google client not implemented yet');
+  }
+}
+
+/**
+ * Ollama client (stub - for local models)
+ */
+export class OllamaClient extends LLMClient {
+  getProviderType(): 'ollama' {
+    return 'ollama';
+  }
+
+  protected async doChatCompletion(): Promise<any> {
+    throw new Error('Ollama client not implemented yet');
+  }
+
+  protected async *doStreamChatCompletion(): AsyncGenerator<any> {
+    throw new Error('Ollama client not implemented yet');
+  }
+
+  protected async doGenerateStructure(): Promise<any> {
+    throw new Error('Ollama client not implemented yet');
+  }
+}
+
+/**
+ * LLMProvider factory with automatic provider detection
  */
 export class LLMProvider {
   private static clientRegistry = new Map<string, new (...args: any[]) => LLMClient>();
@@ -45,7 +85,10 @@ export class LLMProvider {
   }
 
   /**
-   * Get LLM client for a model
+   * Get LLM client for a model (automatic provider detection)
+   *
+   * New format: "provider/model" -> uses AI Gateway (if AI_GATEWAY_API_KEY set and no specific apiKey provided)
+   * Legacy format: "model" -> uses direct client based on model detection
    */
   getClient(model: string, options?: ClientOptions): LLMClient {
     const cacheKey = `${model}:${JSON.stringify(options ?? {})}`;
@@ -55,10 +98,29 @@ export class LLMProvider {
       return client;
     }
 
-    // Parse model string (e.g., "openai/gpt-4" or "anthropic/claude-3")
-    const [provider] = model.split('/');
+    // Check for API keys
+    const hasGatewayKey = !!(globalThis as any).process?.env?.AI_GATEWAY_API_KEY;
+    const useDirectClient = !!options?.apiKey;
 
+    // New format: "provider/model"
+    if (model.includes('/')) {
+      // Use AI Gateway when available and no specific apiKey
+      if (hasGatewayKey && !useDirectClient) {
+        client = new AIGatewayClient(model, options);
+        this.clients.set(cacheKey, client);
+        return client;
+      }
+
+      // Direct provider access without AI Gateway
+      client = new AISdkClient(model, options);
+      this.clients.set(cacheKey, client);
+      return client;
+    }
+
+    // Legacy format: detect provider from model name
+    const { provider } = parseModelString(model);
     const ClientClass = LLMProvider.clientRegistry.get(provider);
+
     if (!ClientClass) {
       throw new Error(`Unsupported provider: ${provider}. Supported providers: ${this.supportedProviders.join(', ')}`);
     }
@@ -70,148 +132,9 @@ export class LLMProvider {
   }
 }
 
-/**
- * OpenAI client
- */
-export class OpenAIClient extends LLMClient {
-  async chatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): Promise<LLMResponse> {
-    // TODO: Implement OpenAI API call
-    const response = await fetch(`${this.options?.baseURL ?? 'https://api.openai.com'}/v1/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.options?.apiKey ?? process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages,
-        temperature: options?.temperature,
-        max_tokens: options?.maxTokens,
-        top_p: options?.topP,
-        stop: options?.stop,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const choice = data.choices[0];
-
-    return {
-      content: choice.message.content,
-      usage: {
-        inputTokens: data.usage.prompt_tokens,
-        outputTokens: data.usage.completion_tokens,
-      },
-      model: data.model,
-    };
-  }
-
-  async *streamChatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): AsyncGenerator<LLMStreamChunk> {
-    // TODO: Implement OpenAI streaming
-    throw new Error('Streaming not implemented yet');
-  }
-
-  async generateStructure<T>(
-    messages: ChatMessage[],
-    schema: StagehandZodSchema<T>
-  ): Promise<InferStagehandSchema<T>> {
-    // TODO: Implement structured output
-    throw new Error('Structured output not implemented yet');
-  }
-}
-
-/**
- * Anthropic client
- */
-export class AnthropicClient extends LLMClient {
-  async chatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): Promise<LLMResponse> {
-    // TODO: Implement Anthropic API call
-    throw new Error('Anthropic client not implemented yet');
-  }
-
-  async *streamChatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): AsyncGenerator<LLMStreamChunk> {
-    throw new Error('Streaming not implemented yet');
-  }
-
-  async generateStructure<T>(
-    messages: ChatMessage[],
-    schema: StagehandZodSchema<T>
-  ): Promise<InferStagehandSchema<T>> {
-    throw new Error('Structured output not implemented yet');
-  }
-}
-
-/**
- * Google client
- */
-export class GoogleClient extends LLMClient {
-  async chatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): Promise<LLMResponse> {
-    // TODO: Implement Google API call
-    throw new Error('Google client not implemented yet');
-  }
-
-  async *streamChatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): AsyncGenerator<LLMStreamChunk> {
-    throw new Error('Streaming not implemented yet');
-  }
-
-  async generateStructure<T>(
-    messages: ChatMessage[],
-    schema: StagehandZodSchema<T>
-  ): Promise<InferStagehandSchema<T>> {
-    throw new Error('Structured output not implemented yet');
-  }
-}
-
-/**
- * Ollama client (local models)
- */
-export class OllamaClient extends LLMClient {
-  async chatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): Promise<LLMResponse> {
-    // TODO: Implement Ollama API call
-    throw new Error('Ollama client not implemented yet');
-  }
-
-  async *streamChatCompletion(
-    messages: ChatMessage[],
-    options?: ChatCompletionOptions
-  ): AsyncGenerator<LLMStreamChunk> {
-    throw new Error('Streaming not implemented yet');
-  }
-
-  async generateStructure<T>(
-    messages: ChatMessage[],
-    schema: StagehandZodSchema<T>
-  ): Promise<InferStagehandSchema<T>> {
-    throw new Error('Structured output not implemented yet');
-  }
-}
-
 // Register default providers
 LLMProvider.register('openai', OpenAIClient);
 LLMProvider.register('anthropic', AnthropicClient);
 LLMProvider.register('google', GoogleClient);
 LLMProvider.register('ollama', OllamaClient);
+LLMProvider.register('gateway', AIGatewayClient);

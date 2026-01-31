@@ -46,4 +46,8 @@ sources:
     ref: main
     shallow: true
     notes: "Used as reference only"
+  - name: AISDK
+    repo: git@github.com:vercel/ai.git
+    ref: main
+    shallow: true
 
