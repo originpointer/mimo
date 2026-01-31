@@ -8,6 +8,9 @@ export enum MessageRole {
     TOOL = 'tool',
 }
 
+/** Alias for MessageRole for compatibility */
+export { MessageRole as Role };
+
 /**
  * 消息内容类型
  * 参考来源: Manus.im 消息格式
