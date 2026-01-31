@@ -1,47 +1,47 @@
-import { NextResponse } from "next/server";
-import type { ChatRequest } from "@/lib/types";
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+} from "ai";
+import { systemPrompt } from "@/lib/ai/prompts";
+import { getLanguageModel } from "@/lib/ai/providers";
+import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { generateUUID } from "@/lib/utils";
 
 export const runtime = "edge";
+export const maxDuration = 60;
 
 /**
- * Mock chat API endpoint
- * This is a placeholder implementation that returns a static response.
- * In production, this would connect to an AI service like OpenAI or Anthropic.
+ * Chat API endpoint with streaming AI responses
+ * Uses Vercel AI Gateway to communicate with LLMs
  */
 export async function POST(request: Request) {
   try {
-    const body: ChatRequest = await request.json();
+    const body = await request.json();
+    const { messages, modelId = DEFAULT_CHAT_MODEL } = body;
 
-    // Basic validation
-    if (!body.message || !body.id) {
-      return NextResponse.json(
-        { error: "Invalid request: missing message or id" },
-        { status: 400 }
-      );
+    if (!messages || !Array.isArray(messages)) {
+      return new Response("Invalid request: missing messages array", { status: 400 });
     }
 
-    // Simulate processing delay
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const stream = createUIMessageStream({
+      execute: async ({ writer: dataStream }) => {
+        const result = streamText({
+          model: getLanguageModel(modelId),
+          system: systemPrompt(),
+          messages: await convertToModelMessages(messages),
+        });
 
-    // Return mock response
-    return NextResponse.json({
-      id: body.id,
-      message: {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        parts: [
-          {
-            type: "text",
-            text: "This is a mock response from the API endpoint. The backend logic is not yet implemented. Please use the client-side mock chat hook for testing the UI.",
-          },
-        ],
-        createdAt: new Date().toISOString(),
+        dataStream.merge(result.toUIMessageStream());
       },
+      generateId: generateUUID,
+      onError: () => "Oops, an error occurred!",
     });
+
+    return createUIMessageStreamResponse({ stream });
   } catch (error) {
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    console.error("Error in chat API:", error);
+    return new Response("Internal server error", { status: 500 });
   }
 }

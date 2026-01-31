@@ -29,7 +29,7 @@ export function Message({ message, isLoading }: MessageProps) {
       >
         {message.role === "assistant" && (
           <div className="-mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-background ring-1 ring-border">
-            <SparklesIcon size={14} />
+            <SparklesIcon size={14} className="text-foreground" />
           </div>
         )}
 
@@ -55,7 +55,7 @@ export function Message({ message, isLoading }: MessageProps) {
                   : undefined
               }
             >
-              <p className="text-sm whitespace-pre-wrap break-words">
+              <p className="text-sm text-foreground whitespace-pre-wrap break-words">
                 {sanitizeText(textContent)}
                 {isLoading && message.role === "assistant" && (
                   <span className="inline-block animate-pulse">▊</span>

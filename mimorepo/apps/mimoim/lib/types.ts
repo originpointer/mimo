@@ -2,6 +2,8 @@
  * Type definitions for the chat application
  */
 
+import type { UIMessage } from "ai";
+
 export type MessageRole = 'user' | 'assistant' | 'system';
 
 export interface MessagePart {
@@ -12,11 +14,17 @@ export interface MessagePart {
   mediaType?: string;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: MessageRole;
-  parts: MessagePart[];
-  createdAt: string;
+// Use AI SDK's UIMessage type for compatibility
+export type ChatMessage = UIMessage<
+  { createdAt: string },
+  Record<string, never>,
+  Record<string, never>
+>;
+
+// Core message format for AI SDK compatibility
+export interface CoreMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
 }
 
 export interface Attachment {

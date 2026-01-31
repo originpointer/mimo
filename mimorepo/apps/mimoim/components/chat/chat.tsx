@@ -1,10 +1,10 @@
 "use client";
 
-import { useMockChat } from "@/lib/hooks/use-mock-chat";
+import { useState } from "react";
+import { useChat } from "@ai-sdk/react";
 import { Messages } from "./messages";
 import { ChatInput } from "./chat-input";
 import type { ChatMessage } from "@/lib/types";
-import { generateUUID } from "@/lib/utils";
 
 interface ChatProps {
   chatId: string;
@@ -12,21 +12,21 @@ interface ChatProps {
 }
 
 export function Chat({ chatId, initialMessages = [] }: ChatProps) {
-  const { messages, sendMessage, status, stop, input, setInput } =
-    useMockChat({
-      initialMessages,
-    });
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status, stop } = useChat<ChatMessage>({
+    id: chatId,
+    messages: initialMessages,
+    generateId: () => crypto.randomUUID(),
+  });
 
   const handleSend = () => {
-    const userMessage: ChatMessage = {
-      id: generateUUID(),
-      role: "user",
-      parts: [{ type: "text", text: input }],
-      createdAt: new Date().toISOString(),
-    };
-
-    sendMessage(userMessage);
-    setInput("");
+    if (input.trim()) {
+      sendMessage({
+        role: "user",
+        parts: [{ type: "text", text: input }],
+      });
+      setInput("");
+    }
   };
 
   return (

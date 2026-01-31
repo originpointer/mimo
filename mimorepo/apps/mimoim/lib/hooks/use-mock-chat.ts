@@ -58,7 +58,9 @@ export function useMockChat({
       id: generateUUID(),
       role: "assistant",
       parts: [{ type: "text", text: "" }],
-      createdAt: new Date().toISOString(),
+      metadata: {
+        createdAt: new Date().toISOString(),
+      },
     };
 
     setMessages((prev) => [...prev, assistantMessage]);

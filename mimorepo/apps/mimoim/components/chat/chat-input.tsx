@@ -59,7 +59,7 @@ export function ChatInput({
             onKeyDown={handleKeyDown}
             placeholder="Send a message..."
             rows={1}
-            className="w-full resize-none border-0! border-none! bg-transparent p-2 text-base outline-none ring-0 [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden field-sizing-content max-h-[6lh]"
+            className="w-full resize-none border-0! border-none! bg-transparent p-2 text-base text-foreground outline-none ring-0 [-ms-overflow-style:none] [scrollbar-width:none] placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-webkit-scrollbar]:hidden field-sizing-content max-h-[6lh]"
             disabled={!isReady}
           />
 
