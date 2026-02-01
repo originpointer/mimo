@@ -9,9 +9,13 @@ import {
   OpenAIClient,
   AnthropicClient,
   AISdkClient,
+  AIGatewayClient,
   GoogleClient,
   OllamaClient,
 } from '../../src/provider.js';
+
+// Helper to check if AI Gateway is available
+const hasGatewayKey = !!(globalThis as any).process?.env?.AI_GATEWAY_API_KEY;
 
 describe('LLMProvider', () => {
   let provider: LLMProvider;
@@ -21,24 +25,27 @@ describe('LLMProvider', () => {
   });
 
   describe('getClient with provider/model format', () => {
-    it('should return AISdkClient for openai/gpt-4o', () => {
+    it('should return AISdkClient or AIGatewayClient for openai/gpt-4o', () => {
       const client = provider.getClient('openai/gpt-4o');
 
-      expect(client).toBeInstanceOf(AISdkClient);
+      // Returns AIGatewayClient when AI_GATEWAY_API_KEY is set, otherwise AISdkClient
+      expect(client).toBeInstanceOf(hasGatewayKey ? AIGatewayClient : AISdkClient);
       expect(client.getProviderType()).toBe('openai');
     });
 
-    it('should return AISdkClient for anthropic/claude-3-5-sonnet', () => {
+    it('should return AISdkClient or AIGatewayClient for anthropic/claude-3-5-sonnet', () => {
       const client = provider.getClient('anthropic/claude-3-5-sonnet');
 
-      expect(client).toBeInstanceOf(AISdkClient);
+      // Returns AIGatewayClient when AI_GATEWAY_API_KEY is set, otherwise AISdkClient
+      expect(client).toBeInstanceOf(hasGatewayKey ? AIGatewayClient : AISdkClient);
       expect(client.getProviderType()).toBe('anthropic');
     });
 
-    it('should return AISdkClient for google/gemini-1.5-flash', () => {
+    it('should return AISdkClient or AIGatewayClient for google/gemini-1.5-flash', () => {
       const client = provider.getClient('google/gemini-1.5-flash');
 
-      expect(client).toBeInstanceOf(AISdkClient);
+      // Returns AIGatewayClient when AI_GATEWAY_API_KEY is set, otherwise AISdkClient
+      expect(client).toBeInstanceOf(hasGatewayKey ? AIGatewayClient : AISdkClient);
       expect(client.getProviderType()).toBe('google');
     });
 
@@ -84,8 +91,8 @@ describe('LLMProvider', () => {
     });
 
     it('should default to OpenAI for unknown models', () => {
-      // claude-3-opus is NOT in MODEL_TO_PROVIDER map, defaults to openai
-      const client = provider.getClient('claude-3-opus', { apiKey: 'test-key' });
+      // unknown-model is NOT in MODEL_TO_PROVIDER map, defaults to openai
+      const client = provider.getClient('unknown-model', { apiKey: 'test-key' });
 
       expect(client).toBeInstanceOf(OpenAIClient);
       expect(client.getProviderType()).toBe('openai');

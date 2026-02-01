@@ -5,9 +5,13 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { LLMClient } from '../client.js';
-import type { ChatMessage, ChatCompletionOptions, LLMResponse, LLMStreamChunk } from '@mimo/types';
+import type { ChatMessage, LLMResponse, LLMStreamChunk } from '@mimo/types';
 import type { LLMProviderType } from '../types.js';
 import { getModelCapabilities } from '../utils/parser.js';
+
+// Core types from @mimo/agent-core
+// Note: LLMProvider is an enum (runtime value), not just a type
+import { LLMProvider, type ModelCapability } from '@mimo/agent-core';
 
 export class AnthropicClient extends LLMClient {
   private client: Anthropic;
@@ -20,13 +24,80 @@ export class AnthropicClient extends LLMClient {
     });
   }
 
+  get provider(): LLMProvider {
+    return LLMProvider.ANTHROPIC;
+  }
+
+  get capabilities(): ModelCapability {
+    const modelCaps = getModelCapabilities(this.model);
+    return {
+      supportsCaching: modelCaps.supportsCaching ?? false,
+      supportsThinking: modelCaps.supportsThinking ?? false,
+      maxContext: modelCaps.maxTokens ?? 200000,
+      supportsStructuredOutput: true,
+      supportsStreaming: true,
+    };
+  }
+
   getProviderType(): LLMProviderType {
     return 'anthropic';
   }
 
+  // ILLMClient interface methods
+  async complete<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): Promise<import('@mimo/agent-core').ChatCompletionResponse<T>> {
+    // Convert BaseMessage to ChatMessage
+    const chatMessages: ChatMessage[] = options.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content as string,
+    }));
+
+    const response = await this.chatCompletion(chatMessages, {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    } as any);
+
+    return {
+      content: response.content,
+      usage: response.usage as any,
+      model: response.model,
+      finishReason: 'stop',
+    } as any;
+  }
+
+  async *stream<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): AsyncIterable<import('@mimo/agent-core').ChatCompletionResponse<T>> {
+    const chatMessages: ChatMessage[] = options.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content as string,
+    }));
+
+    const stream = this.streamChatCompletion(chatMessages, {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    } as any);
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'data') {
+        yield {
+          content: chunk.content || '',
+          usage: chunk.usage,
+          model: this.model,
+          finishReason: 'stop',
+        } as any;
+      }
+    }
+  }
+
+  supports(capability: keyof import('@mimo/agent-core').ModelCapability): boolean {
+    return this.capabilities?.[capability] ?? false;
+  }
+
   protected async doChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: any
   ): Promise<LLMResponse> {
     const { systemMessages, userMessages } = this.splitMessages(messages);
 
@@ -63,7 +134,7 @@ export class AnthropicClient extends LLMClient {
 
   protected async *doStreamChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: any
   ): AsyncGenerator<LLMStreamChunk> {
     const { systemMessages, userMessages } = this.splitMessages(messages);
 

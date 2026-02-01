@@ -2,10 +2,12 @@
   "files": [],
   "references": [
     { "path": "./packages/@mimo/types" },
+    { "path": "./packages/@mimo/agent-core" },
     { "path": "./packages/@mimo/bus" },
     { "path": "./packages/@mimo/llm" },
     { "path": "./packages/@mimo/context" },
     { "path": "./packages/@mimo/agent" },
-    { "path": "./packages/@mimo/core" }
+    { "path": "./packages/@mimo/core" },
+    { "path": "./packages/@mimo/agent-tools" }
   ]
 }

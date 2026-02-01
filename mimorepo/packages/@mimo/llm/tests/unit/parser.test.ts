@@ -190,7 +190,7 @@ describe('getModelCapabilities', () => {
       expect(caps.supportsStreaming).toBe(true);
       expect(caps.supportsCaching).toBe(false); // Only 4-5 models support caching
       expect(caps.supportsThinking).toBe(false);
-      expect(caps.maxTokens).toBe(128000); // Default
+      expect(caps.maxTokens).toBe(200000); // Claude 3 series has 200k context
     });
 
     it('should return capabilities for claude-3-opus', () => {

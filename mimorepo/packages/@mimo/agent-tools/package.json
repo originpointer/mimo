@@ -1,0 +1,74 @@
+{
+  "name": "@mimo/agent-tools",
+  "version": "0.1.0",
+  "description": "Mimo Agent Tools - Tool scheduling, execution, and policy management for the Mimo Agent system",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./registry": {
+      "types": "./dist/registry/index.d.ts",
+      "import": "./dist/registry/index.js"
+    },
+    "./policy": {
+      "types": "./dist/policy/index.d.ts",
+      "import": "./dist/policy/index.js"
+    },
+    "./executor": {
+      "types": "./dist/executor/index.d.ts",
+      "import": "./dist/executor/index.js"
+    },
+    "./scheduler": {
+      "types": "./dist/scheduler/index.d.ts",
+      "import": "./dist/scheduler/index.js"
+    },
+    "./monitor": {
+      "types": "./dist/monitor/index.d.ts",
+      "import": "./dist/monitor/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "keywords": [
+    "mimo",
+    "agent",
+    "tools",
+    "scheduling",
+    "policy",
+    "browser-automation"
+  ],
+  "author": "Mimo Team",
+  "license": "MIT",
+  "dependencies": {
+    "@mimo/agent-core": "workspace:*",
+    "path-to-regexp": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@vitest/coverage-v8": "^3.0.7",
+    "@vitest/ui": "^3.0.7",
+    "typescript": "5.9.2",
+    "vitest": "^3.0.7"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

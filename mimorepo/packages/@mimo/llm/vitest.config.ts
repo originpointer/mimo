@@ -1,6 +1,13 @@
 import { defineConfig } from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@mimo/agent-core': path.resolve(__dirname, '../agent-core/src'),
+      '@mimo/types': path.resolve(__dirname, '../types/src'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',

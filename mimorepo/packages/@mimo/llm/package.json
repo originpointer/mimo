@@ -29,6 +29,7 @@
     "@ai-sdk/openai": "^3.0.23",
     "@anthropic-ai/sdk": "^0.32.1",
     "@google/generative-ai": "^0.21.0",
+    "@mimo/agent-core": "workspace:*",
     "@mimo/types": "workspace:*",
     "ai": "^6.0.64",
     "openai": "^4.73.0",

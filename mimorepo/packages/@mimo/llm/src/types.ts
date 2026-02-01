@@ -1,12 +1,23 @@
 /**
  * Unified LLM types for all providers
- * Extends @mimo/types with provider-specific enhancements
+ * Re-exports from @mimo/agent-core for convenience
+ * Defines @mimo/llm specific types
  */
 
 import type { z } from 'zod';
 
+// 从 agent-core 重新导出常用类型（便捷访问）
+export type {
+  TokenUsage,
+  LLMProvider,
+  ModelCapability,
+  ChatCompletionOptions,
+  ChatCompletionResponse,
+  BaseMessage,
+} from '@mimo/agent-core';
+
 /**
- * LLM provider types
+ * LLM provider types (internal use)
  */
 export type LLMProviderType =
   | 'openai'
@@ -15,7 +26,8 @@ export type LLMProviderType =
   | 'ollama'
   | 'cerebras'
   | 'groq'
-  | 'zai';
+  | 'zai'
+  | 'gateway';
 
 /**
  * Model string parsing result
@@ -27,32 +39,7 @@ export interface ModelString {
 }
 
 /**
- * Enhanced token usage statistics
- * Unified format across all providers (for internal use)
- */
-export interface TokenUsage {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-  // Anthropic cache tokens
-  cachedReadTokens?: number;
-  cachedCreationTokens?: number;
-  // OpenAI o1/o3 reasoning tokens
-  reasoningTokens?: number;
-}
-
-/**
- * Stream usage format (matches LLMResponse.usage)
- */
-export interface StreamUsage {
-  inputTokens: number;
-  outputTokens: number;
-  reasoningTokens?: number;
-  cachedInputTokens?: number;
-}
-
-/**
- * SSE format stream event
+ * SSE format stream event (llm package specific)
  */
 export interface StreamEvent {
   type: 'data' | 'error' | 'end';
@@ -74,12 +61,14 @@ export interface ToolCallEvent {
 }
 
 /**
- * Structured output options
+ * Stream usage format (llm package specific)
+ * Matches the internal format used by streaming responses
  */
-export interface StructuredOutputOptions<T> {
-  schema: z.ZodType<T>;
-  name?: string;
-  description?: string;
+export interface StreamUsage {
+  inputTokens: number;
+  outputTokens: number;
+  reasoningTokens?: number;
+  cachedInputTokens?: number;
 }
 
 /**
@@ -91,6 +80,15 @@ export interface RetryConfig {
   maxDelay: number;
   backoffMultiplier: number;
   retryableErrors: string[];
+}
+
+/**
+ * Structured output options
+ */
+export interface StructuredOutputOptions<T> {
+  schema: z.ZodType<T>;
+  name?: string;
+  description?: string;
 }
 
 /**
@@ -132,7 +130,8 @@ export class TimeoutError extends LLMError {
 }
 
 /**
- * Model capabilities
+ * Model capabilities (legacy, use ModelCapability from agent-core)
+ * @deprecated Use ModelCapability from @mimo/agent-core
  */
 export interface ModelCapabilities {
   supportsStreaming: boolean;

@@ -1,20 +1,41 @@
 /**
  * LLMClient - Enhanced base class for LLM clients
  * Adds retry logic, token tracking, and streaming support
+ *
+ * Note: Subclasses should implement ILLMClient interface from @mimo/agent-core
  */
 
+// 从 agent-core 导入核心类型（不包括消息类型）
+import type {
+  TokenUsage as CoreTokenUsage,
+  LLMProvider,
+  ModelCapability,
+  ChatCompletionOptions,
+  ChatCompletionResponse,
+} from '@mimo/agent-core';
+
+// 从 @mimo/types 导入消息类型（保持与 AI SDK 兼容）
 import type {
   ChatMessage,
-  ChatCompletionOptions,
+  ChatCompletionOptions as TypesChatCompletionOptions,
   LLMResponse,
   LLMStreamChunk,
   StagehandZodSchema,
   InferStagehandSchema,
 } from '@mimo/types';
-import type { TokenUsage, StreamEvent, StreamUsage, LLMProviderType, RetryConfig } from './types.js';
+
+// 内部类型
+import type { StreamEvent, StreamUsage, LLMProviderType, RetryConfig } from './types.js';
+
+// 为了兼容性
+type TokenUsage = CoreTokenUsage;
 
 /**
  * Enhanced abstract base class for LLM clients
+ *
+ * Note: This class provides base functionality. Subclasses should implement
+ * ILLMClient interface from @mimo/agent-core which requires BaseMessage.
+ * This class uses ChatMessage from @mimo/types for AI SDK compatibility.
  */
 export abstract class LLMClient {
   protected retryConfig: RetryConfig = {
@@ -26,7 +47,7 @@ export abstract class LLMClient {
   };
 
   constructor(
-    protected model: string,
+    protected _model: string,
     protected options?: {
       apiKey?: string;
       baseURL?: string;
@@ -46,11 +67,26 @@ export abstract class LLMClient {
   abstract getProviderType(): LLMProviderType;
 
   /**
+   * Get model name
+   */
+  get model(): string {
+    return this._model;
+  }
+
+  /**
+   * Get model name (backward compatibility)
+   * @deprecated Use the `model` property instead
+   */
+  getModel(): string {
+    return this._model;
+  }
+
+  /**
    * Execute chat completion with retry logic
    */
   async chatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: TypesChatCompletionOptions
   ): Promise<LLMResponse> {
     return this.withRetry(async () => {
       const response = await this.doChatCompletion(messages, options);
@@ -67,7 +103,7 @@ export abstract class LLMClient {
    */
   async *streamChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: TypesChatCompletionOptions
   ): AsyncGenerator<StreamEvent> {
     try {
       const stream = this.doStreamChatCompletion(messages, options);
@@ -107,12 +143,12 @@ export abstract class LLMClient {
    */
   protected abstract doChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: TypesChatCompletionOptions
   ): Promise<LLMResponse>;
 
   protected abstract doStreamChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: TypesChatCompletionOptions
   ): AsyncGenerator<LLMStreamChunk>;
 
   protected abstract doGenerateStructure<T>(
@@ -161,7 +197,6 @@ export abstract class LLMClient {
 
   /**
    * Normalize token usage across providers
-   * Returns format expected by @mimo/types LLMResponse
    */
   protected normalizeUsage(usage: any): { inputTokens: number; outputTokens: number; reasoningTokens?: number; cachedInputTokens?: number } {
     if (!usage) {
@@ -185,12 +220,5 @@ export abstract class LLMClient {
 
   protected sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Get model name
-   */
-  getModel(): string {
-    return this.model;
   }
 }

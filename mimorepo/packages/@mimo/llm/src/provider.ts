@@ -2,6 +2,8 @@
  * LLMProvider - Manager for LLM clients with automatic provider detection
  */
 
+// Note: LLMProvider is an enum (runtime value), not just a type
+import { LLMProvider as CoreLLMProvider, type ModelCapability } from '@mimo/agent-core';
 import type { ClientOptions } from '@mimo/types';
 import { LLMClient } from './client.js';
 import { AISdkClient } from './clients/aisdk.js';
@@ -15,6 +17,9 @@ import { AIGatewayClient } from './clients/gateway.js';
 // Re-export types for convenience
 export type { ClientOptions } from '@mimo/types';
 
+// Re-export from agent-core
+export type { LLMProvider as CoreLLMProvider } from '@mimo/agent-core';
+
 // Re-export client classes for direct usage
 export { OpenAIClient } from './clients/openai.js';
 export { AnthropicClient } from './clients/anthropic.js';
@@ -24,20 +29,60 @@ export { AIGatewayClient } from './clients/gateway.js';
 /**
  * Google client (stub - to be implemented)
  */
-export class GoogleClient extends LLMClient {
+export class GoogleClient extends LLMClient implements ILLMClient {
+  get provider(): CoreLLMProvider {
+    return CoreLLMProvider.GOOGLE;
+  }
+
+  get capabilities(): ModelCapability {
+    return {
+      supportsCaching: false,
+      supportsThinking: false,
+      maxContext: 0,
+      supportsStructuredOutput: false,
+      supportsStreaming: false,
+    };
+  }
+
   getProviderType(): 'google' {
     return 'google';
   }
 
-  protected async doChatCompletion(): Promise<any> {
+  // ILLMClient interface methods (stub - throws error)
+  async complete<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): Promise<import('@mimo/agent-core').ChatCompletionResponse<T>> {
     throw new Error('Google client not implemented yet');
   }
 
-  protected async *doStreamChatCompletion(): AsyncGenerator<any> {
+  async *stream<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): AsyncIterable<import('@mimo/agent-core').ChatCompletionResponse<T>> {
     throw new Error('Google client not implemented yet');
   }
 
-  protected async doGenerateStructure(): Promise<any> {
+  supports(capability: keyof import('@mimo/agent-core').ModelCapability): boolean {
+    return false;
+  }
+
+  protected async doChatCompletion(
+    messages: import('@mimo/types').ChatMessage[],
+    options?: any
+  ): Promise<import('@mimo/types').LLMResponse> {
+    throw new Error('Google client not implemented yet');
+  }
+
+  protected async *doStreamChatCompletion(
+    messages: import('@mimo/types').ChatMessage[],
+    options?: any
+  ): AsyncGenerator<import('@mimo/types').LLMStreamChunk> {
+    throw new Error('Google client not implemented yet');
+  }
+
+  protected async doGenerateStructure<T>(
+    messages: import('@mimo/types').ChatMessage[],
+    schema: any
+  ): Promise<any> {
     throw new Error('Google client not implemented yet');
   }
 }
@@ -45,20 +90,60 @@ export class GoogleClient extends LLMClient {
 /**
  * Ollama client (stub - for local models)
  */
-export class OllamaClient extends LLMClient {
+export class OllamaClient extends LLMClient implements ILLMClient {
+  get provider(): CoreLLMProvider {
+    return CoreLLMProvider.XAI; // Using XAI as placeholder for local models
+  }
+
+  get capabilities(): ModelCapability {
+    return {
+      supportsCaching: false,
+      supportsThinking: false,
+      maxContext: 0,
+      supportsStructuredOutput: false,
+      supportsStreaming: false,
+    };
+  }
+
   getProviderType(): 'ollama' {
     return 'ollama';
   }
 
-  protected async doChatCompletion(): Promise<any> {
+  // ILLMClient interface methods (stub - throws error)
+  async complete<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): Promise<import('@mimo/agent-core').ChatCompletionResponse<T>> {
     throw new Error('Ollama client not implemented yet');
   }
 
-  protected async *doStreamChatCompletion(): AsyncGenerator<any> {
+  async *stream<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): AsyncIterable<import('@mimo/agent-core').ChatCompletionResponse<T>> {
     throw new Error('Ollama client not implemented yet');
   }
 
-  protected async doGenerateStructure(): Promise<any> {
+  supports(capability: keyof import('@mimo/agent-core').ModelCapability): boolean {
+    return false;
+  }
+
+  protected async doChatCompletion(
+    messages: import('@mimo/types').ChatMessage[],
+    options?: any
+  ): Promise<import('@mimo/types').LLMResponse> {
+    throw new Error('Ollama client not implemented yet');
+  }
+
+  protected async *doStreamChatCompletion(
+    messages: import('@mimo/types').ChatMessage[],
+    options?: any
+  ): AsyncGenerator<import('@mimo/types').LLMStreamChunk> {
+    throw new Error('Ollama client not implemented yet');
+  }
+
+  protected async doGenerateStructure<T>(
+    messages: import('@mimo/types').ChatMessage[],
+    schema: any
+  ): Promise<any> {
     throw new Error('Ollama client not implemented yet');
   }
 }

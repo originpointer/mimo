@@ -5,8 +5,12 @@
 
 import OpenAI from 'openai';
 import { LLMClient } from '../client.js';
-import type { ChatMessage, ChatCompletionOptions, LLMResponse, LLMStreamChunk } from '@mimo/types';
+import type { ChatMessage, LLMResponse, LLMStreamChunk } from '@mimo/types';
 import type { LLMProviderType } from '../types.js';
+
+// Core types from @mimo/agent-core
+// Note: LLMProvider is an enum (runtime value), not just a type
+import { LLMProvider, type ModelCapability } from '@mimo/agent-core';
 
 export class OpenAIClient extends LLMClient {
   private client: OpenAI;
@@ -19,13 +23,80 @@ export class OpenAIClient extends LLMClient {
     });
   }
 
+  get provider(): LLMProvider {
+    return LLMProvider.OPENAI;
+  }
+
+  get capabilities(): ModelCapability {
+    const isO1O3 = this.model.startsWith('o1') || this.model.startsWith('o3');
+    return {
+      supportsCaching: false,
+      supportsThinking: isO1O3,
+      maxContext: 128000,
+      supportsStructuredOutput: true,
+      supportsStreaming: true,
+    };
+  }
+
   getProviderType(): LLMProviderType {
     return 'openai';
   }
 
+  // ILLMClient interface methods
+  async complete<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): Promise<import('@mimo/agent-core').ChatCompletionResponse<T>> {
+    // Convert BaseMessage to ChatMessage
+    const chatMessages: ChatMessage[] = options.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content as string, // Simplified conversion
+    }));
+
+    const response = await this.chatCompletion(chatMessages, {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    } as any);
+
+    return {
+      content: response.content,
+      usage: response.usage as any,
+      model: response.model,
+      finishReason: 'stop',
+    } as any;
+  }
+
+  async *stream<T = any>(
+    options: import('@mimo/agent-core').ChatCompletionOptions
+  ): AsyncIterable<import('@mimo/agent-core').ChatCompletionResponse<T>> {
+    const chatMessages: ChatMessage[] = options.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content as string,
+    }));
+
+    const stream = this.streamChatCompletion(chatMessages, {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+    } as any);
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'data') {
+        yield {
+          content: chunk.content || '',
+          usage: chunk.usage,
+          model: this.model,
+          finishReason: 'stop',
+        } as any;
+      }
+    }
+  }
+
+  supports(capability: keyof import('@mimo/agent-core').ModelCapability): boolean {
+    return this.capabilities?.[capability] ?? false;
+  }
+
   protected async doChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: any
   ): Promise<LLMResponse> {
     const isO1O3 = this.model.startsWith('o1') || this.model.startsWith('o3');
 
@@ -63,7 +134,7 @@ export class OpenAIClient extends LLMClient {
 
   protected async *doStreamChatCompletion(
     messages: ChatMessage[],
-    options?: ChatCompletionOptions
+    options?: any
   ): AsyncGenerator<LLMStreamChunk> {
     const params: any = {
       model: this.model,

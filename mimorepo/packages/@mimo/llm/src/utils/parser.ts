@@ -22,6 +22,7 @@ const MODEL_TO_PROVIDER: Record<string, LLMProviderType> = {
   'claude-3-5-sonnet': 'anthropic',
   'claude-3-5-haiku': 'anthropic',
   'claude-3-7-sonnet': 'anthropic',
+  'claude-3-opus': 'anthropic',
   'claude-opus-4-5': 'anthropic',
   'claude-opus-4': 'anthropic',
   'claude-sonnet-4': 'anthropic',
@@ -92,6 +93,16 @@ export function getModelCapabilities(modelString: string): ModelCapabilities {
       supportsStreaming: true,
       supportsCaching: false,
       supportsThinking: true,
+      maxTokens: 200000,
+    };
+  }
+
+  // Anthropic Claude 3 series (200k context)
+  if (provider === 'anthropic' && model.includes('3-')) {
+    return {
+      supportsStreaming: true,
+      supportsCaching: false,
+      supportsThinking: false,
       maxTokens: 200000,
     };
   }
