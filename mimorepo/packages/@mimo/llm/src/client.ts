@@ -104,6 +104,33 @@ export abstract class LLMClient implements ILLMClient {
       stop: options.stopSequences,
     };
 
+    // Structured output (Stage06 uses this for stable plans)
+    // NOTE: Provider-specific structured output lives in `doGenerateStructure`.
+    // We expose it through the standard `complete()` API via `responseModel`.
+    if (options.responseModel) {
+      const structured = await this.generateStructure(
+        messages,
+        options.responseModel as unknown as StagehandZodSchema<T>
+      );
+
+      return {
+        content: JSON.stringify(structured),
+        structuredData: structured,
+        usage: {
+          // Most provider SDKs do not expose usage from structured helpers in our current adapters.
+          // Keep the shape correct; real token tracking is still covered by `chatCompletion()` paths.
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          cachedReadTokens: undefined,
+          cachedCreationTokens: undefined,
+          reasoningTokens: undefined,
+        },
+        model: this._model,
+        finishReason: 'stop',
+      };
+    }
+
     const response = await this.chatCompletion(messages, internalOptions);
 
     // Convert LLMResponse to ChatCompletionResponse

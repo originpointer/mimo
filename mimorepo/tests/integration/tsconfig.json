@@ -21,9 +21,11 @@
     "paths": {
       "@mimo/agent-cache": ["../../packages/@mimo/agent-cache/src"],
       "@mimo/agent-cache/storage": ["../../packages/@mimo/agent-cache/src/storage"],
+      "@mimo/agent-context": ["../../packages/@mimo/agent-context/src"],
       "@mimo/agent-core": ["../../packages/@mimo/agent-core/src"],
       "@mimo/agent-core/types": ["../../packages/@mimo/agent-core/src/types"],
       "@mimo/agent-core/interfaces": ["../../packages/@mimo/agent-core/src/interfaces"],
+      "@mimo/agent-multi": ["../../packages/@mimo/agent-multi/src"],
       "@mimo/agent-tools": ["../../packages/@mimo/agent-tools/src"],
       "@mimo/agent-tools/executor": ["../../packages/@mimo/agent-tools/src/executor"],
       "@mimo/agent-tools/policy": ["../../packages/@mimo/agent-tools/src/policy"],

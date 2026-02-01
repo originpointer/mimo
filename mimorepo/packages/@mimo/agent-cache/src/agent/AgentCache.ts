@@ -118,19 +118,41 @@ export class AgentCache {
         this.defaultTTL = config.defaultTTL;
     }
 
+    private get namespacePrefix(): string {
+        return `${this.namespace}:`;
+    }
+
+    /**
+     * Convert a logical key into a store key (namespace-prefixed).
+     * Accepts already-prefixed keys for backward compatibility.
+     */
+    private toStoreKey(key: string): string {
+        return key.startsWith(this.namespacePrefix) ? key : `${this.namespacePrefix}${key}`;
+    }
+
+    /**
+     * Strip namespace prefix from a store key.
+     */
+    private fromStoreKey(storeKey: string): string {
+        return storeKey.startsWith(this.namespacePrefix)
+            ? storeKey.slice(this.namespacePrefix.length)
+            : storeKey;
+    }
+
     /**
      * Build cache key from instruction and options
      */
     buildKey(instruction: string, options: AgentExecutionOptions): string {
-        const key = this.keyBuilder.buildFromInstruction(instruction, options);
-        return `${this.namespace}:${key}`;
+        // NOTE: Returns a logical (non-namespaced) key.
+        // The store key is namespaced internally by AgentCache.
+        return this.keyBuilder.buildFromInstruction(instruction, options);
     }
 
     /**
      * Get cached execution
      */
     async get(key: string): Promise<CachedAgentExecution | null> {
-        const cacheKey = `${this.namespace}:${key}`;
+        const cacheKey = this.toStoreKey(key);
 
         const result = await this.store.get<CachedAgentExecution>(cacheKey);
         if (result) {
@@ -150,14 +172,16 @@ export class AgentCache {
         execution: CachedAgentExecution,
         options?: AgentCacheOptions
     ): Promise<void> {
-        const cacheKey = `${this.namespace}:${key}`;
-        let dataToSave = execution;
+        const cacheKey = this.toStoreKey(key);
+        let dataToSave: CachedAgentExecution = execution.key.startsWith(this.namespacePrefix)
+            ? { ...execution, key: this.fromStoreKey(execution.key) }
+            : execution;
 
         // Auto-prune if enabled or requested
         const shouldPrune = options?.prune ?? this.autoPrune;
         if (shouldPrune && options?.prune !== false) {
             // Convert AgentCacheOptions to PruneOptions
-            dataToSave = this.pruner.prune(execution, {
+            dataToSave = this.pruner.prune(dataToSave, {
                 removeScreenshots: true,
                 removeBase64: false,
             });
@@ -167,9 +191,7 @@ export class AgentCache {
         await this.store.set(cacheKey, dataToSave, options?.ttl ?? this.defaultTTL);
 
         // Update stats
-        this.stats.totalEntries = (await this.store.keys()).filter(k =>
-            k.startsWith(this.namespace)
-        ).length;
+        this.stats.totalEntries = (await this.store.keys()).filter(k => k.startsWith(this.namespacePrefix)).length;
     }
 
     /**
@@ -180,7 +202,7 @@ export class AgentCache {
         const allKeys = await this.store.keys();
         const matchingKeys = pattern
             ? allKeys.filter(key => key.includes(pattern))
-            : allKeys.filter(key => key.startsWith(this.namespace));
+            : allKeys.filter(key => key.startsWith(this.namespacePrefix));
 
         let count = 0;
         for (const key of matchingKeys) {
@@ -188,9 +210,7 @@ export class AgentCache {
             count++;
         }
 
-        this.stats.totalEntries = (await this.store.keys()).filter(k =>
-            k.startsWith(this.namespace)
-        ).length;
+        this.stats.totalEntries = (await this.store.keys()).filter(k => k.startsWith(this.namespacePrefix)).length;
 
         return count;
     }
@@ -233,9 +253,7 @@ export class AgentCache {
      * Get cache statistics
      */
     async getStats(): Promise<AgentCacheStats> {
-        const totalEntries = (await this.store.keys()).filter(k =>
-            k.startsWith(this.namespace)
-        ).length;
+        const totalEntries = (await this.store.keys()).filter(k => k.startsWith(this.namespacePrefix)).length;
 
         return {
             totalEntries,
@@ -251,8 +269,8 @@ export class AgentCache {
     async keys(): Promise<string[]> {
         const allKeys = await this.store.keys();
         return allKeys
-            .filter(key => key.startsWith(this.namespace))
-            .map(key => key.substring(this.namespace.length + 1));
+            .filter(key => key.startsWith(this.namespacePrefix))
+            .map(key => this.fromStoreKey(key));
     }
 
     /**

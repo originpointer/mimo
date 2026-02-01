@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AgentCache, CacheKeyBuilder, type CachedAgentExecution } from '@mimo/agent-cache';
+import { AgentCache, type CachedAgentExecution } from '@mimo/agent-cache';
 import { MemoryStore } from '@mimo/agent-cache/storage';
 import { createCacheNamespace } from '../fixtures/cache';
 
@@ -30,9 +30,8 @@ describe('Stage04 Cache Agent - AgentCache (e2e)', () => {
     const store = new MemoryStore();
     const namespace = createCacheNamespace('agent-cache');
     const cache = new AgentCache({ store, namespace });
-    const builder = new CacheKeyBuilder();
 
-    const key = builder.buildFromInstruction('task-1', {
+    const key = cache.buildKey('task-1', {
       instruction: 'task-1',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',
@@ -54,15 +53,14 @@ describe('Stage04 Cache Agent - AgentCache (e2e)', () => {
     const store = new MemoryStore();
     const namespace = createCacheNamespace('agent-cache-filter');
     const cache = new AgentCache({ store, namespace });
-    const builder = new CacheKeyBuilder();
 
-    const key1 = builder.buildFromInstruction('login', {
+    const key1 = cache.buildKey('login', {
       instruction: 'login',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',
       tools: ['click'],
     });
-    const key2 = builder.buildFromInstruction('search', {
+    const key2 = cache.buildKey('search', {
       instruction: 'search',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',
@@ -81,15 +79,14 @@ describe('Stage04 Cache Agent - AgentCache (e2e)', () => {
     const store = new MemoryStore();
     const namespace = createCacheNamespace('agent-cache-invalidate');
     const cache = new AgentCache({ store, namespace });
-    const builder = new CacheKeyBuilder();
 
-    const key1 = builder.buildFromInstruction('a', {
+    const key1 = cache.buildKey('a', {
       instruction: 'a',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',
       tools: ['click'],
     });
-    const key2 = builder.buildFromInstruction('b', {
+    const key2 = cache.buildKey('b', {
       instruction: 'b',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',
@@ -110,15 +107,14 @@ describe('Stage04 Cache Agent - AgentCache (e2e)', () => {
     const store1 = new MemoryStore();
     const namespace1 = createCacheNamespace('agent-cache-export');
     const cache1 = new AgentCache({ store: store1, namespace: namespace1 });
-    const builder = new CacheKeyBuilder();
 
-    const key1 = builder.buildFromInstruction('export-1', {
+    const key1 = cache1.buildKey('export-1', {
       instruction: 'export-1',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',
       tools: ['goto'],
     });
-    const key2 = builder.buildFromInstruction('export-2', {
+    const key2 = cache1.buildKey('export-2', {
       instruction: 'export-2',
       startUrl: 'http://127.0.0.1:1234/',
       model: 'openai/gpt-4o-mini',

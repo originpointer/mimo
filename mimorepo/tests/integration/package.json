@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "@mimo/agent-cache": "workspace:*",
+    "@mimo/agent-context": "workspace:*",
     "@mimo/agent-core": "workspace:*",
+    "@mimo/agent-multi": "workspace:*",
     "@mimo/agent-tools": "workspace:*",
     "@mimo/llm": "workspace:*",
     "zod": "^3.24.2",

@@ -30,6 +30,7 @@ const key2 = agentCache.buildKey('在 GitHub 上登录', {
     model: 'claude-3-5-sonnet',
     tools: ['browser_click', 'browser_fill'],
 });
+// 注意：buildKey 返回的是“逻辑 key”（不包含 namespace 前缀），可直接用于 save/get/replay。
 ```
 
 ### 缓存键的组成
@@ -60,6 +61,7 @@ const key = agentCache.buildKey('登录 GitHub', {
     model: 'claude-3-5-sonnet',
     tools: ['browser_click', 'browser_fill'],
 });
+// 注意：buildKey 返回的是“逻辑 key”（不包含 namespace 前缀），可直接用于 save/get/replay。
 
 await agentCache.save(key, execution);
 ```
