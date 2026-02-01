@@ -5,7 +5,6 @@
  * Routes messages to the appropriate handler registry based on message type.
  */
 
-import type { HubCommandType } from '@mimo/types';
 import type { LegacyHandlerRegistry } from './handlers/legacy-handler-registry';
 import type { HubCommandHandlerRegistry } from './handlers/hub-command-handler-registry';
 import { LegacyMessageType } from './handlers/types';
@@ -128,11 +127,6 @@ export class MessageRouter {
     // Check for legacy message types
     if (message.type && Object.values(LegacyMessageType).includes(message.type)) {
       return 'legacy';
-    }
-
-    // Check for Hub command types
-    if (message.type && Object.values(HubCommandType).includes(message.type)) {
-      return 'hub';
     }
 
     // Unknown message type

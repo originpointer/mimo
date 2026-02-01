@@ -1,2 +1,2 @@
-export * from './logger';
-export * from './uuid';
+export * from './logger.js';
+export * from './uuid.js';

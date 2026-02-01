@@ -11,6 +11,9 @@
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.29",
     "@ai-sdk/react": "^3.0.64",
+    "@bion/client": "workspace:*",
+    "@bion/protocol": "workspace:*",
+    "@radix-ui/react-slot": "^1.2.4",
     "ai": "^6.0.62",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

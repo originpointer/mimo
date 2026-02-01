@@ -1,0 +1,28 @@
+{
+  "name": "@bion/protocol",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Bion Protocol - Socket.IO wire protocol types + codecs",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "tsdown": "^0.20.0-beta.4",
+    "typescript": "5.9.2"
+  }
+}
+

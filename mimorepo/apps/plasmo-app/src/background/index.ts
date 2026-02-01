@@ -25,7 +25,7 @@ import { MessageRouter } from './message-router';
 import { LegacyHandlerRegistry } from './handlers/legacy-handler-registry';
 import { HubCommandHandlerRegistry } from './handlers/hub-command-handler-registry';
 import { StagehandXPathManager } from './managers/stagehand-xpath-manager';
-import { MimoEngineManager } from './managers/mimo-engine-manager';
+import { BionSocketManager } from './managers/mimo-engine-manager';
 
 // Import lifecycle management components (Manus-based patterns)
 import { ServiceWorkerLifecycleManager } from './managers/lifecycle-manager';
@@ -43,9 +43,9 @@ import { StateManager } from './managers/state-manager';
 const stagehandManager = new StagehandXPathManager();
 
 /**
- * MimoEngineManager - Socket.IO连接管理
+ * BionSocketManager - Socket.IO连接管理
  *
- * 负责与MimoBus服务器的Socket.IO连接。
+ * 负责与后端 Socket.IO 服务器的连接（Bion 协议）。
  * 独立于StagehandXPathManager，保持清晰的关注点分离。
  *
  * 增强功能（基于 Manus 模式）：
@@ -53,11 +53,9 @@ const stagehandManager = new StagehandXPathManager();
  * - 实现 LifecycleAware 接口
  * - 生命周期管理
  */
-const mimoEngineManager = new MimoEngineManager({
+const mimoEngineManager = new BionSocketManager({
   busUrl: process.env.PLASMO_PUBLIC_MIMO_BUS_URL || 'http://localhost:6007',
   namespace: '/mimo',
-  clientType: 'extension',
-  heartbeatInterval: 30000,
   autoReconnect: true,
   debug: process.env.NODE_ENV === 'development',
 });

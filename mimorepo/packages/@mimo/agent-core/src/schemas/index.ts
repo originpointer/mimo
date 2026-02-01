@@ -1,2 +1,2 @@
-export * from './SchemaOptimizer';
-export * from './validators';
+export * from './SchemaOptimizer.js';
+export * from './validators.js';

@@ -7,6 +7,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      '@bion/protocol': new URL('../../packages/@bion/protocol/src', import.meta.url).href,
+      '@bion/client': new URL('../../packages/@bion/client/src', import.meta.url).href,
       '@mimo/agent-cache': new URL('../../packages/@mimo/agent-cache/src', import.meta.url).href,
       '@mimo/agent-cache/storage': new URL('../../packages/@mimo/agent-cache/src/storage', import.meta.url).href,
       '@mimo/agent-context': new URL('../../packages/@mimo/agent-context/src', import.meta.url).href,

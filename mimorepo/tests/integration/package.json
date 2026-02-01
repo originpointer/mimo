@@ -8,6 +8,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@bion/client": "workspace:*",
+    "@bion/protocol": "workspace:*",
     "@mimo/agent-cache": "workspace:*",
     "@mimo/agent-context": "workspace:*",
     "@mimo/agent-core": "workspace:*",

@@ -4,8 +4,6 @@
  * Shared types for message handlers in the background service worker.
  */
 
-import type { HubCommandRequest } from '@mimo/types';
-
 /**
  * All legacy message type constants
  *
@@ -83,14 +81,11 @@ export interface LegacyMessage<TPayload = unknown> {
 }
 
 /**
- * Base message structure for Hub command messages
+ * Discriminated union for all message types.
+ *
+ * NOTE: HubCommandType support is intentionally disabled in bion mode.
  */
-export interface HubCommandMessage extends HubCommandRequest {}
-
-/**
- * Discriminated union for all message types
- */
-export type ExtensionMessage = LegacyMessage | HubCommandMessage;
+export type ExtensionMessage = LegacyMessage;
 
 /**
  * Result type for tab resolution

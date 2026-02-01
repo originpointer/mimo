@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useChat } from "@ai-sdk/react";
 import { Messages } from "./messages";
 import { ChatInput } from "./chat-input";
 import type { ChatMessage } from "@/lib/types";
+import { useBionChat } from "@/lib/hooks/use-bion-chat";
 
 interface ChatProps {
   chatId: string;
@@ -13,10 +13,10 @@ interface ChatProps {
 
 export function Chat({ chatId, initialMessages = [] }: ChatProps) {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status, stop } = useChat<ChatMessage>({
+
+  const { messages, sendMessage, status, stop } = useBionChat({
     id: chatId,
-    messages: initialMessages,
-    generateId: () => crypto.randomUUID(),
+    initialMessages,
   });
 
   const handleSend = () => {

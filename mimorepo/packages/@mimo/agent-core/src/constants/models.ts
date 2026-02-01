@@ -1,4 +1,4 @@
-import { LLMProvider, ModelCapability, ModelPricing } from '../types';
+import { LLMProvider, ModelCapability, ModelPricing } from '../types/index.js';
 
 /**
  * 模型配置映射

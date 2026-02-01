@@ -1,6 +1,6 @@
 // 导出所有接口
-export * from './ILLMClient';
-export * from './IToolRegistry';
-export * from './ICacheProvider';
-export * from './IAgent';
-export * from './IMessageBus';
+export * from './ILLMClient.js';
+export * from './IToolRegistry.js';
+export * from './ICacheProvider.js';
+export * from './IAgent.js';
+export * from './IMessageBus.js';

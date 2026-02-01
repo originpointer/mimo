@@ -1,103 +1,125 @@
 /**
- * MimoEngine Manager
+ * Bion Socket Manager (Plugin)
  *
- * Manages MimoEngine Socket.IO connection lifecycle.
- * This class handles:
- * - Socket.IO connection to MimoBus
- * - Connection event handling
- * - Auto-reconnection with exponential backoff (based on Manus pattern)
- * - Engine lifecycle
- *
- * Based on Manus Chrome Extension v0.0.47 design patterns
- * Reference: .reverse/manus-reverse/sources/0.0.47_0/background.ts.js
+ * This replaces the old `@mimo/engine` based connection layer.
+ * The plugin connects directly to the backend Socket.IO server and speaks
+ * Manus-style events (`my_browser_extension_message`) using `@bion/protocol`.
  */
 
-import { createMimoEngine, type MimoEngine, BusEvent } from '@mimo/engine';
-import type { MimoEngineConfig } from '@mimo/types';
+import { createBionPluginClient, type BionPluginClient } from '@bion/client';
+import type { BionActivateExtensionMessage, BionBrowserActionMessage, BionBrowserActionResult } from '@bion/protocol';
 import type { LifecycleAware } from './lifecycle-manager';
 
-/**
- * MimoEngine Manager
- *
- * Manages the Socket.IO connection to MimoBus server.
- * Separated from StagehandXPathManager to maintain clear separation of concerns.
- *
- * Implements LifecycleAware for proper Service Worker lifecycle management.
- */
-export class MimoEngineManager implements LifecycleAware {
-  private engine: MimoEngine | null = null;
-  private config: Required<MimoEngineConfig>;
+export interface BionSocketConfig {
+  busUrl?: string;
+  namespace?: string;
+  autoReconnect?: boolean;
+  reconnectInterval?: number;
+  debug?: boolean;
+}
 
-  // Auto-reconnect state
+async function getOrCreateClientId(): Promise<string> {
+  const key = 'bionClientId';
+  const existing = await chrome.storage.local.get(key);
+  if (typeof existing?.[key] === 'string' && existing[key].length > 0) return existing[key];
+
+  const id = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  await chrome.storage.local.set({ [key]: id });
+  return id;
+}
+
+export class BionSocketManager implements LifecycleAware {
+  private client: BionPluginClient | null = null;
+  private config: Required<BionSocketConfig>;
+
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private isManualDisconnect = false;
-  private readonly MAX_RECONNECT_DELAY = 30000;  // 30秒最大重连延迟
+  private readonly MAX_RECONNECT_DELAY = 30000;
 
-  constructor(config: MimoEngineConfig = {}) {
+  constructor(config: BionSocketConfig = {}) {
     this.config = {
       busUrl: config.busUrl ?? 'http://localhost:6007',
       namespace: config.namespace ?? '/mimo',
-      clientType: config.clientType ?? 'extension',
-      tabId: config.tabId ?? '',
       autoReconnect: config.autoReconnect ?? true,
       reconnectInterval: config.reconnectInterval ?? 1000,
-      heartbeatInterval: config.heartbeatInterval ?? 30000,
       debug: config.debug ?? false,
     };
 
-    console.log('[MimoEngineManager] Initialized with config:', {
+    console.log('[BionSocketManager] Initialized with config:', {
       busUrl: this.config.busUrl,
       namespace: this.config.namespace,
-      clientType: this.config.clientType,
     });
   }
 
   /**
-   * Connect to the MimoBus server
-   *
-   * Creates a MimoEngine instance and establishes the Socket.IO connection.
-   * Implements auto-reconnect with exponential backoff on failure.
+   * Connect to the backend Socket.IO server and register handlers.
    */
   async connect(): Promise<void> {
-    if (this.engine?.isConnected()) {
-      console.log('[MimoEngineManager] Already connected');
+    if (this.client?.socket.connected) {
+      console.log('[BionSocketManager] Already connected');
       return;
     }
 
-    console.log('[MimoEngineManager] Connecting to MimoBus...');
+    console.log('[BionSocketManager] Connecting...');
 
     try {
-      // Reset manual disconnect flag
       this.isManualDisconnect = false;
 
-      // Create engine instance
-      this.engine = createMimoEngine({
-        busUrl: this.config.busUrl,
+      const clientId = await getOrCreateClientId();
+
+      this.client = createBionPluginClient({
+        url: this.config.busUrl,
         namespace: this.config.namespace,
-        clientType: this.config.clientType,
-        tabId: this.config.tabId,
-        autoReconnect: this.config.autoReconnect,
-        reconnectInterval: this.config.reconnectInterval,
-        heartbeatInterval: this.config.heartbeatInterval,
-        debug: this.config.debug,
+        autoConnect: false,
+        auth: { clientType: 'extension' },
       });
 
-      // Setup event listeners
-      this.setupEventListeners();
+      // On connect: announce plugin activation (Manus-style)
+      this.client.socket.on('connect', () => {
+        this.reconnectAttempts = 0;
+        const activate: BionActivateExtensionMessage = {
+          type: 'activate_extension',
+          id: `${Date.now()}`,
+          clientId,
+          ua: navigator.userAgent,
+          version: chrome.runtime.getManifest().version,
+          browserName: 'Bion',
+          allowOtherClient: true,
+          skipAuthorization: true,
+        };
+        this.client?.emit(activate);
+        if (this.config.debug) console.log('[BionSocketManager] activate_extension sent', activate);
+      });
 
-      // Connect to the bus
-      await this.engine.connect();
+      this.client.socket.on('disconnect', (reason) => {
+        if (this.config.debug) console.log('[BionSocketManager] disconnected', reason);
+        if (!this.isManualDisconnect && this.config.autoReconnect) this.scheduleReconnect();
+      });
 
-      console.log('[MimoEngineManager] Connected successfully');
+      this.client.socket.on('connect_error', (err) => {
+        if (this.config.debug) console.warn('[BionSocketManager] connect_error', err);
+        if (!this.isManualDisconnect && this.config.autoReconnect) this.scheduleReconnect();
+      });
+
+      // Handle browser_action commands (ack required)
+      this.client.onBrowserAction(async (msg: BionBrowserActionMessage): Promise<BionBrowserActionResult> => {
+        // TODO: implement real CDP execution; for now, return a typed error.
+        return {
+          sessionId: msg.sessionId,
+          clientId: msg.clientId,
+          actionId: msg.id,
+          status: 'error',
+          error: 'browser_action not implemented in bion plugin yet',
+        };
+      });
+
+      await this.client.connect();
+      console.log('[BionSocketManager] Connected successfully');
     } catch (error) {
-      console.error('[MimoEngineManager] Connection failed:', error);
-      this.engine = null;
-
-      // Schedule reconnect if not manual disconnect
-      if (!this.isManualDisconnect) {
-        this.scheduleReconnect();
-      }
+      console.error('[BionSocketManager] Connection failed:', error);
+      this.client = null;
+      if (!this.isManualDisconnect && this.config.autoReconnect) this.scheduleReconnect();
 
       throw error;
     }
@@ -113,7 +135,7 @@ export class MimoEngineManager implements LifecycleAware {
    */
   private scheduleReconnect(): void {
     // Don't schedule if already scheduled or manual disconnect
-    if (this.reconnectTimer || this.isManualDisconnect) {
+    if (this.reconnectTimer || this.isManualDisconnect || !this.config.autoReconnect) {
       return;
     }
 
@@ -123,7 +145,7 @@ export class MimoEngineManager implements LifecycleAware {
       this.MAX_RECONNECT_DELAY
     );
 
-    console.info('[MimoEngineManager] Scheduling reconnect', {
+    console.info('[BionSocketManager] Scheduling reconnect', {
       attempt: this.reconnectAttempts + 1,
       delay: `${Math.round(delay)}ms`
     });
@@ -136,7 +158,7 @@ export class MimoEngineManager implements LifecycleAware {
         await this.connect();
       } catch (error) {
         // connect() already schedules next reconnect
-        console.warn('[MimoEngineManager] Reconnect attempt failed');
+        console.warn('[BionSocketManager] Reconnect attempt failed');
       }
     }, delay);
   }
@@ -159,19 +181,19 @@ export class MimoEngineManager implements LifecycleAware {
     // Reset reconnect attempts
     this.reconnectAttempts = 0;
 
-    if (!this.engine) {
-      console.log('[MimoEngineManager] No engine to disconnect');
+    if (!this.client) {
+      console.log('[BionSocketManager] No client to disconnect');
       return;
     }
 
-    console.log('[MimoEngineManager] Disconnecting...');
+    console.log('[BionSocketManager] Disconnecting...');
 
     try {
-      await this.engine.disconnect();
-      this.engine = null;
-      console.log('[MimoEngineManager] Disconnected successfully');
+      this.client.disconnect();
+      this.client = null;
+      console.log('[BionSocketManager] Disconnected successfully');
     } catch (error) {
-      console.error('[MimoEngineManager] Disconnect failed:', error);
+      console.error('[BionSocketManager] Disconnect failed:', error);
       throw error;
     }
   }
@@ -180,40 +202,37 @@ export class MimoEngineManager implements LifecycleAware {
    * Check if connected to MimoBus
    */
   isConnected(): boolean {
-    return this.engine?.isConnected() ?? false;
-  }
-
-  /**
-   * Get the MimoEngine instance
-   *
-   * Returns null if not connected.
-   */
-  getEngine(): MimoEngine | null {
-    return this.engine;
+    return this.client?.socket.connected ?? false;
   }
 
   /**
    * Get connection status
    */
   getConnectionStatus() {
-    if (!this.engine) {
+    if (!this.client) {
       return {
         socketId: '',
         state: 'disconnected' as const,
         lastHeartbeat: 0,
-        heartbeatInterval: this.config.heartbeatInterval,
+        heartbeatInterval: 30000,
         quality: 0,
       };
     }
 
-    return this.engine.getConnectionStatus();
+    return {
+      socketId: this.client.socket.id ?? '',
+      state: this.client.socket.connected ? ('connected' as const) : ('disconnected' as const),
+      lastHeartbeat: Date.now(),
+      heartbeatInterval: 30000,
+      quality: 1,
+    };
   }
 
   /**
    * Get engine statistics
    */
   getStats() {
-    if (!this.engine) {
+    if (!this.client) {
       return {
         messagesSent: 0,
         messagesReceived: 0,
@@ -222,59 +241,12 @@ export class MimoEngineManager implements LifecycleAware {
       };
     }
 
-    return this.engine.getStats();
-  }
-
-  /**
-   * Setup event listeners for the engine
-   */
-  private setupEventListeners(): void {
-    if (!this.engine) {
-      return;
-    }
-
-    // Connected event
-    this.engine.on(BusEvent.Connected, () => {
-      console.log('[MimoEngineManager] Connected to MimoBus');
-      // Reset reconnect attempts on successful connection
-      this.reconnectAttempts = 0;
-    });
-
-    // Disconnected event
-    this.engine.on(BusEvent.Disconnected, ({ reason }) => {
-      console.log('[MimoEngineManager] Disconnected from MimoBus:', reason);
-
-      // Schedule reconnect if not manual disconnect
-      if (!this.isManualDisconnect) {
-        this.scheduleReconnect();
-      }
-    });
-
-    // Error event
-    this.engine.on(BusEvent.Error, ({ error }) => {
-      console.error('[MimoEngineManager] Error:', error);
-
-      // Schedule reconnect if not manual disconnect
-      if (!this.isManualDisconnect) {
-        this.scheduleReconnect();
-      }
-    });
-
-    // Command sent event
-    this.engine.on(BusEvent.CommandSent, ({ command }) => {
-      if (this.config.debug) {
-        console.log('[MimoEngineManager] Command sent:', command.id, command.type);
-      }
-    });
-
-    // Command result event
-    this.engine.on(BusEvent.CommandResult, ({ id, response }) => {
-      if (this.config.debug) {
-        console.log('[MimoEngineManager] Command result:', id, response.success);
-      }
-    });
-
-    console.log('[MimoEngineManager] Event listeners setup complete');
+    return {
+      messagesSent: 0,
+      messagesReceived: 0,
+      commandsExecuted: 0,
+      uptime: 0,
+    };
   }
 
   /**
@@ -284,7 +256,7 @@ export class MimoEngineManager implements LifecycleAware {
    * Called when Service Worker is about to be suspended.
    */
   stop(): void {
-    console.info('[MimoEngineManager] Stopping engine');
+    console.info('[BionSocketManager] Stopping');
 
     // Cancel any pending reconnect
     if (this.reconnectTimer) {
@@ -292,11 +264,9 @@ export class MimoEngineManager implements LifecycleAware {
       this.reconnectTimer = null;
     }
 
-    // Disconnect the engine
-    if (this.engine) {
-      this.engine.disconnect();
-      this.engine.removeAllListeners();
-      this.engine = null;
+    if (this.client) {
+      this.client.disconnect();
+      this.client = null;
     }
   }
 
@@ -306,7 +276,7 @@ export class MimoEngineManager implements LifecycleAware {
    * Call this when the extension is being unloaded.
    */
   async destroy(): Promise<void> {
-    console.log('[MimoEngineManager] Destroying manager');
+    console.log('[BionSocketManager] Destroying manager');
     this.stop();
   }
 
@@ -317,11 +287,10 @@ export class MimoEngineManager implements LifecycleAware {
    * This helps maintain Service Worker activity.
    */
   async sendHeartbeat(): Promise<void> {
-    if (this.engine?.isConnected()) {
-      // MimoEngine internal heartbeat is handled automatically
-      // This method is called by KeepAliveManager to ensure activity
-      // The actual heartbeat is sent by MimoEngine's internal timer
-      console.debug('[MimoEngineManager] Heartbeat check - connection active');
+    // Socket.IO maintains its own ping/pong; KeepAliveManager can call this
+    // to force activity, but we don't need to emit anything here.
+    if (this.client?.socket.connected) {
+      console.debug('[BionSocketManager] Heartbeat check - connection active');
     }
   }
 }

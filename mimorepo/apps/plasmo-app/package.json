@@ -10,7 +10,8 @@
     "package": "plasmo package"
   },
   "dependencies": {
-    "@mimo/engine": "workspace:*",
+    "@bion/client": "workspace:*",
+    "@bion/protocol": "workspace:*",
     "@repo/sens": "workspace:*",
     "plasmo": "0.90.5",
     "react": "18.2.0",
