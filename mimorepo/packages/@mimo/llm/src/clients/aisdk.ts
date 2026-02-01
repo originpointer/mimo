@@ -16,18 +16,33 @@ import type { StagehandZodSchema, InferStagehandSchema } from '@mimo/types';
 
 export class AISdkClient extends LLMClient {
   private aiModel: any;
-  private providerType: LLMProviderType;
+  protected providerType: LLMProviderType;
+  private initializationPromise: Promise<void> | null = null;
+  private modelName: string;
+  protected options?: { apiKey?: string; baseURL?: string };
 
   constructor(model: string, options?: { apiKey?: string; baseURL?: string }) {
     super(model, options);
 
     const parts = model.split('/');
     const provider = parts[0] || 'openai';
-    const modelName = parts.slice(1).join('/') || model;
+    this.modelName = parts.slice(1).join('/') || model;
     this.providerType = provider as LLMProviderType;
+    this.options = options;
 
-    // Dynamically import AI SDK modules to avoid build issues
-    this.initializeAIModel(provider, modelName, options);
+    // Don't initialize immediately - use lazy initialization
+    // to avoid unhandled promise rejections in tests
+  }
+
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initializationPromise) {
+      this.initializationPromise = this.initializeAIModel(
+        this.providerType,
+        this.modelName,
+        this.options
+      );
+    }
+    return this.initializationPromise;
   }
 
   get provider(): LLMProvider {
@@ -59,6 +74,8 @@ export class AISdkClient extends LLMClient {
     messages: ChatMessage[],
     options?: any
   ): Promise<LLMResponse> {
+    await this.ensureInitialized();
+
     // Import at runtime to avoid bundling issues
     const { generateText } = await import('ai');
 
@@ -66,14 +83,14 @@ export class AISdkClient extends LLMClient {
       model: this.aiModel,
       messages: this.formatMessages(messages),
       temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
+      maxOutputTokens: options?.maxTokens,
     });
 
     return {
       content: result.text,
       usage: {
-        inputTokens: result.usage.promptTokens,
-        outputTokens: result.usage.completionTokens,
+        inputTokens: result.usage.inputTokens ?? 0,
+        outputTokens: result.usage.outputTokens ?? 0,
       },
       model: this.model,
     };
@@ -83,6 +100,8 @@ export class AISdkClient extends LLMClient {
     messages: ChatMessage[],
     options?: any
   ): AsyncGenerator<LLMStreamChunk> {
+    await this.ensureInitialized();
+
     // Import at runtime to avoid bundling issues
     const { streamText } = await import('ai');
 
@@ -90,7 +109,7 @@ export class AISdkClient extends LLMClient {
       model: this.aiModel,
       messages: this.formatMessages(messages),
       temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
+      maxOutputTokens: options?.maxTokens,
     });
 
     for await (const chunk of result.textStream) {
@@ -104,8 +123,8 @@ export class AISdkClient extends LLMClient {
     yield {
       content: '',
       usage: {
-        inputTokens: usage.promptTokens,
-        outputTokens: usage.completionTokens,
+        inputTokens: usage.inputTokens ?? 0,
+        outputTokens: usage.outputTokens ?? 0,
       },
     };
   }
@@ -114,16 +133,18 @@ export class AISdkClient extends LLMClient {
     messages: ChatMessage[],
     schema: StagehandZodSchema<T>
   ): Promise<InferStagehandSchema<T>> {
+    await this.ensureInitialized();
+
     // Import at runtime to avoid bundling issues
     const { generateObject } = await import('ai');
 
     const result = await generateObject({
       model: this.aiModel,
       messages: this.formatMessages(messages),
-      schema: schema,
+      schema: schema as any, // StagehandZodSchema is compatible with ZodType
     });
 
-    return result.object;
+    return result.object as InferStagehandSchema<T>;
   }
 
   private async initializeAIModel(
@@ -150,8 +171,14 @@ export class AISdkClient extends LLMClient {
         this.aiModel = google(modelName);
         break;
       }
-      default:
-        throw new Error(`Unsupported provider for AI SDK: ${provider}`);
+      default: {
+        // Default to OpenAI for unknown providers
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        const openai = createOpenAI({ apiKey: options?.apiKey });
+        this.aiModel = openai(provider + '/' + modelName);
+        this.providerType = 'openai';
+        break;
+      }
     }
   }
 

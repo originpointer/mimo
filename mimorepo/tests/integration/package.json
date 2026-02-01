@@ -8,6 +8,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@mimo/agent-cache": "workspace:*",
     "@mimo/agent-core": "workspace:*",
     "@mimo/agent-tools": "workspace:*",
     "@mimo/llm": "workspace:*",

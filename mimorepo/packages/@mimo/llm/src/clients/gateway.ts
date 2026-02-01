@@ -66,15 +66,13 @@ export class AIGatewayClient extends LLMClient {
       model: aiModel,
       messages: this.formatMessages(messages),
       temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
-      // Enable experimental usage tracking
-      experimental_includeUsage: true,
+      maxOutputTokens: options?.maxTokens,
     });
 
-    // Extract usage with fallbacks for different SDK versions
-    const usage = result.usage || {};
-    const inputTokens = usage.promptTokens || usage.inputTokens || 0;
-    const outputTokens = usage.completionTokens || usage.outputTokens || 0;
+    // Extract usage from AI SDK result
+    const usage = result.usage;
+    const inputTokens = usage?.inputTokens ?? 0;
+    const outputTokens = usage?.outputTokens ?? 0;
 
     return {
       content: result.text,
@@ -100,9 +98,7 @@ export class AIGatewayClient extends LLMClient {
       model: aiModel,
       messages: this.formatMessages(messages),
       temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
-      // Enable experimental usage tracking
-      experimental_includeUsage: true,
+      maxOutputTokens: options?.maxTokens,
     });
 
     for await (const chunk of result.textStream) {
@@ -113,10 +109,9 @@ export class AIGatewayClient extends LLMClient {
     }
 
     const usage = await result.usage;
-    // Extract usage with fallbacks for different SDK versions
-    const usageData = usage || {};
-    const inputTokens = usageData.promptTokens || usageData.inputTokens || 0;
-    const outputTokens = usageData.completionTokens || usageData.outputTokens || 0;
+    // Extract usage from AI SDK result
+    const inputTokens = usage?.inputTokens ?? 0;
+    const outputTokens = usage?.outputTokens ?? 0;
 
     yield {
       content: '',

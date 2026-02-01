@@ -29,6 +29,7 @@ describe('IToolRegistry Interface Contract', () => {
     parameters: z.object({}),
     execute: async () => ({ result: 'ok' }),
     tags,
+    group,
   });
 
   describe('required methods', () => {
@@ -188,8 +189,8 @@ describe('IToolRegistry Interface Contract', () => {
 
   describe('getGroup method', () => {
     it('should return tools in group', () => {
-      const tool1 = createMockTool('tool1', [ToolTag.FILE_READ]);
-      const tool2 = createMockTool('tool2', [ToolTag.FILE_WRITE]);
+      const tool1 = createMockTool('tool1', [ToolTag.FILE_READ], 'group:file');
+      const tool2 = createMockTool('tool2', [ToolTag.FILE_WRITE], 'group:file');
       const tool3 = createMockTool('tool3', [ToolTag.WEB_SEARCH]);
 
       registry.registerBatch([tool1, tool2, tool3]);

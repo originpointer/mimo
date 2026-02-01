@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { MimoBus } from '@mimo/bus';
 import type { LLMProvider } from '@mimo/llm';
 import { HubCommandType } from '@mimo/types';
+import { MessageRole } from '@mimo/agent-core';
 import type {
   AgentConfig,
   AgentExecuteOptions,
@@ -16,6 +17,13 @@ import type {
   AgentUsage,
   AgentStreamEvent,
 } from '@mimo/types';
+import type { ModelConfiguration } from '@mimo/types';
+
+interface AgentObservePayload {
+  pageUrl?: string;
+  pageText?: string;
+  actions?: unknown;
+}
 
 /**
  * MimoAgent errors
@@ -54,6 +62,8 @@ export class MimoAgentExecutionError extends MimoAgentError {
 export class MimoAgent {
   private model: string;
   private executionModel: string;
+  private modelClientOptions?: { apiKey?: string; baseURL?: string };
+  private executionModelClientOptions?: { apiKey?: string; baseURL?: string };
   private systemPrompt: string;
   private mode: 'dom' | 'hybrid' | 'cua';
   private cua: boolean;
@@ -65,10 +75,15 @@ export class MimoAgent {
     config: AgentConfig = {}
   ) {
     // Parse model configuration
-    this.model = this.parseModel(config.model ?? 'openai/gpt-4.1-mini');
-    this.executionModel = config.executionModel
+    const modelConfig = this.parseModel(config.model ?? 'openai/gpt-4.1-mini');
+    this.model = modelConfig.model;
+    this.modelClientOptions = modelConfig.options;
+
+    const executionModelConfig = config.executionModel
       ? this.parseModel(config.executionModel)
-      : this.model;
+      : modelConfig;
+    this.executionModel = executionModelConfig.model;
+    this.executionModelClientOptions = executionModelConfig.options;
 
     this.systemPrompt = config.systemPrompt ?? this.getDefaultSystemPrompt();
     this.mode = config.mode ?? 'dom';
@@ -85,13 +100,15 @@ export class MimoAgent {
     let totalUsage: AgentUsage = {
       inputTokens: 0,
       outputTokens: 0,
+      reasoningTokens: 0,
+      cachedInputTokens: 0,
       inferenceTimeMs: 0,
     };
 
     try {
       for (let step = 0; step < maxSteps; step++) {
         // Observe current page state
-        const observeResponse = await this.bus.send({
+        const observeResponse = await this.bus.send<AgentObservePayload>({
           id: uuidv4(),
           type: HubCommandType.AgentObserve,
           payload: {
@@ -110,14 +127,19 @@ export class MimoAgent {
         }
 
         // Use LLM to decide next action
-        const llmClient = this.llmProvider.getClient(this.executionModel);
+        const llmClient = this.llmProvider.getClient(
+          this.executionModel,
+          this.executionModelClientOptions
+        );
         const startTime = Date.now();
 
-        const decision = await llmClient.chatCompletion([
-          { role: 'system', content: this.systemPrompt },
-          {
-            role: 'user',
-            content: `
+        const decision = await llmClient.complete({
+          model: this.executionModel,
+          messages: [
+            { role: MessageRole.SYSTEM, content: this.systemPrompt },
+            {
+              role: MessageRole.USER,
+              content: `
 Task: ${options.instruction}
 Current page: ${observeResponse.data?.pageUrl}
 Page content: ${observeResponse.data?.pageText}
@@ -134,9 +156,10 @@ Example response:
   "reasoning": "The user needs to log in first, so I'll click the login button",
   "taskCompleted": false
 }
-            `.trim(),
-          },
-        ]);
+              `.trim(),
+            },
+          ],
+        });
 
         const inferenceTime = Date.now() - startTime;
 
@@ -167,8 +190,13 @@ Example response:
         actions.push(agentAction);
 
         // Update usage
-        totalUsage.inputTokens += decision.usage.inputTokens;
-        totalUsage.outputTokens += decision.usage.outputTokens;
+        totalUsage.inputTokens += decision.usage.promptTokens;
+        totalUsage.outputTokens += decision.usage.completionTokens;
+        totalUsage.reasoningTokens =
+          (totalUsage.reasoningTokens ?? 0) + (decision.usage.reasoningTokens ?? 0);
+        totalUsage.cachedInputTokens =
+          (totalUsage.cachedInputTokens ?? 0) +
+          ((decision.usage.cachedReadTokens ?? 0) + (decision.usage.cachedCreationTokens ?? 0));
         totalUsage.inferenceTimeMs += inferenceTime;
 
         // Check if task completed
@@ -254,8 +282,10 @@ Example response:
   /**
    * Set model
    */
-  withModel(model: string): this {
-    this.model = model;
+  withModel(model: ModelConfiguration): this {
+    const parsed = this.parseModel(model);
+    this.model = parsed.model;
+    this.modelClientOptions = parsed.options;
     return this;
   }
 
@@ -270,11 +300,20 @@ Example response:
   /**
    * Parse model configuration
    */
-  private parseModel(model: string): string {
+  private parseModel(model: ModelConfiguration): {
+    model: string;
+    options?: { apiKey?: string; baseURL?: string };
+  } {
     if (typeof model === 'string') {
-      return model;
+      return { model, options: undefined };
     }
-    return (model as any).modelName;
+    return {
+      model: model.modelName,
+      options: {
+        apiKey: model.apiKey,
+        baseURL: model.baseURL,
+      },
+    };
   }
 
   /**

@@ -4,21 +4,18 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { z } from 'zod';
 import {
   AISdkClient,
   OpenAIClient,
   AnthropicClient,
   AIGatewayClient,
-} from '../../src/provider.js';
+} from '../../../src/provider.js';
 import type {
   ILLMClient,
-  LLMProvider,
-  ModelCapability,
   ChatCompletionOptions,
-  ChatCompletionResponse,
   BaseMessage,
 } from '@mimo/agent-core';
+import { LLMProvider, MessageRole } from '@mimo/agent-core';
 
 describe('ILLMClient Interface Compliance', () => {
   describe('AISdkClient', () => {
@@ -46,8 +43,10 @@ describe('ILLMClient Interface Compliance', () => {
       it('should implement complete() method that accepts ChatCompletionOptions', async () => {
         const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
         const options: ChatCompletionOptions = {
-          messages: [{ role: 'user', content: 'test' }],
+          model: client.model,
+          messages: [{ role: MessageRole.USER, content: 'test' }],
         };
+        void options;
 
         // Should not throw - method signature is correct
         expect(typeof client.complete).toBe('function');
@@ -56,7 +55,8 @@ describe('ILLMClient Interface Compliance', () => {
       it('should return Promise<ChatCompletionResponse>', async () => {
         const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
         const options: ChatCompletionOptions = {
-          messages: [{ role: 'user', content: 'test' }],
+          model: client.model,
+          messages: [{ role: MessageRole.USER, content: 'test' }],
         };
 
         // Verify return type is Promise (actual API call will fail without valid key)
@@ -67,11 +67,11 @@ describe('ILLMClient Interface Compliance', () => {
       it('should convert BaseMessage to ChatMessage internally', async () => {
         const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
         const messages: BaseMessage[] = [
-          { role: 'user', content: 'Hello' },
+          { role: MessageRole.USER, content: 'Hello' },
         ];
 
         // Should handle BaseMessage from agent-core
-        const options: ChatCompletionOptions = { messages };
+        const options: ChatCompletionOptions = { model: client.model, messages };
         expect(() => client.complete(options)).not.toThrow();
       });
     });
@@ -80,8 +80,10 @@ describe('ILLMClient Interface Compliance', () => {
       it('should implement stream() method that accepts ChatCompletionOptions', () => {
         const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
         const options: ChatCompletionOptions = {
-          messages: [{ role: 'user', content: 'test' }],
+          model: client.model,
+          messages: [{ role: MessageRole.USER, content: 'test' }],
         };
+        void options;
 
         expect(typeof client.stream).toBe('function');
       });
@@ -89,20 +91,21 @@ describe('ILLMClient Interface Compliance', () => {
       it('should return AsyncIterable<ChatCompletionResponse>', () => {
         const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
         const options: ChatCompletionOptions = {
-          messages: [{ role: 'user', content: 'test' }],
+          model: client.model,
+          messages: [{ role: MessageRole.USER, content: 'test' }],
         };
 
         const asyncIterable = client.stream(options);
-        expect(asyncIterable).toHaveProperty('Symbol.asyncIterator');
+        expect(typeof asyncIterable[Symbol.asyncIterator]).toBe('function');
       });
 
       it('should convert BaseMessage to ChatMessage internally', () => {
         const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
         const messages: BaseMessage[] = [
-          { role: 'user', content: 'Hello' },
+          { role: MessageRole.USER, content: 'Hello' },
         ];
 
-        const options: ChatCompletionOptions = { messages };
+        const options: ChatCompletionOptions = { model: client.model, messages };
         expect(() => client.stream(options)).not.toThrow();
       });
     });
@@ -186,10 +189,10 @@ describe('ILLMClient Interface Compliance', () => {
       it('should accept BaseMessage[] and convert to ChatMessage[]', () => {
         const client = new OpenAIClient('gpt-4o', { apiKey: 'test-key' });
         const messages: BaseMessage[] = [
-          { role: 'user', content: 'Hello' },
+          { role: MessageRole.USER, content: 'Hello' },
         ];
 
-        const options: ChatCompletionOptions = { messages };
+        const options: ChatCompletionOptions = { model: client.model, messages };
         expect(() => client.complete(options)).not.toThrow();
       });
     });
@@ -203,10 +206,10 @@ describe('ILLMClient Interface Compliance', () => {
       it('should accept BaseMessage[] and convert to ChatMessage[]', () => {
         const client = new OpenAIClient('gpt-4o', { apiKey: 'test-key' });
         const messages: BaseMessage[] = [
-          { role: 'user', content: 'Hello' },
+          { role: MessageRole.USER, content: 'Hello' },
         ];
 
-        const options: ChatCompletionOptions = { messages };
+        const options: ChatCompletionOptions = { model: client.model, messages };
         expect(() => client.stream(options)).not.toThrow();
       });
     });
@@ -269,10 +272,10 @@ describe('ILLMClient Interface Compliance', () => {
       it('should accept BaseMessage[] and convert to ChatMessage[]', () => {
         const client = new AnthropicClient('claude-3-5-sonnet', { apiKey: 'test-key' });
         const messages: BaseMessage[] = [
-          { role: 'user', content: 'Hello' },
+          { role: MessageRole.USER, content: 'Hello' },
         ];
 
-        const options: ChatCompletionOptions = { messages };
+        const options: ChatCompletionOptions = { model: client.model, messages };
         expect(() => client.complete(options)).not.toThrow();
       });
     });
@@ -337,10 +340,10 @@ describe('ILLMClient Interface Compliance', () => {
       it('should accept BaseMessage[] and convert to ChatMessage[]', () => {
         const client = new AIGatewayClient('openai/gpt-4o');
         const messages: BaseMessage[] = [
-          { role: 'user', content: 'Hello' },
+          { role: MessageRole.USER, content: 'Hello' },
         ];
 
-        const options: ChatCompletionOptions = { messages };
+        const options: ChatCompletionOptions = { model: client.model, messages };
         expect(() => client.complete(options)).not.toThrow();
       });
     });

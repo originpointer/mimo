@@ -15,3 +15,9 @@ export * from './contexts.js';
 
 // Assertion fixtures
 export * from './assertions.js';
+
+// Cache fixtures (Stage04)
+export * from './cache.js';
+export * from './http-server.js';
+export * from './page.js';
+export * from './token.js';

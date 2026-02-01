@@ -20,6 +20,7 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
+    "@mimo/agent-core": "workspace:*",
     "@mimo/types": "workspace:*",
     "@mimo/bus": "workspace:*",
     "@mimo/llm": "workspace:*",

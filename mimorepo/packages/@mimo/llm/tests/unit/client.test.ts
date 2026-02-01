@@ -353,6 +353,7 @@ describe('LLMClient Base Class', () => {
 
       expect(normalized.inputTokens).toBe(100);
       expect(normalized.outputTokens).toBe(50);
+      expect(normalized.cachedReadTokens).toBe(25);
       expect(normalized.cachedInputTokens).toBe(25);
     });
 

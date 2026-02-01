@@ -68,6 +68,8 @@ export interface StreamUsage {
   inputTokens: number;
   outputTokens: number;
   reasoningTokens?: number;
+  cachedReadTokens?: number;
+  cachedCreationTokens?: number;
   cachedInputTokens?: number;
 }
 

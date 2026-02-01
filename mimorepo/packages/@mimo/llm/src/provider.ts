@@ -3,7 +3,7 @@
  */
 
 // Note: LLMProvider is an enum (runtime value), not just a type
-import { LLMProvider as CoreLLMProvider, type ModelCapability } from '@mimo/agent-core';
+import { LLMProvider as CoreLLMProvider, type ModelCapability, type ILLMClient } from '@mimo/agent-core';
 import type { ClientOptions } from '@mimo/types';
 import { LLMClient } from './client.js';
 import { AISdkClient } from './clients/aisdk.js';

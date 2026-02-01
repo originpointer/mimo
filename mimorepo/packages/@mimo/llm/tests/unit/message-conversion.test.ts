@@ -5,14 +5,14 @@
 
 import { describe, it, expect } from 'vitest';
 import { AISdkClient, OpenAIClient, AnthropicClient, AIGatewayClient } from '../../src/provider.js';
-import type { BaseMessage } from '@mimo/agent-core';
+import { MessageRole, type BaseMessage } from '@mimo/agent-core';
 import type { ChatMessage } from '@mimo/types';
 
 describe('Message Format Conversion', () => {
   describe('BaseMessage → ChatMessage conversion', () => {
     it('should convert simple text content from BaseMessage to ChatMessage', () => {
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: 'Hello, how are you?',
       };
 
@@ -23,13 +23,13 @@ describe('Message Format Conversion', () => {
       };
 
       // Verify structure compatibility
-      expect(baseMessage.role).toBe(expected.role);
+      expect(baseMessage.role).toBe(MessageRole.USER);
       expect(baseMessage.content).toBe(expected.content);
     });
 
     it('should handle MessageContent array from BaseMessage', () => {
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: [
           { type: 'text', value: 'Hello' },
           { type: 'text', value: ' World' },
@@ -45,7 +45,11 @@ describe('Message Format Conversion', () => {
     });
 
     it('should handle message roles correctly', () => {
-      const roles: Array<BaseMessage['role']> = ['system', 'user', 'assistant'];
+      const roles: Array<BaseMessage['role']> = [
+        MessageRole.SYSTEM,
+        MessageRole.USER,
+        MessageRole.ASSISTANT,
+      ];
 
       roles.forEach(role => {
         const baseMessage: BaseMessage = {
@@ -58,7 +62,7 @@ describe('Message Format Conversion', () => {
 
     it('should preserve content structure through conversion', () => {
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: 'Structured content here',
       };
 
@@ -71,46 +75,46 @@ describe('Message Format Conversion', () => {
     it('should convert BaseMessage[] to ChatMessage[] in complete() - AISdkClient', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        { role: 'user', content: 'Hello!' },
+        { role: MessageRole.SYSTEM, content: 'You are a helpful assistant.' },
+        { role: MessageRole.USER, content: 'Hello!' },
       ];
 
       // complete() should accept BaseMessage[] from agent-core
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
 
     it('should convert BaseMessage[] to ChatMessage[] in complete() - OpenAIClient', () => {
       const client = new OpenAIClient('gpt-4o', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Test message' },
+        { role: MessageRole.USER, content: 'Test message' },
       ];
 
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
 
     it('should convert BaseMessage[] to ChatMessage[] in complete() - AnthropicClient', () => {
       const client = new AnthropicClient('claude-3-5-sonnet', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Test message' },
+        { role: MessageRole.USER, content: 'Test message' },
       ];
 
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
 
     it('should convert BaseMessage[] to ChatMessage[] in complete() - AIGatewayClient', () => {
       const client = new AIGatewayClient('openai/gpt-4o');
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Test message' },
+        { role: MessageRole.USER, content: 'Test message' },
       ];
 
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
 
@@ -119,20 +123,20 @@ describe('Message Format Conversion', () => {
       const baseMessages: BaseMessage[] = [];
 
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
 
     it('should handle multi-turn conversations', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi there!' },
-        { role: 'user', content: 'How are you?' },
+        { role: MessageRole.USER, content: 'Hello' },
+        { role: MessageRole.ASSISTANT, content: 'Hi there!' },
+        { role: MessageRole.USER, content: 'How are you?' },
       ];
 
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
   });
@@ -141,11 +145,11 @@ describe('Message Format Conversion', () => {
     it('should convert BaseMessage[] to ChatMessage[] in stream() - AISdkClient', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Stream test' },
+        { role: MessageRole.USER, content: 'Stream test' },
       ];
 
       expect(() => {
-        const stream = client.stream({ messages: baseMessages });
+        const stream = client.stream({ model: client.model, messages: baseMessages });
         expect(typeof stream[Symbol.asyncIterator]).toBe('function');
       }).not.toThrow();
     });
@@ -153,11 +157,11 @@ describe('Message Format Conversion', () => {
     it('should convert BaseMessage[] to ChatMessage[] in stream() - OpenAIClient', () => {
       const client = new OpenAIClient('gpt-4o', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Stream test' },
+        { role: MessageRole.USER, content: 'Stream test' },
       ];
 
       expect(() => {
-        const stream = client.stream({ messages: baseMessages });
+        const stream = client.stream({ model: client.model, messages: baseMessages });
         expect(typeof stream[Symbol.asyncIterator]).toBe('function');
       }).not.toThrow();
     });
@@ -165,11 +169,11 @@ describe('Message Format Conversion', () => {
     it('should convert BaseMessage[] to ChatMessage[] in stream() - AnthropicClient', () => {
       const client = new AnthropicClient('claude-3-5-sonnet', { apiKey: 'test-key' });
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Stream test' },
+        { role: MessageRole.USER, content: 'Stream test' },
       ];
 
       expect(() => {
-        const stream = client.stream({ messages: baseMessages });
+        const stream = client.stream({ model: client.model, messages: baseMessages });
         expect(typeof stream[Symbol.asyncIterator]).toBe('function');
       }).not.toThrow();
     });
@@ -177,11 +181,11 @@ describe('Message Format Conversion', () => {
     it('should convert BaseMessage[] to ChatMessage[] in stream() - AIGatewayClient', () => {
       const client = new AIGatewayClient('openai/gpt-4o');
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Stream test' },
+        { role: MessageRole.USER, content: 'Stream test' },
       ];
 
       expect(() => {
-        const stream = client.stream({ messages: baseMessages });
+        const stream = client.stream({ model: client.model, messages: baseMessages });
         expect(typeof stream[Symbol.asyncIterator]).toBe('function');
       }).not.toThrow();
     });
@@ -239,7 +243,7 @@ describe('Message Format Conversion', () => {
   describe('Image content handling', () => {
     it('should handle BaseMessage with image content', () => {
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: [
           { type: 'text', value: 'What is in this image?' },
           { type: 'image', value: 'https://example.com/image.jpg', metadata: { mimeType: 'image/jpeg' } },
@@ -274,7 +278,7 @@ describe('Message Format Conversion', () => {
 
   describe('Role compatibility', () => {
     it('should handle all MessageRole values from agent-core', () => {
-      const roles: BaseMessage['role'][] = ['system', 'user', 'assistant'];
+      const roles: BaseMessage['role'][] = [MessageRole.SYSTEM, MessageRole.USER, MessageRole.ASSISTANT];
 
       roles.forEach(role => {
         const baseMessage: BaseMessage = { role, content: 'test' };
@@ -290,7 +294,7 @@ describe('Message Format Conversion', () => {
 
       // Empty content should be handled
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: '' },
+        { role: MessageRole.USER, content: '' },
       ];
 
       // Method should exist and accept the parameters (actual API call may fail)
@@ -300,7 +304,7 @@ describe('Message Format Conversion', () => {
     it('should handle very long content', () => {
       const longContent = 'a'.repeat(10000);
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: longContent,
       };
 
@@ -310,7 +314,7 @@ describe('Message Format Conversion', () => {
     it('should handle special characters in content', () => {
       const specialContent = 'Hello 世界 🌍\n\tNew line';
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: specialContent,
       };
 
@@ -322,18 +326,18 @@ describe('Message Format Conversion', () => {
     it('should allow BaseMessage in ILLMClient methods', () => {
       // This test verifies type compatibility
       const baseMessages: BaseMessage[] = [
-        { role: 'user', content: 'Test' },
+        { role: MessageRole.USER, content: 'Test' },
       ];
 
       // These should compile without errors
       expect(baseMessages).toBeDefined();
-      expect(baseMessages[0].role).toBe('user');
+      expect(baseMessages[0].role).toBe(MessageRole.USER);
     });
 
     it('should distinguish BaseMessage from ChatMessage', () => {
       // Verify that the types are different but compatible
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: 'Test',
       };
 

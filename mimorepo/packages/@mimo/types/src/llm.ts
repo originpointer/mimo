@@ -48,6 +48,14 @@ export interface LLMResponse {
     inputTokens: number;
     outputTokens: number;
     reasoningTokens?: number;
+    /** Anthropic prompt caching (read) */
+    cachedReadTokens?: number;
+    /** Anthropic prompt caching (creation/write) */
+    cachedCreationTokens?: number;
+    /**
+     * Back-compat aggregate cached tokens.
+     * Prefer `cachedReadTokens`/`cachedCreationTokens` when available.
+     */
     cachedInputTokens?: number;
   };
   model: string;
@@ -65,6 +73,10 @@ export interface LLMStreamChunk {
   usage?: {
     inputTokens: number;
     outputTokens: number;
+    reasoningTokens?: number;
+    cachedReadTokens?: number;
+    cachedCreationTokens?: number;
+    cachedInputTokens?: number;
   };
 }
 

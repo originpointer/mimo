@@ -113,15 +113,12 @@ describeWithAIGateway('Real LLM Integration', () => {
   });
 
   describe('Error handling', () => {
-    it('should handle empty messages gracefully', async () => {
+    it('should reject empty messages (provider validation)', async () => {
       const client = createLLMClient(testModels.claude);
 
-      const response = await client.chatCompletion([
-        { role: 'user', content: '' },
-      ]);
-
-      // Should still return a response
-      expect(response).toBeDefined();
+      await expect(
+        client.chatCompletion([{ role: 'user', content: '' }])
+      ).rejects.toBeDefined();
     });
   });
 });

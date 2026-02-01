@@ -19,6 +19,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@mimo/agent-cache": ["../../packages/@mimo/agent-cache/src"],
+      "@mimo/agent-cache/storage": ["../../packages/@mimo/agent-cache/src/storage"],
       "@mimo/agent-core": ["../../packages/@mimo/agent-core/src"],
       "@mimo/agent-core/types": ["../../packages/@mimo/agent-core/src/types"],
       "@mimo/agent-core/interfaces": ["../../packages/@mimo/agent-core/src/interfaces"],

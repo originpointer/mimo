@@ -165,7 +165,10 @@ export class TokenTracker {
      */
     async getRecords(filter?: CostFilter): Promise<TokenUsageRecord[]> {
         const allKeys = await this.store.keys();
-        const filteredKeys = allKeys.filter(key => key.startsWith(this.namespace));
+        const statsKey = `${this.namespace}:stats`;
+        const filteredKeys = allKeys.filter(
+            key => key.startsWith(this.namespace) && key !== statsKey
+        );
         const records: TokenUsageRecord[] = [];
 
         for (const key of filteredKeys) {

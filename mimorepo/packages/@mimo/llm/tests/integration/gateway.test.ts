@@ -173,17 +173,25 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
   });
 
   describe('Gateway features', () => {
-    it('should handle multiple providers in same session', async () => {
-      const anthropicClient = provider.getClient('anthropic/claude-3-5-haiku') as AIGatewayClient;
+    it(
+      'should handle multiple providers in same session',
+      async () => {
+        const anthropicClient = provider.getClient(
+          'anthropic/claude-3-5-haiku',
+        ) as AIGatewayClient;
 
-      const openaiClient = provider.getClient('openai/gpt-4o-mini') as AIGatewayClient;
+        const openaiClient = provider.getClient('openai/gpt-4o-mini') as AIGatewayClient;
 
-      const response1 = await anthropicClient.chatCompletion(SIMPLE_TEST_MESSAGE);
-      const response2 = await openaiClient.chatCompletion(SIMPLE_TEST_MESSAGE);
+        const [response1, response2] = await Promise.all([
+          anthropicClient.chatCompletion(SIMPLE_TEST_MESSAGE),
+          openaiClient.chatCompletion(SIMPLE_TEST_MESSAGE),
+        ]);
 
-      expect(response1.content).toBeTruthy();
-      expect(response2.content).toBeTruthy();
-    });
+        expect(response1.content).toBeTruthy();
+        expect(response2.content).toBeTruthy();
+      },
+      20_000,
+    );
 
     it('should track token usage for all providers', async () => {
       const client = provider.getClient('openai/gpt-4o-mini') as AIGatewayClient;

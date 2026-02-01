@@ -113,7 +113,8 @@ export abstract class LLMClient implements ILLMClient {
         promptTokens: response.usage.inputTokens,
         completionTokens: response.usage.outputTokens,
         totalTokens: response.usage.inputTokens + response.usage.outputTokens,
-        cachedReadTokens: response.usage.cachedInputTokens,
+        cachedReadTokens: response.usage.cachedReadTokens ?? response.usage.cachedInputTokens,
+        cachedCreationTokens: response.usage.cachedCreationTokens,
         reasoningTokens: response.usage.reasoningTokens,
       },
       model: response.model,
@@ -146,7 +147,8 @@ export abstract class LLMClient implements ILLMClient {
             promptTokens: event.usage?.inputTokens ?? 0,
             completionTokens: event.usage?.outputTokens ?? 0,
             totalTokens: (event.usage?.inputTokens ?? 0) + (event.usage?.outputTokens ?? 0),
-            cachedReadTokens: event.usage?.cachedInputTokens,
+            cachedReadTokens: event.usage?.cachedReadTokens ?? event.usage?.cachedInputTokens,
+            cachedCreationTokens: event.usage?.cachedCreationTokens,
             reasoningTokens: event.usage?.reasoningTokens,
           },
           model: this._model,
@@ -329,16 +331,42 @@ export abstract class LLMClient implements ILLMClient {
   /**
    * Normalize token usage across providers
    */
-  protected normalizeUsage(usage: any): { inputTokens: number; outputTokens: number; reasoningTokens?: number; cachedInputTokens?: number } {
+  protected normalizeUsage(usage: any): {
+    inputTokens: number;
+    outputTokens: number;
+    reasoningTokens?: number;
+    cachedReadTokens?: number;
+    cachedCreationTokens?: number;
+    cachedInputTokens?: number;
+  } {
     if (!usage) {
       return { inputTokens: 0, outputTokens: 0 };
     }
+
+    const cachedReadTokens =
+      usage.cachedReadTokens ??
+      usage.cache_read_input_tokens ??
+      usage.cache_read_tokens ??
+      undefined;
+
+    const cachedCreationTokens =
+      usage.cachedCreationTokens ??
+      usage.cache_creation_input_tokens ??
+      undefined;
+
+    const cachedInputTokens =
+      usage.cachedInputTokens ??
+      (cachedReadTokens || cachedCreationTokens
+        ? (cachedReadTokens ?? 0) + (cachedCreationTokens ?? 0)
+        : undefined);
 
     return {
       inputTokens: usage.inputTokens || usage.input_tokens || usage.prompt_tokens || usage.promptTokens || 0,
       outputTokens: usage.outputTokens || usage.output_tokens || usage.completion_tokens || usage.completionTokens || 0,
       reasoningTokens: usage.reasoningTokens || usage.reasoning_tokens || usage.completion_tokens_details?.reasoning_tokens,
-      cachedInputTokens: usage.cachedReadTokens || usage.cachedInputTokens || usage.cache_read_input_tokens || usage.cache_read_tokens || usage.cache_creation_input_tokens,
+      cachedReadTokens,
+      cachedCreationTokens,
+      cachedInputTokens,
     };
   }
 

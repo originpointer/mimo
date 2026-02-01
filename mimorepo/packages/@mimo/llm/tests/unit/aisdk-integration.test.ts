@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { AISdkClient } from '../../src/provider.js';
+import { LLMProvider, MessageRole } from '@mimo/agent-core';
 
 describe('AISdkClient Integration', () => {
   describe('Initialization', () => {
@@ -153,11 +154,11 @@ describe('AISdkClient Integration', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
 
       const baseMessages = [
-        { role: 'user', content: 'Hello' },
+        { role: MessageRole.USER, content: 'Hello' },
       ];
 
       expect(() => {
-        client.complete({ messages: baseMessages });
+        client.complete({ model: client.model, messages: baseMessages });
       }).not.toThrow();
     });
 
@@ -165,11 +166,11 @@ describe('AISdkClient Integration', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
 
       const baseMessages = [
-        { role: 'user', content: 'Hello' },
+        { role: MessageRole.USER, content: 'Hello' },
       ];
 
       expect(() => {
-        const stream = client.stream({ messages: baseMessages });
+        const stream = client.stream({ model: client.model, messages: baseMessages });
         expect(typeof stream[Symbol.asyncIterator]).toBe('function');
       }).not.toThrow();
     });
@@ -187,7 +188,10 @@ describe('AISdkClient Integration', () => {
     it('should return async iterable for stream()', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
 
-      const stream = client.stream({ messages: [{ role: 'user', content: 'test' }] });
+      const stream = client.stream({
+        model: client.model,
+        messages: [{ role: MessageRole.USER, content: 'test' }],
+      });
 
       expect(typeof stream[Symbol.asyncIterator]).toBe('function');
     });
@@ -198,21 +202,21 @@ describe('AISdkClient Integration', () => {
       const client = new AISdkClient('openai/gpt-4o', { apiKey: 'test-key' });
 
       expect(client.getProviderType()).toBe('openai');
-      expect(client.provider).toBe('openai'); // Returns LLMProvider.OPENAI
+      expect(client.provider).toBe(LLMProvider.OPENAI);
     });
 
     it('should handle Anthropic provider correctly', () => {
       const client = new AISdkClient('anthropic/claude-3-5-sonnet', { apiKey: 'test-key' });
 
       expect(client.getProviderType()).toBe('anthropic');
-      expect(client.provider).toBe('anthropic'); // Returns LLMProvider.ANTHROPIC
+      expect(client.provider).toBe(LLMProvider.ANTHROPIC);
     });
 
     it('should handle Google provider correctly', () => {
       const client = new AISdkClient('google/gemini-1.5-flash', { apiKey: 'test-key' });
 
       expect(client.getProviderType()).toBe('google');
-      expect(client.provider).toBe('google'); // Returns LLMProvider.GOOGLE
+      expect(client.provider).toBe(LLMProvider.GOOGLE);
     });
   });
 

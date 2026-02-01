@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import * as llmModule from '../../src/index.js';
+import { MessageRole } from '@mimo/agent-core';
 
 describe('Type System', () => {
   describe('Re-exports from agent-core', () => {
@@ -156,11 +157,11 @@ describe('Type System', () => {
 
       // Should be able to create BaseMessage
       const message: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: 'Test',
       };
 
-      expect(message.role).toBe('user');
+      expect(message.role).toBe(MessageRole.USER);
       expect(message.content).toBe('Test');
     });
 
@@ -169,13 +170,13 @@ describe('Type System', () => {
       type ChatMessage = import('@mimo/types').ChatMessage;
 
       const baseMessage: BaseMessage = {
-        role: 'user',
+        role: MessageRole.USER,
         content: 'Test',
       };
 
       // For simple string content, the formats are compatible
       const chatMessage: ChatMessage = {
-        role: baseMessage.role,
+        role: baseMessage.role as unknown as ChatMessage['role'],
         content: baseMessage.content as string,
       };
 
@@ -314,7 +315,7 @@ describe('Type System', () => {
       type ChatMessage = import('@mimo/types').ChatMessage;
 
       // Both should be usable without conflicts
-      const baseMsg: BaseMessage = { role: 'user', content: 'test' };
+      const baseMsg: BaseMessage = { role: MessageRole.USER, content: 'test' };
       const chatMsg: ChatMessage = { role: 'user', content: 'test' };
 
       expect(baseMsg).toBeDefined();

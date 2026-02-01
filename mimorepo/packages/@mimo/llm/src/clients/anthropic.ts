@@ -68,13 +68,21 @@ export class AnthropicClient extends LLMClient {
 
     const response = await this.client.messages.create(params);
 
+    const cacheReadTokens = (response.usage as any).cache_read_input_tokens as number | undefined;
+    const cacheCreationTokens = (response.usage as any).cache_creation_input_tokens as number | undefined;
+
     return {
       content: this.extractTextContent(response.content),
       usage: {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
         reasoningTokens: undefined,
-        cachedInputTokens: (response.usage as any).cache_read_input_tokens || (response.usage as any).cache_creation_input_tokens,
+        cachedReadTokens: cacheReadTokens,
+        cachedCreationTokens: cacheCreationTokens,
+        cachedInputTokens:
+          cacheReadTokens || cacheCreationTokens
+            ? (cacheReadTokens ?? 0) + (cacheCreationTokens ?? 0)
+            : undefined,
       },
       model: response.model,
     };
@@ -107,11 +115,20 @@ export class AnthropicClient extends LLMClient {
         const stopEvent = event as Anthropic.RawMessageStopEvent & { message?: { usage?: Anthropic.Usage } };
         const usage = stopEvent.message?.usage;
         if (usage) {
+          const cacheReadTokens = (usage as any).cache_read_input_tokens as number | undefined;
+          const cacheCreationTokens = (usage as any).cache_creation_input_tokens as number | undefined;
+
           yield {
             content: '',
             usage: {
               inputTokens: usage.input_tokens,
               outputTokens: usage.output_tokens,
+              cachedReadTokens: cacheReadTokens,
+              cachedCreationTokens: cacheCreationTokens,
+              cachedInputTokens:
+                cacheReadTokens || cacheCreationTokens
+                  ? (cacheReadTokens ?? 0) + (cacheCreationTokens ?? 0)
+                  : undefined,
             },
           };
         }
