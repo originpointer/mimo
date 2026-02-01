@@ -2,16 +2,17 @@
  * LLMClient - Enhanced base class for LLM clients
  * Adds retry logic, token tracking, and streaming support
  *
- * Note: Subclasses should implement ILLMClient interface from @mimo/agent-core
+ * Implements ILLMClient interface from @mimo/agent-core
  */
 
-// 从 agent-core 导入核心类型（不包括消息类型）
+// 从 agent-core 导入核心类型
 import type {
-  TokenUsage as CoreTokenUsage,
   LLMProvider,
   ModelCapability,
   ChatCompletionOptions,
   ChatCompletionResponse,
+  ILLMClient,
+  BaseMessage,
 } from '@mimo/agent-core';
 
 // 从 @mimo/types 导入消息类型（保持与 AI SDK 兼容）
@@ -27,9 +28,6 @@ import type {
 // 内部类型
 import type { StreamEvent, StreamUsage, LLMProviderType, RetryConfig } from './types.js';
 
-// 为了兼容性
-type TokenUsage = CoreTokenUsage;
-
 /**
  * Enhanced abstract base class for LLM clients
  *
@@ -37,7 +35,7 @@ type TokenUsage = CoreTokenUsage;
  * ILLMClient interface from @mimo/agent-core which requires BaseMessage.
  * This class uses ChatMessage from @mimo/types for AI SDK compatibility.
  */
-export abstract class LLMClient {
+export abstract class LLMClient implements ILLMClient {
   protected retryConfig: RetryConfig = {
     maxRetries: 3,
     initialDelay: 1000,
@@ -45,6 +43,16 @@ export abstract class LLMClient {
     backoffMultiplier: 2,
     retryableErrors: ['rate_limit', 'timeout', 'server_error'],
   };
+
+  /**
+   * Provider identifier (required by ILLMClient)
+   */
+  abstract readonly provider: LLMProvider;
+
+  /**
+   * Model capabilities (required by ILLMClient)
+   */
+  abstract readonly capabilities: ModelCapability;
 
   constructor(
     protected _model: string,
@@ -62,12 +70,12 @@ export abstract class LLMClient {
   }
 
   /**
-   * Get provider type
+   * Get provider type (internal)
    */
   abstract getProviderType(): LLMProviderType;
 
   /**
-   * Get model name
+   * Get model name (required by ILLMClient)
    */
   get model(): string {
     return this._model;
@@ -79,6 +87,129 @@ export abstract class LLMClient {
    */
   getModel(): string {
     return this._model;
+  }
+
+  /**
+   * ILLMClient interface: Non-streaming completion
+   * Converts BaseMessage to ChatMessage for internal processing
+   */
+  async complete<T = any>(
+    options: ChatCompletionOptions
+  ): Promise<ChatCompletionResponse<T>> {
+    // Convert BaseMessage[] to ChatMessage[]
+    const messages = this.convertToChatMessages(options.messages);
+    const internalOptions: TypesChatCompletionOptions = {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      stop: options.stopSequences,
+    };
+
+    const response = await this.chatCompletion(messages, internalOptions);
+
+    // Convert LLMResponse to ChatCompletionResponse
+    return {
+      content: response.content,
+      usage: {
+        promptTokens: response.usage.inputTokens,
+        completionTokens: response.usage.outputTokens,
+        totalTokens: response.usage.inputTokens + response.usage.outputTokens,
+        cachedReadTokens: response.usage.cachedInputTokens,
+        reasoningTokens: response.usage.reasoningTokens,
+      },
+      model: response.model,
+      finishReason: 'stop',
+    };
+  }
+
+  /**
+   * ILLMClient interface: Streaming completion
+   * Converts BaseMessage to ChatMessage for internal processing
+   */
+  async *stream<T = any>(
+    options: ChatCompletionOptions
+  ): AsyncIterable<ChatCompletionResponse<T>> {
+    // Convert BaseMessage[] to ChatMessage[]
+    const messages = this.convertToChatMessages(options.messages);
+    const internalOptions: TypesChatCompletionOptions = {
+      temperature: options.temperature,
+      maxTokens: options.maxTokens,
+      stop: options.stopSequences,
+    };
+
+    const stream = this.streamChatCompletion(messages, internalOptions);
+
+    for await (const event of stream) {
+      if (event.type === 'data' && event.content !== undefined) {
+        yield {
+          content: event.content,
+          usage: {
+            promptTokens: event.usage?.inputTokens ?? 0,
+            completionTokens: event.usage?.outputTokens ?? 0,
+            totalTokens: (event.usage?.inputTokens ?? 0) + (event.usage?.outputTokens ?? 0),
+            cachedReadTokens: event.usage?.cachedInputTokens,
+            reasoningTokens: event.usage?.reasoningTokens,
+          },
+          model: this._model,
+          finishReason: 'stop',
+        };
+      }
+    }
+  }
+
+  /**
+   * ILLMClient interface: Check if model supports a capability
+   */
+  supports(capability: keyof ModelCapability): boolean {
+    return !!this.capabilities[capability];
+  }
+
+  /**
+   * Convert BaseMessage (agent-core) to ChatMessage (mimo/types)
+   */
+  protected convertToChatMessages(messages: BaseMessage[]): ChatMessage[] {
+    return messages.map((msg): ChatMessage => {
+      const role = msg.role.toLowerCase();
+
+      // Handle string content
+      if (typeof msg.content === 'string') {
+        if (role === 'user') {
+          return { role: 'user', content: msg.content };
+        }
+        if (role === 'assistant') {
+          return { role: 'assistant', content: msg.content };
+        }
+        return { role: 'system', content: msg.content };
+      }
+
+      // Handle array content (multimodal) - only for user messages
+      if (Array.isArray(msg.content)) {
+        return {
+          role: 'user',
+          content: msg.content.map((item) => {
+            if (item.type === 'text') {
+              return { type: 'text', text: item.value };
+            }
+            if (item.type === 'image') {
+              return {
+                type: 'image',
+                image: item.metadata?.url || item.value,
+              };
+            }
+            return { type: 'text', text: item.value };
+          }),
+        };
+      }
+
+      // Fallback - convert to string
+      const contentStr = String(msg.content);
+      if (role === 'user') {
+        return { role: 'user', content: contentStr };
+      }
+      if (role === 'assistant') {
+        return { role: 'assistant', content: contentStr };
+      }
+      return { role: 'system', content: contentStr };
+    });
   }
 
   /**

@@ -80,12 +80,12 @@ export class SchemaValidator {
      * 批量验证
      * @param items 数据项列表
      * @param schema Zod Schema
-     * @returns 验证结果列表
+     * @returns 批量验证结果
      */
     static validateBatch<T extends z.ZodTypeAny>(
         items: unknown[],
         schema: T
-    ): ValidationResult<z.infer<T>>[] {
+    ): ValidationResult<z.infer<T>[]> {
         const results: z.infer<T>[] = [];
         const errors: string[] = [];
 
@@ -180,10 +180,10 @@ export class JsonSchemaValidator {
             errors.push('Contains $ref, should be flattened');
         }
 
-        return {
-            success: errors.length === 0,
-            errors: errors.length > 0 ? errors : undefined,
-        };
+        if (errors.length > 0) {
+            return { success: false, errors };
+        }
+        return { success: true };
     }
 
     /**

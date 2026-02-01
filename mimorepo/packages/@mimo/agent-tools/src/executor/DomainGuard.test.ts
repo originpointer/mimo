@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DomainGuard } from './DomainGuard.js';
 import { DomainNotAllowedError } from '../utils/errors.js';
 import type { ToolDefinition, BrowserSession } from '@mimo/agent-core/types';
+import { z } from 'zod';
 
 describe('DomainGuard', () => {
   let guard: DomainGuard;
@@ -14,13 +15,18 @@ describe('DomainGuard', () => {
     guard = new DomainGuard();
   });
 
-  const createMockTool = (name: string, domains?: string[]): ToolDefinition => ({
-    name,
-    execute: async () => ({}),
-    description: `Test tool ${name}`,
-    parameters: {},
-    domains,
-  });
+  const createMockTool = (name: string, domains?: string[]): ToolDefinition => {
+    const tool: ToolDefinition = {
+      name,
+      execute: async () => ({}),
+      description: `Test tool ${name}`,
+      parameters: z.object({}),
+    };
+    if (domains !== undefined) {
+      (tool as any).domains = domains;
+    }
+    return tool;
+  };
 
   const createMockBrowser = (url?: string): BrowserSession => ({
     currentUrl: url,

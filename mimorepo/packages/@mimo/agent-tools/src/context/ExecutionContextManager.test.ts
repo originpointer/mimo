@@ -9,11 +9,44 @@ import {
   resetExecutionContextManager,
   type ContextOptions,
 } from './ExecutionContextManager.js';
-import type { ToolExecutionContext } from '@mimo/agent-core/types';
+import type { ToolExecutionContext, FileSystem, BrowserSession, MemoryStore } from '@mimo/agent-core/types';
 import type { ILLMClient } from '@mimo/agent-core';
+import type { Logger } from '@mimo/agent-core/utils';
 
 describe('ExecutionContextManager', () => {
   let manager: ExecutionContextManager;
+
+  const createMockLogger = (): Partial<Logger> => ({
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    debug: vi.fn(),
+  });
+
+  const createMockFileSystem = (): Partial<FileSystem> => ({
+    read: vi.fn(),
+    write: vi.fn(),
+    edit: vi.fn(),
+    delete: vi.fn(),
+    list: vi.fn(),
+  });
+
+  const createMockBrowser = (): Partial<BrowserSession> => ({
+    clientId: 'test-client',
+    browserName: 'chrome',
+    ua: 'test-ua',
+    allowOtherClient: false,
+    connected: true,
+    currentUrl: 'https://example.com',
+  });
+
+  const createMockMemory = (): Partial<MemoryStore> => ({
+    save: vi.fn(),
+    search: vi.fn(),
+    get: vi.fn(),
+    delete: vi.fn(),
+    clear: vi.fn(),
+  });
 
   beforeEach(() => {
     manager = new ExecutionContextManager();
@@ -26,19 +59,19 @@ describe('ExecutionContextManager', () => {
 
   describe('create', () => {
     it('should create context with all options', () => {
-      const fileSystem = { readFile: vi.fn() };
-      const browser = { currentUrl: 'https://example.com' };
+      const fileSystem = createMockFileSystem();
+      const browser = createMockBrowser();
       const llm = { chat: vi.fn() } as unknown as ILLMClient;
-      const memory = { get: vi.fn(), set: vi.fn() };
-      const logger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
+      const memory = createMockMemory();
+      const logger = createMockLogger();
       const config = { apiKey: 'test-key' };
 
       const options: ContextOptions = {
-        fileSystem,
-        browser,
+        fileSystem: fileSystem as FileSystem,
+        browser: browser as BrowserSession,
         llm,
-        memory,
-        logger,
+        memory: memory as MemoryStore,
+        logger: logger as Logger,
         config,
       };
 
@@ -56,14 +89,14 @@ describe('ExecutionContextManager', () => {
       const context = manager.create({});
 
       expect(context.logger).toBeDefined();
-      expect(typeof context.logger.info).toBe('function');
-      expect(typeof context.logger.error).toBe('function');
-      expect(typeof context.logger.warn).toBe('function');
+      expect(typeof context.logger?.info).toBe('function');
+      expect(typeof context.logger?.error).toBe('function');
+      expect(typeof context.logger?.warn).toBe('function');
     });
 
     it('should use provided logger when given', () => {
-      const customLogger = { info: vi.fn(), error: vi.fn(), warn: vi.fn() };
-      const context = manager.create({ logger: customLogger });
+      const customLogger = createMockLogger();
+      const context = manager.create({ logger: customLogger as Logger });
 
       expect(context.logger).toBe(customLogger);
     });
@@ -82,13 +115,13 @@ describe('ExecutionContextManager', () => {
   describe('merge', () => {
     it('should merge two contexts', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
         config: { apiKey: 'base-key' },
       };
 
       const extra: ContextOptions = {
-        browser: { currentUrl: 'https://example.com' },
+        browser: createMockBrowser() as BrowserSession,
         config: { endpoint: 'https://api.example.com' },
       };
 
@@ -105,12 +138,12 @@ describe('ExecutionContextManager', () => {
 
     it('should override base values with extra values', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
       };
 
       const extra: ContextOptions = {
-        fileSystem: { writeFile: vi.fn() },
+        fileSystem: createMockFileSystem() as FileSystem,
       };
 
       const merged = manager.merge(base, extra);
@@ -120,7 +153,7 @@ describe('ExecutionContextManager', () => {
 
     it('should deep merge config objects', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
         config: {
           apiKey: 'key1',
           timeout: 5000,
@@ -145,12 +178,12 @@ describe('ExecutionContextManager', () => {
 
     it('should handle empty base context', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
       };
 
       const extra: ContextOptions = {
-        fileSystem: { readFile: vi.fn() },
-        browser: { currentUrl: 'https://example.com' },
+        fileSystem: createMockFileSystem() as FileSystem,
+        browser: createMockBrowser() as BrowserSession,
       };
 
       const merged = manager.merge(base, extra);
@@ -162,9 +195,9 @@ describe('ExecutionContextManager', () => {
 
     it('should handle empty extra options', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
-        browser: { currentUrl: 'https://example.com' },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
+        browser: createMockBrowser() as BrowserSession,
       };
 
       const merged = manager.merge(base, {});
@@ -176,7 +209,7 @@ describe('ExecutionContextManager', () => {
 
     it('should handle missing config in base', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
       };
 
       const extra: ContextOptions = {
@@ -190,7 +223,7 @@ describe('ExecutionContextManager', () => {
 
     it('should handle missing config in extra', () => {
       const base: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
         config: { apiKey: 'base-key' },
       };
 
@@ -203,14 +236,14 @@ describe('ExecutionContextManager', () => {
   describe('createChild', () => {
     it('should create child context inheriting from parent', () => {
       const parent: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
-        browser: { currentUrl: 'https://example.com' },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
+        browser: createMockBrowser() as BrowserSession,
         config: { apiKey: 'parent-key' },
       };
 
       const overrides: ContextOptions = {
-        memory: { get: vi.fn(), set: vi.fn() },
+        memory: createMockMemory() as MemoryStore,
         config: { timeout: 5000 },
       };
 
@@ -227,8 +260,8 @@ describe('ExecutionContextManager', () => {
 
     it('should create child without overrides', () => {
       const parent: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
       };
 
       const child = manager.createChild(parent);
@@ -239,7 +272,7 @@ describe('ExecutionContextManager', () => {
 
     it('should not modify parent context', () => {
       const parent: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
         config: { apiKey: 'parent-key' },
       };
 
@@ -258,9 +291,9 @@ describe('ExecutionContextManager', () => {
   describe('validate', () => {
     it('should return true when all requirements are met', () => {
       const context: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
-        browser: { currentUrl: 'https://example.com' },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
+        browser: createMockBrowser() as BrowserSession,
       };
 
       const valid = manager.validate(context, ['fileSystem', 'browser']);
@@ -270,8 +303,8 @@ describe('ExecutionContextManager', () => {
 
     it('should return false when requirement is missing', () => {
       const context: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
       };
 
       const valid = manager.validate(context, ['fileSystem', 'browser']);
@@ -281,7 +314,7 @@ describe('ExecutionContextManager', () => {
 
     it('should return false when requirement is undefined', () => {
       const context: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
         fileSystem: undefined as any,
       };
 
@@ -292,7 +325,7 @@ describe('ExecutionContextManager', () => {
 
     it('should return true when no requirements', () => {
       const context: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+        logger: createMockLogger() as Logger,
       };
 
       const valid = manager.validate(context, []);
@@ -302,10 +335,10 @@ describe('ExecutionContextManager', () => {
 
     it('should handle multiple requirements', () => {
       const context: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
-        browser: { currentUrl: 'https://example.com' },
-        memory: { get: vi.fn(), set: vi.fn() },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
+        browser: createMockBrowser() as BrowserSession,
+        memory: createMockMemory() as MemoryStore,
       };
 
       const valid = manager.validate(context, [
@@ -319,8 +352,8 @@ describe('ExecutionContextManager', () => {
 
     it('should return false for first missing requirement', () => {
       const context: ToolExecutionContext = {
-        logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-        fileSystem: { readFile: vi.fn() },
+        logger: createMockLogger() as Logger,
+        fileSystem: createMockFileSystem() as FileSystem,
       };
 
       const valid = manager.validate(context, ['fileSystem', 'browser', 'memory']);
@@ -350,7 +383,7 @@ describe('ExecutionContextManager', () => {
     it('should create functional contexts through global instance', () => {
       const globalManager = getExecutionContextManager();
       const context = globalManager.create({
-        fileSystem: { readFile: vi.fn() },
+        fileSystem: createMockFileSystem() as FileSystem,
       });
 
       expect(context.fileSystem).toBeDefined();

@@ -4,7 +4,10 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry } from './ToolRegistry.js';
-import type { ToolDefinition, ToolTag, ToolPolicy } from '@mimo/agent-core/types';
+import type { ToolDefinition } from '@mimo/agent-core/types';
+import type { ToolPolicy } from '@mimo/agent-core/interfaces';
+import { ToolTag } from '@mimo/agent-core';
+import { z } from 'zod';
 
 describe('ToolRegistry', () => {
   let registry: ToolRegistry;
@@ -17,9 +20,9 @@ describe('ToolRegistry', () => {
     name,
     execute: async () => ({}),
     description: `Test tool ${name}`,
-    parameters: {},
-    tags,
-    group,
+    parameters: z.object({}),
+    ...(tags !== undefined && { tags }),
+    ...(group !== undefined && { group }),
   });
 
   beforeEach(() => {
@@ -43,12 +46,12 @@ describe('ToolRegistry', () => {
     });
 
     it('should index tool by tags', () => {
-      const tool = createMockTool('test_tool', ['filesystem', 'read']);
+      const tool = createMockTool('test_tool', [ToolTag.FILE_READ]);
       registry.register(tool);
 
-      const results = registry.findToolsByTag('filesystem');
+      const results = registry.findToolsByTag(ToolTag.FILE_READ);
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('test_tool');
+      expect(results[0]?.name).toBe('test_tool');
     });
 
     it('should index tool by group', () => {
@@ -57,7 +60,7 @@ describe('ToolRegistry', () => {
 
       const results = registry.getGroup('browser');
       expect(results).toHaveLength(1);
-      expect(results[0].name).toBe('test_tool');
+      expect(results[0]?.name).toBe('test_tool');
     });
   });
 
@@ -85,11 +88,11 @@ describe('ToolRegistry', () => {
     });
 
     it('should remove tool from tag index', () => {
-      const tool = createMockTool('test_tool', ['filesystem']);
+      const tool = createMockTool('test_tool', [ToolTag.FILE_READ]);
       registry.register(tool);
       registry.unregister('test_tool');
 
-      expect(registry.findToolsByTag('filesystem')).toHaveLength(0);
+      expect(registry.findToolsByTag(ToolTag.FILE_READ)).toHaveLength(0);
     });
 
     it('should remove tool from group index', () => {
@@ -105,11 +108,11 @@ describe('ToolRegistry', () => {
     });
 
     it('should clean up empty tag indexes', () => {
-      const tool = createMockTool('test_tool', ['filesystem']);
+      const tool = createMockTool('test_tool', [ToolTag.FILE_READ]);
       registry.register(tool);
       registry.unregister('test_tool');
 
-      const results = registry.findToolsByTag('filesystem');
+      const results = registry.findToolsByTag(ToolTag.FILE_READ);
       expect(results).toHaveLength(0);
     });
 
@@ -156,27 +159,27 @@ describe('ToolRegistry', () => {
 
   describe('findToolsByTag', () => {
     it('should find tools with single tag', () => {
-      registry.register(createMockTool('tool1', ['filesystem']));
-      registry.register(createMockTool('tool2', ['browser']));
-      registry.register(createMockTool('tool3', ['filesystem']));
+      registry.register(createMockTool('tool1', [ToolTag.FILE_READ]));
+      registry.register(createMockTool('tool2', [ToolTag.BROWSER_NAVIGATE]));
+      registry.register(createMockTool('tool3', [ToolTag.FILE_READ]));
 
-      const results = registry.findToolsByTag('filesystem');
+      const results = registry.findToolsByTag(ToolTag.FILE_READ);
       expect(results.map(t => t.name)).toEqual(['tool1', 'tool3']);
     });
 
     it('should find tools with multiple tags (AND logic)', () => {
-      registry.register(createMockTool('tool1', ['filesystem', 'read']));
-      registry.register(createMockTool('tool2', ['filesystem', 'write']));
-      registry.register(createMockTool('tool3', ['filesystem', 'read']));
+      registry.register(createMockTool('tool1', [ToolTag.FILE_READ, ToolTag.FILE_EDIT]));
+      registry.register(createMockTool('tool2', [ToolTag.FILE_READ, ToolTag.FILE_WRITE]));
+      registry.register(createMockTool('tool3', [ToolTag.FILE_READ, ToolTag.FILE_EDIT]));
 
-      const results = registry.findToolsByTag('filesystem', 'read');
+      const results = registry.findToolsByTag(ToolTag.FILE_READ, ToolTag.FILE_EDIT);
       expect(results.map(t => t.name)).toEqual(['tool1', 'tool3']);
     });
 
     it('should return all tools when no tags specified', () => {
       registry.registerBatch([
-        createMockTool('tool1', ['filesystem']),
-        createMockTool('tool2', ['browser']),
+        createMockTool('tool1', [ToolTag.FILE_READ]),
+        createMockTool('tool2', [ToolTag.BROWSER_NAVIGATE]),
       ]);
 
       const results = registry.findToolsByTag();
@@ -184,16 +187,16 @@ describe('ToolRegistry', () => {
     });
 
     it('should return empty when tag not found', () => {
-      registry.register(createMockTool('tool1', ['filesystem']));
+      registry.register(createMockTool('tool1', [ToolTag.FILE_READ]));
 
-      const results = registry.findToolsByTag('non_existent');
+      const results = registry.findToolsByTag(ToolTag.BROWSER_CLICK);
       expect(results).toEqual([]);
     });
 
     it('should return empty when tool does not have all specified tags', () => {
-      registry.register(createMockTool('tool1', ['filesystem']));
+      registry.register(createMockTool('tool1', [ToolTag.FILE_READ]));
 
-      const results = registry.findToolsByTag('filesystem', 'read');
+      const results = registry.findToolsByTag(ToolTag.FILE_READ, ToolTag.FILE_EDIT);
       expect(results).toEqual([]);
     });
   });
@@ -357,14 +360,14 @@ describe('ToolRegistry', () => {
 
   describe('clear', () => {
     it('should clear all tools and indexes', () => {
-      registry.register(createMockTool('tool1', ['tag1'], 'group1'));
-      registry.register(createMockTool('tool2', ['tag2'], 'group2'));
+      registry.register(createMockTool('tool1', [ToolTag.FILE_READ], 'group1'));
+      registry.register(createMockTool('tool2', [ToolTag.BROWSER_NAVIGATE], 'group2'));
 
       registry.clear();
 
       expect(registry.size()).toBe(0);
       expect(registry.getTools()).toEqual([]);
-      expect(registry.findToolsByTag('tag1')).toEqual([]);
+      expect(registry.findToolsByTag(ToolTag.FILE_READ)).toEqual([]);
       expect(registry.getGroups()).toEqual([]);
     });
   });

@@ -14,7 +14,7 @@ import { LLMProvider, type ModelCapability } from '@mimo/agent-core';
 // Zod schema types from @mimo/types
 import type { StagehandZodSchema, InferStagehandSchema } from '@mimo/types';
 
-export class AISdkClient extends LLMClient implements ILLMClient {
+export class AISdkClient extends LLMClient {
   private aiModel: any;
   private providerType: LLMProviderType;
 
@@ -53,58 +53,6 @@ export class AISdkClient extends LLMClient implements ILLMClient {
 
   getProviderType(): LLMProviderType {
     return this.providerType;
-  }
-
-  // ILLMClient interface methods
-  async complete<T = any>(
-    options: import('@mimo/agent-core').ChatCompletionOptions
-  ): Promise<import('@mimo/agent-core').ChatCompletionResponse<T>> {
-    // Convert BaseMessage to ChatMessage if needed
-    const chatMessages: ChatMessage[] = options.messages.map(msg => ({
-      role: msg.role,
-      content: msg.content as string, // Simplified conversion
-    }));
-
-    const response = await this.chatCompletion(chatMessages, {
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-    } as any);
-
-    return {
-      content: response.content,
-      usage: response.usage as any,
-      model: response.model,
-      finishReason: 'stop',
-    } as any;
-  }
-
-  async *stream<T = any>(
-    options: import('@mimo/agent-core').ChatCompletionOptions
-  ): AsyncIterable<import('@mimo/agent-core').ChatCompletionResponse<T>> {
-    const chatMessages: ChatMessage[] = options.messages.map(msg => ({
-      role: msg.role,
-      content: msg.content as string,
-    }));
-
-    const stream = this.streamChatCompletion(chatMessages, {
-      temperature: options.temperature,
-      maxTokens: options.maxTokens,
-    } as any);
-
-    for await (const chunk of stream) {
-      if (chunk.type === 'data') {
-        yield {
-          content: chunk.content || '',
-          usage: chunk.usage,
-          model: this.model,
-          finishReason: 'stop',
-        } as any;
-      }
-    }
-  }
-
-  supports(capability: keyof import('@mimo/agent-core').ModelCapability): boolean {
-    return this.capabilities?.[capability] ?? false;
   }
 
   protected async doChatCompletion(
@@ -230,20 +178,4 @@ export class AISdkClient extends LLMClient implements ILLMClient {
       };
     });
   }
-}
-
-/**
- * ILLMClient interface from @mimo/agent-core for type checking
- */
-interface ILLMClient {
-  readonly provider: import('@mimo/agent-core').LLMProvider;
-  readonly model: string;
-  readonly capabilities: import('@mimo/agent-core').ModelCapability;
-  complete<T = any>(
-    options: import('@mimo/agent-core').ChatCompletionOptions
-  ): Promise<import('@mimo/agent-core').ChatCompletionResponse<T>>;
-  stream<T = any>(
-    options: import('@mimo/agent-core').ChatCompletionOptions
-  ): AsyncIterable<import('@mimo/agent-core').ChatCompletionResponse<T>>;
-  supports(capability: keyof import('@mimo/agent-core').ModelCapability): boolean;
 }

@@ -5,7 +5,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ToolScheduler } from './ToolScheduler.js';
 import type { ToolDefinition, ToolExecutionContext } from '@mimo/agent-core/types';
-import type { ExecutionResult } from '../executor/ToolExecutor.js';
+import { z } from 'zod';
+import type { Logger } from '@mimo/agent-core';
+
+const createMockLogger = (): Partial<Logger> => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+});
 
 describe('ToolScheduler', () => {
   let scheduler: ToolScheduler;
@@ -15,14 +23,14 @@ describe('ToolScheduler', () => {
     name,
     execute: vi.fn().mockResolvedValue({ tool: name }),
     description: `Test tool ${name}`,
-    parameters: {},
-    group,
+    parameters: z.object({}),
+    ...(group !== undefined && { group }),
   });
 
   beforeEach(() => {
     scheduler = new ToolScheduler();
     mockContext = {
-      logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+      logger: createMockLogger() as Logger,
     };
   });
 
@@ -89,9 +97,6 @@ describe('ToolScheduler', () => {
     });
 
     it('should execute different-group tools in parallel', async () => {
-      const browserTool = createMockTool('browser_tool', 'browser');
-      const fsTool = createMockTool('fs_tool', 'filesystem');
-
       let browserComplete = false;
       let fsComplete = false;
 
@@ -103,7 +108,7 @@ describe('ToolScheduler', () => {
           return { tool: 'browser_tool' };
         }),
         description: 'Browser tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -115,7 +120,7 @@ describe('ToolScheduler', () => {
           return { tool: 'fs_tool' };
         }),
         description: 'FS tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'filesystem',
       };
 
@@ -133,7 +138,7 @@ describe('ToolScheduler', () => {
         name: 'error_tool',
         execute: vi.fn().mockRejectedValue(new Error('Execution failed')),
         description: 'Error tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -169,7 +174,7 @@ describe('ToolScheduler', () => {
           return { tool: 'tool1' };
         }),
         description: 'Tool 1',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -181,7 +186,7 @@ describe('ToolScheduler', () => {
           return { tool: 'tool2' };
         }),
         description: 'Tool 2',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -207,7 +212,7 @@ describe('ToolScheduler', () => {
           return { tool: 'browser_tool' };
         }),
         description: 'Browser tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -219,7 +224,7 @@ describe('ToolScheduler', () => {
           return { tool: 'fs_tool' };
         }),
         description: 'FS tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'filesystem',
       };
 
@@ -245,7 +250,7 @@ describe('ToolScheduler', () => {
         name: 'error_tool',
         execute: vi.fn().mockRejectedValue(new Error('Failed')),
         description: 'Error tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'filesystem',
       };
 
@@ -257,8 +262,8 @@ describe('ToolScheduler', () => {
       const results = await scheduler.executeBatch(items, mockContext);
 
       expect(results).toHaveLength(2);
-      expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(false);
+      expect(results[0]?.success).toBe(true);
+      expect(results[1]?.success).toBe(false);
     });
   });
 
@@ -286,7 +291,7 @@ describe('ToolScheduler', () => {
           return { done: true };
         }),
         description: 'Slow tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -314,7 +319,7 @@ describe('ToolScheduler', () => {
           return { done: true };
         }),
         description: 'Slow tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 
@@ -345,7 +350,7 @@ describe('ToolScheduler', () => {
           return { done: true };
         }),
         description: 'Slow tool',
-        parameters: {},
+        parameters: z.object({}),
         group: 'browser',
       };
 

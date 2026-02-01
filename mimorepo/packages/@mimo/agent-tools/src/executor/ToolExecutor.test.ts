@@ -4,7 +4,32 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ToolExecutor } from './ToolExecutor.js';
-import type { ToolDefinition, ToolExecutionContext } from '@mimo/agent-core/types';
+import type { ToolDefinition, ToolExecutionContext, FileSystem, BrowserSession, Logger } from '@mimo/agent-core/types';
+import { z } from 'zod';
+
+const createMockLogger = (): Partial<Logger> => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+});
+
+const createMockFileSystem = (): Partial<FileSystem> => ({
+  read: vi.fn(),
+  write: vi.fn(),
+  edit: vi.fn(),
+  delete: vi.fn(),
+  list: vi.fn(),
+});
+
+const createMockBrowser = (): Partial<BrowserSession> => ({
+  clientId: 'test-client',
+  browserName: 'chrome',
+  ua: 'test-ua',
+  allowOtherClient: false,
+  connected: true,
+  currentUrl: 'https://example.com',
+});
 
 describe('ToolExecutor', () => {
   let executor: ToolExecutor;
@@ -13,9 +38,9 @@ describe('ToolExecutor', () => {
   beforeEach(() => {
     executor = new ToolExecutor();
     mockContext = {
-      logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-      fileSystem: { readFile: vi.fn() },
-      browser: { currentUrl: 'https://example.com' },
+      logger: createMockLogger() as Logger,
+      fileSystem: createMockFileSystem() as FileSystem,
+      browser: createMockBrowser() as BrowserSession,
     };
   });
 
@@ -23,14 +48,21 @@ describe('ToolExecutor', () => {
     name: string,
     domains?: string[],
     timeout?: number
-  ): ToolDefinition => ({
-    name,
-    execute: vi.fn().mockResolvedValue({ success: true, data: 'test' }),
-    description: `Test tool ${name}`,
-    parameters: {},
-    domains,
-    timeout,
-  });
+  ): ToolDefinition => {
+    const tool: ToolDefinition = {
+      name,
+      execute: vi.fn().mockResolvedValue({ success: true, data: 'test' }),
+      description: `Test tool ${name}`,
+      parameters: z.object({}),
+    };
+    if (domains !== undefined) {
+      (tool as any).domains = domains;
+    }
+    if (timeout !== undefined) {
+      (tool as any).timeout = timeout;
+    }
+    return tool;
+  };
 
   describe('execute', () => {
     it('should execute tool successfully', async () => {
@@ -51,7 +83,7 @@ describe('ToolExecutor', () => {
         name: 'error_tool',
         execute: vi.fn().mockRejectedValue(new Error('Execution failed')),
         description: 'Error tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const result = await executor.execute(tool, {}, mockContext);
@@ -79,7 +111,7 @@ describe('ToolExecutor', () => {
           return { done: true };
         }),
         description: 'Slow tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const result = await executor.execute(tool, {}, mockContext);
@@ -96,7 +128,7 @@ describe('ToolExecutor', () => {
             return { done: true };
           }),
           description: 'Timeout tool',
-          parameters: {},
+          parameters: z.object({}),
           timeout: 100,
         };
 
@@ -114,7 +146,7 @@ describe('ToolExecutor', () => {
             return { done: true };
           }),
           description: 'Slow tool',
-          parameters: {},
+          parameters: z.object({}),
           timeout: 5000,
         };
 
@@ -132,7 +164,7 @@ describe('ToolExecutor', () => {
             return { done: true };
           }),
           description: 'Slow tool',
-          parameters: {},
+          parameters: z.object({}),
         };
 
         const result = await executor.execute(tool, {}, mockContext);
@@ -154,7 +186,7 @@ describe('ToolExecutor', () => {
             return { success: true };
           }),
           description: 'Flaky tool',
-          parameters: {},
+          parameters: z.object({}),
         };
 
         const result = await executor.execute(tool, {}, mockContext, {
@@ -171,7 +203,7 @@ describe('ToolExecutor', () => {
           name: 'failing_tool',
           execute: vi.fn().mockRejectedValue(new Error('Permanent failure')),
           description: 'Failing tool',
-          parameters: {},
+          parameters: z.object({}),
         };
 
         const result = await executor.execute(tool, {}, mockContext, {
@@ -192,12 +224,12 @@ describe('ToolExecutor', () => {
             return { success: true, fileSystem };
           }),
           description: 'Context tool',
-          parameters: {},
+          parameters: z.object({}),
           injectConfig: ['fileSystem'],
         };
 
         const contextWithoutFs = {
-          logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+          logger: createMockLogger() as Logger,
         };
 
         const result = await executor.execute(tool, {}, contextWithoutFs, {
@@ -237,7 +269,7 @@ describe('ToolExecutor', () => {
             return { fileSystem, browser };
           }),
           description: 'Inject tool',
-          parameters: {},
+          parameters: z.object({}),
         };
 
         const result = await executor.execute(tool, {}, mockContext);
@@ -253,12 +285,12 @@ describe('ToolExecutor', () => {
             return fileSystem;
           }),
           description: 'Context tool',
-          parameters: {},
+          parameters: z.object({}),
           injectConfig: ['fileSystem'],
         };
 
         const emptyContext = {
-          logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+          logger: createMockLogger() as Logger,
         };
 
         const result = await executor.execute(tool, {}, emptyContext);
@@ -289,7 +321,7 @@ describe('ToolExecutor', () => {
         name: 'error_tool',
         execute: vi.fn().mockRejectedValue(new Error('Failed')),
         description: 'Error tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const items = [
@@ -300,8 +332,8 @@ describe('ToolExecutor', () => {
       const results = await executor.executeBatch(items, mockContext);
 
       expect(results).toHaveLength(2);
-      expect(results[0].success).toBe(true);
-      expect(results[1].success).toBe(false);
+      expect(results[0]?.success).toBe(true);
+      expect(results[1]?.success).toBe(false);
     });
 
     it('should execute tools in order', async () => {
@@ -314,7 +346,7 @@ describe('ToolExecutor', () => {
           return { tool: 'tool1' };
         }),
         description: 'Tool 1',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const tool2: ToolDefinition = {
@@ -324,7 +356,7 @@ describe('ToolExecutor', () => {
           return { tool: 'tool2' };
         }),
         description: 'Tool 2',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const items = [
@@ -342,7 +374,7 @@ describe('ToolExecutor', () => {
         name: 'test_tool',
         execute: vi.fn().mockResolvedValue({ result: 'test' }),
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const items = [

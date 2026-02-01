@@ -7,8 +7,6 @@ import {
   ToolMonitor,
   getToolMonitor,
   resetToolMonitor,
-  type ExecutionRecord,
-  type ExecutionStats,
 } from './ToolMonitor.js';
 import type { ExecutionResult } from '../executor/ToolExecutor.js';
 import type { ToolCall } from '@mimo/agent-core/types';
@@ -23,7 +21,7 @@ describe('ToolMonitor', () => {
   ): ExecutionResult => ({
     success,
     result: success ? { data: 'test' } : undefined,
-    error: success ? undefined : 'Test error',
+    error: success ? '' : 'Test error',
     duration,
     toolCall: {
       id: `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -74,8 +72,8 @@ describe('ToolMonitor', () => {
 
       const history = monitor.getHistory();
       expect(history).toHaveLength(3);
-      expect(history[0].toolCall.name).toBe('tool2');
-      expect(history[2].toolCall.name).toBe('tool4');
+      expect(history[0]?.toolCall.name).toBe('tool2');
+      expect(history[2]?.toolCall.name).toBe('tool4');
     });
 
     it('should store timestamp with record', () => {
@@ -84,8 +82,8 @@ describe('ToolMonitor', () => {
       const afterTime = Date.now();
 
       const records = monitor.getHistory();
-      expect(records[0].timestamp).toBeGreaterThanOrEqual(beforeTime);
-      expect(records[0].timestamp).toBeLessThanOrEqual(afterTime);
+      expect(records[0]?.timestamp).toBeGreaterThanOrEqual(beforeTime);
+      expect(records[0]?.timestamp).toBeLessThanOrEqual(afterTime);
     });
   });
 
@@ -120,7 +118,7 @@ describe('ToolMonitor', () => {
       const history = monitor.getHistory('tool1', 1);
 
       expect(history).toHaveLength(1);
-      expect(history[0].toolCall.name).toBe('tool1');
+      expect(history[0]?.toolCall.name).toBe('tool1');
     });
 
     it('should return empty array for non-existent tool', () => {
@@ -136,8 +134,8 @@ describe('ToolMonitor', () => {
       const history = monitor.getHistory(undefined, 2);
 
       expect(history).toHaveLength(2);
-      expect(history[0].toolCall.name).toBe('tool_recent');
-      expect(history[1].toolCall.name).toBe('tool_very_recent');
+      expect(history[0]?.toolCall.name).toBe('tool_recent');
+      expect(history[1]?.toolCall.name).toBe('tool_very_recent');
     });
   });
 

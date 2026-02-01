@@ -124,22 +124,22 @@ describe('utils/errors', () => {
     });
 
     it('should export AgentError', () => {
-      const error = new AgentError('agent error');
+      const error = new AgentError('agent error', 'AGENT_ERROR');
       expect(error.name).toBe('AgentError');
     });
 
     it('should export LLMError', () => {
-      const error = new LLMError('LLM error');
+      const error = new LLMError('LLM error', 'LLM_ERROR');
       expect(error.name).toBe('LLMError');
     });
 
     it('should export LLMRateLimitError', () => {
-      const error = new LLMRateLimitError('rate limited');
+      const error = new LLMRateLimitError();
       expect(error.name).toBe('LLMRateLimitError');
     });
 
     it('should export LLMTimeoutError', () => {
-      const error = new LLMTimeoutError('timeout');
+      const error = new LLMTimeoutError();
       expect(error.name).toBe('LLMTimeoutError');
     });
 
@@ -149,7 +149,7 @@ describe('utils/errors', () => {
     });
 
     it('should export AgentExecutionError', () => {
-      const error = new AgentExecutionError('execution error');
+      const error = new AgentExecutionError('agent-123', 'execution error');
       expect(error.name).toBe('AgentExecutionError');
     });
 
@@ -159,7 +159,7 @@ describe('utils/errors', () => {
     });
 
     it('should export SocketConnectionError', () => {
-      const error = new SocketConnectionError('connection error');
+      const error = new SocketConnectionError();
       expect(error.name).toBe('SocketConnectionError');
     });
   });

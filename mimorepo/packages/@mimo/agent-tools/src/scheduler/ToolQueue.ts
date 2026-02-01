@@ -2,7 +2,7 @@
  * Tool Queue - Serial execution queue for same-group tools
  */
 
-import type { ToolDefinition, ToolExecutionContext, ToolCall } from '@mimo/agent-core/types';
+import type { ToolDefinition, ToolExecutionContext } from '@mimo/agent-core/types';
 import type { ExecutionResult } from '../executor/ToolExecutor.js';
 import { ToolExecutor } from '../executor/ToolExecutor.js';
 

@@ -4,21 +4,48 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { PolicyResolver, type PolicyConfig } from './PolicyResolver.js';
-import type { ToolDefinition, ToolExecutionContext } from '@mimo/agent-core/types';
+import type { ToolDefinition, ToolExecutionContext, Logger, BrowserSession } from '@mimo/agent-core/types';
+import { z } from 'zod';
+
+const createMockLogger = (): Partial<Logger> => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+});
+
+const createMockBrowser = (url: string): Partial<BrowserSession> => ({
+  clientId: 'test-client',
+  browserName: 'chrome',
+  ua: 'test-ua',
+  allowOtherClient: false,
+  connected: true,
+  currentUrl: url,
+});
 
 describe('PolicyResolver', () => {
-  const createMockTool = (name: string, domains?: string[]): ToolDefinition => ({
-    name,
-    execute: vi.fn(),
-    description: `Test tool ${name}`,
-    parameters: {},
-    domains,
-  });
+  const createMockTool = (name: string, domains?: string[]): ToolDefinition => {
+    const tool: ToolDefinition = {
+      name,
+      execute: vi.fn(),
+      description: `Test tool ${name}`,
+      parameters: z.object({}),
+    };
+    if (domains !== undefined) {
+      (tool as any).domains = domains;
+    }
+    return tool;
+  };
 
-  const createMockContext = (url?: string): ToolExecutionContext => ({
-    logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-    browser: url ? { currentUrl: url } as any : undefined,
-  });
+  const createMockContext = (url?: string): ToolExecutionContext => {
+    const context: ToolExecutionContext = {
+      logger: createMockLogger() as Logger,
+    };
+    if (url !== undefined) {
+      context.browser = createMockBrowser(url) as BrowserSession;
+    }
+    return context;
+  };
 
   describe('StaticToolPolicy layer', () => {
     it('should allow explicitly allowed tools', async () => {

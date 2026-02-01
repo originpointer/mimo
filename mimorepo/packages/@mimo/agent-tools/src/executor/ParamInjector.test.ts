@@ -2,9 +2,43 @@
  * Tests for executor/ParamInjector.ts
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ParamInjector } from './ParamInjector.js';
-import type { ToolDefinition, ToolExecutionContext, SpecialInjectParam } from '@mimo/agent-core/types';
+import type { ToolDefinition, ToolExecutionContext, SpecialInjectParam, FileSystem, BrowserSession, MemoryStore, Logger } from '@mimo/agent-core/types';
+import type { ILLMClient } from '@mimo/agent-core';
+import { z } from 'zod';
+
+const createMockLogger = (): Partial<Logger> => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+});
+
+const createMockFileSystem = (): Partial<FileSystem> => ({
+  read: vi.fn(),
+  write: vi.fn(),
+  edit: vi.fn(),
+  delete: vi.fn(),
+  list: vi.fn(),
+});
+
+const createMockBrowser = (): Partial<BrowserSession> => ({
+  clientId: 'test-client',
+  browserName: 'chrome',
+  ua: 'test-ua',
+  allowOtherClient: false,
+  connected: true,
+  currentUrl: 'https://example.com',
+});
+
+const createMockMemory = (): Partial<MemoryStore> => ({
+  save: vi.fn(),
+  search: vi.fn(),
+  get: vi.fn(),
+  delete: vi.fn(),
+  clear: vi.fn(),
+});
 
 describe('ParamInjector', () => {
   let injector: ParamInjector;
@@ -14,27 +48,34 @@ describe('ParamInjector', () => {
   });
 
   const createMockContext = (
-    overrides: Partial<ToolExecutionContext> = {}
-  ): ToolExecutionContext => ({
-    logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
-    fileSystem: { readFile: vi.fn() },
-    browser: { currentUrl: 'https://example.com' },
-    llm: { chat: vi.fn() },
-    memory: { get: vi.fn(), set: vi.fn() },
-    config: { apiKey: 'test-key' },
-    ...overrides,
-  });
+    overrides: Partial<ToolExecutionContext> = {},
+    exclude: (keyof ToolExecutionContext)[] = []
+  ): ToolExecutionContext => {
+    const context: ToolExecutionContext = {
+      logger: createMockLogger() as Logger,
+      fileSystem: createMockFileSystem() as FileSystem,
+      browser: createMockBrowser() as BrowserSession,
+      llm: { chat: vi.fn() } as unknown as ILLMClient,
+      memory: createMockMemory() as MemoryStore,
+      config: { apiKey: 'test-key' },
+    };
+    Object.assign(context, overrides);
+    for (const key of exclude) {
+      delete (context as any)[key];
+    }
+    return context;
+  };
 
   describe('detectRequiredParams', () => {
     it('should use injectConfig to detect params', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem } = context;
           return fileSystem;
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem'],
       };
 
@@ -45,12 +86,12 @@ describe('ParamInjector', () => {
     it('should use injectConfig with multiple params', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem, browser, logger } = context;
           return { fileSystem, browser, logger };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem', 'browser', 'logger'],
       };
 
@@ -63,7 +104,7 @@ describe('ParamInjector', () => {
         name: 'test_tool',
         execute: async () => ({}),
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const detected = injector.detectRequiredParams(tool);
@@ -75,12 +116,12 @@ describe('ParamInjector', () => {
     it('should inject params from injectConfig', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem, browser } = context;
           return { fileSystem, browser };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem', 'browser'],
       };
 
@@ -99,12 +140,12 @@ describe('ParamInjector', () => {
     it('should not override existing params', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem } = context;
           return { fileSystem };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem'],
       };
 
@@ -122,7 +163,7 @@ describe('ParamInjector', () => {
         name: 'test_tool',
         execute: async () => ({}),
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: [],
       };
 
@@ -139,7 +180,7 @@ describe('ParamInjector', () => {
         name: 'test_tool',
         execute: async () => ({}),
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const params = { input: 'test' };
@@ -155,12 +196,12 @@ describe('ParamInjector', () => {
     it('should return valid when all required params exist', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem, browser } = context;
           return { fileSystem, browser };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem', 'browser'],
       };
 
@@ -174,16 +215,16 @@ describe('ParamInjector', () => {
     it('should return invalid when params are missing', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem, browser, llm } = context;
           return { fileSystem, browser, llm };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem', 'browser', 'llm'],
       };
 
-      const context = createMockContext({ llm: undefined });
+      const context = createMockContext({}, ['llm']);
       const result = injector.validate(tool, context);
 
       expect(result.valid).toBe(false);
@@ -193,16 +234,16 @@ describe('ParamInjector', () => {
     it('should return invalid when params are undefined', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem } = context;
           return { fileSystem };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem'],
       };
 
-      const context = createMockContext({ fileSystem: undefined });
+      const context = createMockContext({}, ['fileSystem']);
       const result = injector.validate(tool, context);
 
       expect(result.valid).toBe(false);
@@ -214,7 +255,7 @@ describe('ParamInjector', () => {
         name: 'test_tool',
         execute: async () => ({}),
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const context = createMockContext();
@@ -227,19 +268,16 @@ describe('ParamInjector', () => {
     it('should list all missing params', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const { fileSystem, browser, llm, memory } = context;
           return { fileSystem, browser, llm, memory };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem', 'browser', 'llm', 'memory'],
       };
 
-      const context = createMockContext({
-        fileSystem: undefined,
-        browser: undefined,
-      });
+      const context = createMockContext({}, ['fileSystem', 'browser']);
 
       const result = injector.validate(tool, context);
 
@@ -253,7 +291,7 @@ describe('ParamInjector', () => {
     it('should support all special param types', () => {
       const tool: ToolDefinition = {
         name: 'test_tool',
-        execute: async (params: any, context: ToolExecutionContext) => {
+        execute: async (_params: any, context: ToolExecutionContext) => {
           const {
             fileSystem,
             browser,
@@ -272,7 +310,7 @@ describe('ParamInjector', () => {
           };
         },
         description: 'Test tool',
-        parameters: {},
+        parameters: z.object({}),
         injectConfig: ['fileSystem', 'browser', 'llm', 'memory', 'logger', 'config'],
       };
 

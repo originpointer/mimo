@@ -1,0 +1,33 @@
+/**
+ * TypeScript configuration for integration tests
+ */
+
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["vitest/globals"],
+    "lib": ["ES2022"],
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mimo/agent-core": ["../../packages/@mimo/agent-core/src"],
+      "@mimo/agent-core/types": ["../../packages/@mimo/agent-core/src/types"],
+      "@mimo/agent-core/interfaces": ["../../packages/@mimo/agent-core/src/interfaces"],
+      "@mimo/agent-tools": ["../../packages/@mimo/agent-tools/src"],
+      "@mimo/agent-tools/executor": ["../../packages/@mimo/agent-tools/src/executor"],
+      "@mimo/agent-tools/policy": ["../../packages/@mimo/agent-tools/src/policy"],
+      "@mimo/llm": ["../../packages/@mimo/llm/src"]
+    }
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules"]
+}

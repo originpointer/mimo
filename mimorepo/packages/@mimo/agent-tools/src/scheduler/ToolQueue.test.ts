@@ -6,6 +6,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ToolQueue } from './ToolQueue.js';
 import type { ToolDefinition, ToolExecutionContext } from '@mimo/agent-core/types';
 import type { ExecutionResult } from '../executor/ToolExecutor.js';
+import { z } from 'zod';
+import type { Logger } from '@mimo/agent-core';
+
+const createMockLogger = (): Partial<Logger> => ({
+  info: vi.fn(),
+  error: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+});
 
 describe('ToolQueue', () => {
   let queue: ToolQueue;
@@ -18,10 +27,10 @@ describe('ToolQueue', () => {
       name: 'test_tool',
       execute: vi.fn().mockResolvedValue({ success: true, data: 'test' }),
       description: 'Test tool',
-      parameters: {},
+      parameters: z.object({}),
     };
     mockContext = {
-      logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
+      logger: createMockLogger() as Logger,
     };
   });
 
@@ -114,7 +123,7 @@ describe('ToolQueue', () => {
           return { tool: 'tool1' };
         }),
         description: 'Tool 1',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const tool2: ToolDefinition = {
@@ -124,7 +133,7 @@ describe('ToolQueue', () => {
           return { tool: 'tool2' };
         }),
         description: 'Tool 2',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       queue.enqueue({
@@ -155,14 +164,14 @@ describe('ToolQueue', () => {
         name: 'error_tool',
         execute: vi.fn().mockRejectedValue(new Error('Task failed')),
         description: 'Error tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const successTool: ToolDefinition = {
         name: 'success_tool',
         execute: vi.fn().mockResolvedValue({ success: true }),
         description: 'Success tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       const errorResolveSpy = vi.fn();
@@ -253,7 +262,7 @@ describe('ToolQueue', () => {
           return { done: true };
         }),
         description: 'Slow tool',
-        parameters: {},
+        parameters: z.object({}),
       };
 
       queue.enqueue({

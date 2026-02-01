@@ -1,0 +1,20 @@
+{
+  "name": "@mimo/integration-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mimo/agent-core": "workspace:*",
+    "@mimo/agent-tools": "workspace:*",
+    "@mimo/llm": "workspace:*",
+    "zod": "^3.24.2",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}
