@@ -11,6 +11,11 @@
  * the HubCommandType system was introduced.
  */
 export enum LegacyMessageType {
+  /**
+   * Content script reports page load/state transitions to background.
+   * Used for debugging and for future tooling that needs last-known page state.
+   */
+  PAGE_STATE_CHANGE = 'PAGE_STATE_CHANGE',
   STAGEHAND_XPATH_SCAN = 'STAGEHAND_XPATH_SCAN',
   STAGEHAND_VIEWPORT_SCREENSHOT = 'STAGEHAND_VIEWPORT_SCREENSHOT',
   RESUME_BLOCKS_EXTRACT = 'RESUME_BLOCKS_EXTRACT',
@@ -26,6 +31,11 @@ export enum LegacyMessageType {
   ADD_TABS_TO_GROUP = 'ADD_TABS_TO_GROUP',
   WINDOW_FOCUS = 'WINDOW_FOCUS',
   CDP_CLICK_BY_XPATH = 'CDP_CLICK_BY_XPATH',
+  /**
+   * Web page / external caller can query current Bion socket + client id info.
+   * Used by mimoim to auto-discover and auto-select a connected plugin.
+   */
+  GET_BION_CLIENT_INFO = 'GET_BION_CLIENT_INFO',
 }
 
 /**

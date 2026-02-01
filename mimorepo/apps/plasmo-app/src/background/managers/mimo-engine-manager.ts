@@ -7,8 +7,16 @@
  */
 
 import { createBionPluginClient, type BionPluginClient } from '@bion/client';
-import type { BionActivateExtensionMessage, BionBrowserActionMessage, BionBrowserActionResult } from '@bion/protocol';
+import type {
+  BionActivateExtensionMessage,
+  BionBrowserActionMessage,
+  BionBrowserActionResult,
+  BionPluginMessage,
+} from '@bion/protocol';
+import { registerExtensionId } from '@/apis';
 import type { LifecycleAware } from './lifecycle-manager';
+import { BrowserActionExecutor } from './browser-action-executor';
+import { DebuggerSessionManager } from './debugger-session-manager';
 
 export interface BionSocketConfig {
   busUrl?: string;
@@ -31,6 +39,8 @@ async function getOrCreateClientId(): Promise<string> {
 export class BionSocketManager implements LifecycleAware {
   private client: BionPluginClient | null = null;
   private config: Required<BionSocketConfig>;
+  private debuggerSessions = new DebuggerSessionManager();
+  private actionExecutor = new BrowserActionExecutor(this.debuggerSessions, (m: BionPluginMessage) => this.client?.emit(m));
 
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
@@ -61,7 +71,10 @@ export class BionSocketManager implements LifecycleAware {
       return;
     }
 
-    console.log('[BionSocketManager] Connecting...');
+    console.log('[BionSocketManager] Connecting...', {
+      busUrl: this.config.busUrl,
+      namespace: this.config.namespace,
+    });
 
     try {
       this.isManualDisconnect = false;
@@ -72,6 +85,8 @@ export class BionSocketManager implements LifecycleAware {
         url: this.config.busUrl,
         namespace: this.config.namespace,
         autoConnect: false,
+        // MV3 service worker environment: avoid XHR polling.
+        transports: ['websocket'],
         auth: { clientType: 'extension' },
       });
 
@@ -90,6 +105,27 @@ export class BionSocketManager implements LifecycleAware {
         };
         this.client?.emit(activate);
         if (this.config.debug) console.log('[BionSocketManager] activate_extension sent', activate);
+
+        // Also register (HTTP) extensionId <-> clientId binding for server-side lookup/persistence.
+        try {
+          const extensionId = chrome.runtime?.id;
+          const extensionName = chrome.runtime.getManifest?.().name;
+          if (extensionId && extensionName) {
+            registerExtensionId(extensionId, extensionName, {
+              clientId,
+              ua: activate.ua,
+              version: activate.version,
+              browserName: activate.browserName,
+              allowOtherClient: activate.allowOtherClient,
+            }).catch((e) => {
+              if (this.config.debug) console.warn('[BionSocketManager] registerExtensionId failed', e);
+            });
+          } else if (this.config.debug) {
+            console.warn('[BionSocketManager] extensionId/extensionName not available for registration');
+          }
+        } catch (e) {
+          if (this.config.debug) console.warn('[BionSocketManager] registerExtensionId threw', e);
+        }
       });
 
       this.client.socket.on('disconnect', (reason) => {
@@ -98,26 +134,32 @@ export class BionSocketManager implements LifecycleAware {
       });
 
       this.client.socket.on('connect_error', (err) => {
-        if (this.config.debug) console.warn('[BionSocketManager] connect_error', err);
+        console.warn('[BionSocketManager] connect_error', {
+          busUrl: this.config.busUrl,
+          namespace: this.config.namespace,
+          message: err instanceof Error ? err.message : String(err),
+        });
         if (!this.isManualDisconnect && this.config.autoReconnect) this.scheduleReconnect();
       });
 
       // Handle browser_action commands (ack required)
       this.client.onBrowserAction(async (msg: BionBrowserActionMessage): Promise<BionBrowserActionResult> => {
-        // TODO: implement real CDP execution; for now, return a typed error.
+        const result = await this.actionExecutor.execute(msg);
         return {
           sessionId: msg.sessionId,
           clientId: msg.clientId,
-          actionId: msg.id,
-          status: 'error',
-          error: 'browser_action not implemented in bion plugin yet',
+          ...result,
         };
       });
 
       await this.client.connect();
       console.log('[BionSocketManager] Connected successfully');
     } catch (error) {
-      console.error('[BionSocketManager] Connection failed:', error);
+      console.error('[BionSocketManager] Connection failed:', {
+        busUrl: this.config.busUrl,
+        namespace: this.config.namespace,
+        message: error instanceof Error ? error.message : String(error),
+      });
       this.client = null;
       if (!this.isManualDisconnect && this.config.autoReconnect) this.scheduleReconnect();
 

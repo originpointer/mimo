@@ -98,11 +98,21 @@ export abstract class LLMClient implements ILLMClient {
   ): Promise<ChatCompletionResponse<T>> {
     // Convert BaseMessage[] to ChatMessage[]
     const messages = this.convertToChatMessages(options.messages);
-    const internalOptions: TypesChatCompletionOptions = {
+    // NOTE: `@mimo/types` ChatCompletionOptions is intentionally minimal, but our
+    // higher-level agent-core options include tool calling and provider overrides.
+    // Downstream clients accept `options?: any`, so we forward these fields as well.
+    const internalOptions = {
       temperature: options.temperature,
       maxTokens: options.maxTokens,
       stop: options.stopSequences,
-    };
+      // Tool calling (when supported by the underlying client/provider)
+      tools: (options as any).tools,
+      toolChoice: (options as any).toolChoice,
+      // Provider-specific options (when supported)
+      providerOptions: (options as any).providerOptions,
+      // AI SDK-only: forwarded into tool execution context (NOT sent to provider)
+      experimentalContext: (options as any).experimentalContext,
+    } as TypesChatCompletionOptions as any;
 
     // Structured output (Stage06 uses this for stable plans)
     // NOTE: Provider-specific structured output lives in `doGenerateStructure`.
@@ -158,11 +168,15 @@ export abstract class LLMClient implements ILLMClient {
   ): AsyncIterable<ChatCompletionResponse<T>> {
     // Convert BaseMessage[] to ChatMessage[]
     const messages = this.convertToChatMessages(options.messages);
-    const internalOptions: TypesChatCompletionOptions = {
+    const internalOptions = {
       temperature: options.temperature,
       maxTokens: options.maxTokens,
       stop: options.stopSequences,
-    };
+      tools: (options as any).tools,
+      toolChoice: (options as any).toolChoice,
+      providerOptions: (options as any).providerOptions,
+      experimentalContext: (options as any).experimentalContext,
+    } as TypesChatCompletionOptions as any;
 
     const stream = this.streamChatCompletion(messages, internalOptions);
 

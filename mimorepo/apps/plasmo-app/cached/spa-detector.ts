@@ -111,6 +111,10 @@ export interface SPADetectionResult {
   
       // 检查全局对象
       const hasRouter = routerPatterns.some((pattern) => {
+        // Skip patterns with invalid CSS selector characters
+        if (!/^[a-zA-Z0-9_-]+$/.test(pattern)) {
+          return (window as any)[pattern] || false;
+        }
         return (
           (window as any)[pattern] ||
           document.querySelector(`[data-${pattern}]`) !== null

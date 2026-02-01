@@ -2,7 +2,7 @@
  * 页面状态检测工具函数
  */
 
-import { PageLoadState, type PageStateInfo, type ObserverConfig, DEFAULT_CONFIG } from '../types/page-state';
+import { PageLoadState, type PageStateInfo, type ObserverConfig, DEFAULT_CONFIG } from './page-state.type';
 import { SPADetector } from './spa-detector';
 
 export class PageStateDetector {

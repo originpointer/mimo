@@ -6,6 +6,7 @@
  */
 
 import type { StagehandXPathManager } from '../managers/stagehand-xpath-manager';
+import type { BionSocketManager } from '../managers/mimo-engine-manager';
 import { TabResolver } from '../utils/tab-resolver';
 import { UrlValidator } from '../utils/url-validator';
 import { postToolCallResult } from '@/apis';
@@ -62,6 +63,8 @@ import {
 import { WINDOW_FOCUS, handleWindowFocus } from '../../types/window-focus';
 import { CDP_CLICK_BY_XPATH, handleCdpClickByXPath } from '../../types/cdp-click-by-xpath';
 import type { HandlerContext, ResponseCallback } from './types';
+import { LegacyMessageType } from './types';
+import type { PageStateInfo } from '../../../cached/page-state.type';
 
 /**
  * Legacy Handler Registry
@@ -69,7 +72,23 @@ import type { HandlerContext, ResponseCallback } from './types';
  * Routes legacy message types to their respective handlers.
  */
 export class LegacyHandlerRegistry {
-  constructor(private stagehandManager: StagehandXPathManager) {}
+  constructor(
+    private stagehandManager: StagehandXPathManager,
+    private bionSocketManager: BionSocketManager
+  ) {}
+
+  private readonly lastPageStateByTabId = new Map<number, PageStateInfo>();
+
+  private async getBionClientIdFromStorage(): Promise<string | null> {
+    try {
+      const key = 'bionClientId';
+      const existing = await chrome.storage.local.get(key);
+      const value = existing?.[key];
+      return typeof value === 'string' && value.length > 0 ? value : null;
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * Handle a legacy message
@@ -87,6 +106,45 @@ export class LegacyHandlerRegistry {
     const messageType = message.type;
 
     switch (messageType) {
+      case LegacyMessageType.PAGE_STATE_CHANGE: {
+        // Content script pushes page load state changes for debugging/observability.
+        // Important: respond immediately to avoid "message channel closed" errors in the sender.
+        const tabId = sender?.tab?.id;
+        if (typeof tabId === 'number') {
+          const payload = (message?.payload || null) as PageStateInfo | null;
+          if (payload && typeof payload === 'object') {
+            this.lastPageStateByTabId.set(tabId, payload);
+          }
+        }
+        sendResponse({ ok: true });
+        return true;
+      }
+      case LegacyMessageType.GET_BION_CLIENT_INFO:
+        void (async () => {
+          try {
+            const extensionId = chrome.runtime?.id || '';
+            const manifest = chrome.runtime?.getManifest?.();
+            const extensionName =
+              typeof manifest?.name === 'string' ? manifest.name : '';
+            const version =
+              typeof manifest?.version === 'string' ? manifest.version : '';
+
+            const clientId = await this.getBionClientIdFromStorage();
+            const socketConnected = this.bionSocketManager.isConnected();
+
+            sendResponse({
+              ok: true,
+              extensionId,
+              extensionName,
+              version,
+              clientId,
+              socketConnected,
+            });
+          } catch (e) {
+            sendResponse({ ok: false, error: e instanceof Error ? e.message : String(e) });
+          }
+        })();
+        return true;
       case STAGEHAND_XPATH_SCAN:
         return this.handleStagehandXPathScan(message, sender, sendResponse);
       case STAGEHAND_VIEWPORT_SCREENSHOT:

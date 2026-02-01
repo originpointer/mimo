@@ -7,9 +7,10 @@
 import type { z } from 'zod';
 
 // 从 agent-core 重新导出常用类型（便捷访问）
+// Note: LLMProvider enum is intentionally omitted here to avoid conflict with the LLMProvider class.
+// Import it as CoreLLMProvider from the main index.ts or directly from @mimo/agent-core.
 export type {
   TokenUsage,
-  LLMProvider,
   ModelCapability,
   ChatCompletionOptions,
   ChatCompletionResponse,

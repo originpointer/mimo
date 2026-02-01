@@ -31,7 +31,7 @@ export class TabGroupManager {
       }
 
       // 创建第一个选项卡
-      const firstTab = await chrome.tabs.create({ url: urls[0], active: false })
+      const firstTab = await chrome.tabs.create({ url: urls[0], active: false, index: 0 })
 
       // 创建选项卡组
       const groupId = await chrome.tabs.group({ tabIds: firstTab.id })
@@ -49,7 +49,7 @@ export class TabGroupManager {
         const tabIds: number[] = []
 
         for (const url of remainingUrls) {
-          const tab = await chrome.tabs.create({ url, active: false })
+          const tab = await chrome.tabs.create({ url, active: false, index: 0 })
           tabIds.push(tab.id)
         }
 
@@ -175,7 +175,7 @@ export class TabGroupManager {
       const tabIds: number[] = []
 
       for (const url of urls) {
-        const tab = await chrome.tabs.create({ url, active: false })
+        const tab = await chrome.tabs.create({ url, active: false, index: 0 })
         tabIds.push(tab.id)
       }
 

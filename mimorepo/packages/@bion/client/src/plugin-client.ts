@@ -5,6 +5,13 @@ export interface CreateBionPluginClientOptions {
   url: string;
   namespace?: string;
   /**
+   * Override Socket.IO transports.
+   *
+   * NOTE: MV3 background service workers can be flaky with XHR polling; prefer
+   * `['websocket']` there.
+   */
+  transports?: Array<'websocket' | 'polling'>;
+  /**
    * Forwarded to Socket.IO handshake auth.
    */
   auth?: Record<string, unknown>;
@@ -37,10 +44,11 @@ export interface BionPluginClient {
 }
 
 export function createBionPluginClient(options: CreateBionPluginClientOptions): BionPluginClient {
-  const { url, namespace = '/mimo', auth = {}, autoConnect = false } = options;
+  const { url, namespace = '/mimo', auth = {}, autoConnect = false, transports } = options;
 
   const socket = io(`${url}${namespace}`, {
     autoConnect,
+    ...(transports ? { transports } : null),
     auth: {
       clientType: 'extension',
       ...auth,

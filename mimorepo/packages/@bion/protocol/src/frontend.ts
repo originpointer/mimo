@@ -11,6 +11,7 @@ export type BionFrontendMessageType =
   | 'explanation'
   | 'structuredOutput'
   | 'myBrowserSelection'
+  | 'browserTaskConfirmationRequested'
   | 'queueStatusChange'
   | 'sandboxUpdate'
   | 'taskModeChanged';
@@ -115,6 +116,28 @@ export interface BionMyBrowserSelectionEvent extends BionFrontendEventBase {
   connectedBrowser?: BionBrowserCandidate;
 }
 
+export interface BionBrowserTaskConfirmationRequestedEvent extends BionFrontendEventBase {
+  type: 'browserTaskConfirmationRequested';
+  requestId: string;
+  /**
+   * The selected browser extension clientId (if already selected).
+   * If absent, UI should first guide the user to select a browser.
+   */
+  clientId?: string;
+  /**
+   * Short, user-facing summary of what will happen.
+   */
+  summary: string;
+  /**
+   * Optional preview of the browser_action payload that will be sent to the extension.
+   */
+  browserActionPreview?: unknown;
+  /**
+   * Optional link to a chat/user event id.
+   */
+  targetEventId?: string;
+}
+
 export type BionFrontendEvent =
   | BionChatDeltaEvent
   | BionExplanationEvent
@@ -123,6 +146,7 @@ export type BionFrontendEvent =
   | BionToolUsedEvent
   | BionStructuredOutputEvent
   | BionMyBrowserSelectionEvent
+  | BionBrowserTaskConfirmationRequestedEvent
   // fallback for events we don't model strictly yet
   | (BionFrontendEventBase & Record<string, unknown>);
 
@@ -169,5 +193,18 @@ export interface BionSelectMyBrowser {
   sourceClientId?: string;
 }
 
-export type BionFrontendToServerMessage = BionUserMessage | BionSelectMyBrowser | (Record<string, unknown> & { type: string });
+export interface BionConfirmBrowserTask {
+  type: 'confirm_browser_task';
+  id: string;
+  timestamp: number;
+  sessionId: string;
+  requestId: string;
+  confirmed: boolean;
+}
+
+export type BionFrontendToServerMessage =
+  | BionUserMessage
+  | BionSelectMyBrowser
+  | BionConfirmBrowserTask
+  | (Record<string, unknown> & { type: string });
 

@@ -11,9 +11,11 @@
     "sources:sync:force": "tsx .sources/sources-sync.ts --force"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4",
     "prettier": "^3.7.4",
-    "turbo": "^2.7.3",
+    "tailwindcss": "^4",
     "tsx": "^4.21.0",
+    "turbo": "^2.7.3",
     "typescript": "5.9.2",
     "yaml": "^2.8.2"
   },

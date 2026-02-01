@@ -34,6 +34,15 @@ export type StagehandXPathItem = {
 };
 
 export type StagehandXPathScanResponse =
-  | { ok: true; items: StagehandXPathItem[]; meta?: { totalCandidates?: number; durationMs?: number } }
+  | {
+      ok: true
+      /**
+       * Convenience field for downstream tools:
+       * `xpaths === items.map(i => i.xpath)`
+       */
+      xpaths?: string[]
+      items: StagehandXPathItem[]
+      meta?: { totalCandidates?: number; durationMs?: number }
+    }
   | { ok: false; error: string };
 

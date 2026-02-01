@@ -32,6 +32,15 @@ import { ServiceWorkerLifecycleManager } from './managers/lifecycle-manager';
 import { KeepAliveManager } from './managers/keep-alive-manager';
 import { StateManager } from './managers/state-manager';
 
+function normalizeSocketIoUrl(raw: string): string {
+  const s = raw.trim();
+  if (!s) return s;
+  // socket.io client expects http(s) base URLs; allow ws(s) for convenience.
+  if (s.startsWith('ws://')) return `http://${s.slice('ws://'.length)}`;
+  if (s.startsWith('wss://')) return `https://${s.slice('wss://'.length)}`;
+  return s;
+}
+
 // ==================== 初始化管理器 ====================
 
 /**
@@ -53,8 +62,15 @@ const stagehandManager = new StagehandXPathManager();
  * - 实现 LifecycleAware 接口
  * - 生命周期管理
  */
+const rawBusUrl =
+  process.env.PLASMO_PUBLIC_MIMO_BUS_URL ||
+  // Back-compat: older env name used in this repo's `.env`
+  process.env.PLASMO_PUBLIC_SOCKET_URL ||
+  '';
+const resolvedBusUrl = rawBusUrl ? normalizeSocketIoUrl(rawBusUrl) : 'http://localhost:6007';
+
 const mimoEngineManager = new BionSocketManager({
-  busUrl: process.env.PLASMO_PUBLIC_MIMO_BUS_URL || 'http://localhost:6007',
+  busUrl: resolvedBusUrl,
   namespace: '/mimo',
   autoReconnect: true,
   debug: process.env.NODE_ENV === 'development',
@@ -137,7 +153,7 @@ lifecycleManager.addManager(mimoEngineManager);
  * - LIST_TABS: 标签页列表
  * - Tab group operations (5 types): 选项卡组操作
  */
-const legacyRegistry = new LegacyHandlerRegistry(stagehandManager);
+const legacyRegistry = new LegacyHandlerRegistry(stagehandManager, mimoEngineManager);
 
 /**
  * HubCommandHandlerRegistry - Hub命令处理器

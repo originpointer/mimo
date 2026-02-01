@@ -42,7 +42,8 @@ export interface IPage {
     /** Take screenshot */
     screenshot(options?: { encoding?: string }): Promise<string | Buffer>;
     /** Evaluate JavaScript */
-    evaluate(fn: () => any): Promise<any>;
+    evaluate<R>(fn: () => R | Promise<R>): Promise<R>;
+    evaluate<Arg, R>(fn: (arg: Arg) => R | Promise<R>, arg: Arg): Promise<R>;
 }
 
 /**
@@ -176,10 +177,10 @@ export class ReplayEngine {
 
             case 'evaluate':
                 if (page && action.code) {
-                    return await page.evaluate(() => {
-                        // Safe evaluation wrapper
-                        return eval(action.code as string);
-                    });
+                    const code = String(action.code);
+                    // Indirect eval avoids esbuild's "direct-eval" bundler warning.
+                    // WARNING: This executes arbitrary JS in the page context — only replay trusted recordings.
+                    return await page.evaluate((c) => (0, eval)(c), code);
                 }
                 break;
 

@@ -11,9 +11,14 @@
     "nitropack": "^2.12.4"
   },
   "dependencies": {
+    "@bion/browser-bion-adapter": "workspace:*",
+    "@bion/browser-tools": "workspace:*",
     "@bion/protocol": "workspace:*",
+    "@mimo/agent-cache": "workspace:*",
+    "@mimo/agent-tools": "workspace:*",
     "@mimo/llm": "workspace:*",
     "pino": "^9.9.0",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "zod": "^4.3.6"
   }
 }

@@ -11,6 +11,7 @@ import type { LLMProviderType } from '../types.js';
 // Core types from @mimo/agent-core
 // Note: LLMProvider is an enum (runtime value), not just a type
 import { LLMProvider, type ModelCapability } from '@mimo/agent-core';
+import type { ToolExecutionContext, ToolSet } from '@mimo/agent-core/types';
 
 export class AIGatewayClient extends LLMClient {
   private providerType: LLMProviderType;
@@ -58,15 +59,48 @@ export class AIGatewayClient extends LLMClient {
   ): Promise<LLMResponse> {
     // Import at runtime to avoid bundling issues
     const { gateway } = await import('@ai-sdk/gateway');
-    const { generateText } = await import('ai');
+    const { generateText, tool: aiTool, stepCountIs } = await import('ai');
 
     const aiModel = gateway.languageModel(this.model);
+
+    const toolSet: ToolSet | undefined = options?.tools;
+    const aiTools =
+      toolSet && Object.keys(toolSet).length > 0
+        ? Object.fromEntries(
+            Object.entries(toolSet).map(([name, toolDef]) => [
+              name,
+              aiTool({
+                description: (toolDef as any).description,
+                inputSchema: (toolDef as any).parameters,
+                execute: async (input: any, execOptions: any) => {
+                  const baseCtx =
+                    (execOptions as any)?.experimental_context ??
+                    (options?.experimentalContext as ToolExecutionContext | undefined) ??
+                    {};
+                  const ctx = {
+                    ...(baseCtx as any),
+                    metadata: {
+                      ...((baseCtx as any)?.metadata ?? {}),
+                      toolCallId: (execOptions as any)?.toolCallId,
+                    },
+                  } as ToolExecutionContext;
+                  return await (toolDef as any).execute(input, ctx);
+                },
+              }),
+            ])
+          )
+        : undefined;
 
     const result = await generateText({
       model: aiModel,
       messages: this.formatMessages(messages),
       temperature: options?.temperature,
       maxOutputTokens: options?.maxTokens,
+      tools: aiTools,
+      toolChoice: options?.toolChoice,
+      experimental_context: options?.experimentalContext,
+      providerOptions: options?.providerOptions,
+      stopWhen: aiTools ? stepCountIs(8) : undefined,
     });
 
     // Extract usage from AI SDK result
@@ -90,15 +124,48 @@ export class AIGatewayClient extends LLMClient {
   ): AsyncGenerator<LLMStreamChunk> {
     // Import at runtime to avoid bundling issues
     const { gateway } = await import('@ai-sdk/gateway');
-    const { streamText } = await import('ai');
+    const { streamText, tool: aiTool, stepCountIs } = await import('ai');
 
     const aiModel = gateway.languageModel(this.model);
+
+    const toolSet: ToolSet | undefined = options?.tools;
+    const aiTools =
+      toolSet && Object.keys(toolSet).length > 0
+        ? Object.fromEntries(
+            Object.entries(toolSet).map(([name, toolDef]) => [
+              name,
+              aiTool({
+                description: (toolDef as any).description,
+                inputSchema: (toolDef as any).parameters,
+                execute: async (input: any, execOptions: any) => {
+                  const baseCtx =
+                    (execOptions as any)?.experimental_context ??
+                    (options?.experimentalContext as ToolExecutionContext | undefined) ??
+                    {};
+                  const ctx = {
+                    ...(baseCtx as any),
+                    metadata: {
+                      ...((baseCtx as any)?.metadata ?? {}),
+                      toolCallId: (execOptions as any)?.toolCallId,
+                    },
+                  } as ToolExecutionContext;
+                  return await (toolDef as any).execute(input, ctx);
+                },
+              }),
+            ])
+          )
+        : undefined;
 
     const result = await streamText({
       model: aiModel,
       messages: this.formatMessages(messages),
       temperature: options?.temperature,
       maxOutputTokens: options?.maxTokens,
+      tools: aiTools,
+      toolChoice: options?.toolChoice,
+      experimental_context: options?.experimentalContext,
+      providerOptions: options?.providerOptions,
+      stopWhen: aiTools ? stepCountIs(8) : undefined,
     });
 
     for await (const chunk of result.textStream) {

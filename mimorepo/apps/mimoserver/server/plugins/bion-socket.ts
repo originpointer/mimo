@@ -8,6 +8,7 @@ import {
   decodePluginMessage,
   encodeFrontendEnvelope,
   encodePluginMessage,
+  type BionBrowserCandidate,
   type BionBrowserActionMessage,
   type BionBrowserActionResult,
   type BionFrontendEvent,
@@ -15,11 +16,86 @@ import {
   type BionFrontendToServerMessage,
   type BionPluginMessage,
 } from '@bion/protocol';
+import { registerBrowserTools, runBrowserTask } from '@bion/browser-tools';
+import { createBionBrowserTransport } from '@bion/browser-bion-adapter';
 import { LLMProvider } from '@mimo/llm';
+import { ToolRegistry } from '@mimo/agent-tools/registry';
+import { ToolScheduler } from '@mimo/agent-tools/scheduler';
+import { z } from 'zod';
 import { logger } from '../utils/logger';
 import { persistLlmRun } from '../utils/persist-llm-run';
+import {
+  ToolDisclosurePolicy,
+  inferDomain,
+  inferIntent,
+  maxTier,
+  toolsForTier,
+  type ToolIntent,
+  type ToolTier,
+} from '../utils/tool-disclosure';
 
 type ClientType = 'page' | 'extension' | 'unknown';
+
+class ToolUpgradeRequestedError extends Error {
+  readonly requestedTier: ToolTier;
+  readonly reason?: string;
+  constructor(requestedTier: ToolTier, reason?: string) {
+    super(`Tool upgrade requested: ${requestedTier}${reason ? ` (${reason})` : ''}`);
+    this.requestedTier = requestedTier;
+    this.reason = reason;
+  }
+}
+
+function parsePort(raw: string | undefined): number | null {
+  if (!raw) return null;
+  const n = Number.parseInt(String(raw).trim(), 10);
+  if (!Number.isFinite(n) || n <= 0 || n >= 65536) return null;
+  return n;
+}
+
+async function listenOnAvailablePort(params: {
+  httpServer: ReturnType<typeof createServer>;
+  preferredPort: number;
+  /**
+   * If true, do not try fallback ports; fail fast when preferredPort is in use.
+   * Use this when the port is explicitly configured by env.
+   */
+  strict: boolean;
+  maxTries?: number;
+}): Promise<number> {
+  const maxTries = Math.max(1, params.maxTries ?? 20);
+
+  for (let i = 0; i < maxTries; i++) {
+    const port = params.preferredPort + i;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const onError = (err: any) => {
+          reject(err);
+        };
+        params.httpServer.once('error', onError);
+        params.httpServer.listen(port, () => {
+          params.httpServer.removeListener('error', onError);
+          resolve();
+        });
+      });
+      return port;
+    } catch (e) {
+      const err = e as any;
+      const code = err?.code;
+      const isAddrInUse = code === 'EADDRINUSE';
+
+      if (params.strict || !isAddrInUse) {
+        throw e;
+      }
+
+      // retry next port
+    }
+  }
+
+  throw new Error(
+    `Unable to find an available Bion Socket.IO port starting at ${params.preferredPort} (tried ${maxTries} ports)`
+  );
+}
 
 function getClientType(socket: Socket): ClientType {
   const t = (socket.handshake as any)?.auth?.clientType;
@@ -58,6 +134,146 @@ function safeJsonParse(text: string): unknown | null {
   }
 }
 
+function extractFirstUrlLike(text: string): string | null {
+  const s = String(text || '');
+  const http = s.match(/https?:\/\/[^\s]+/i)?.[0];
+  if (http) return http;
+  const www = s.match(/\bwww\.[^\s]+\.[^\s]+\b/i)?.[0];
+  if (www) return `https://${www}`;
+  const bareDomain = s.match(/\b[a-z0-9-]+(\.[a-z0-9-]+)+\b/i)?.[0];
+  if (bareDomain && bareDomain.includes('.')) return `https://${bareDomain}`;
+  return null;
+}
+
+function inferKnownUrlFromText(text: string): string | null {
+  const t = String(text || '').toLowerCase();
+  // Keep this list tiny and conservative: only the high-confidence global sites.
+  if (/\bgoogle\b/.test(t)) return 'https://www.google.com';
+  if (/\byoutube\b/.test(t)) return 'https://www.youtube.com';
+  if (/\bgmail\b/.test(t)) return 'https://mail.google.com';
+  if (/\bgithub\b/.test(t)) return 'https://github.com';
+  if (/\bbing\b/.test(t)) return 'https://www.bing.com';
+  return null;
+}
+
+function isBrowserIntent(userText: string): boolean {
+  const t = String(userText || '').toLowerCase();
+  if (!t.trim()) return false;
+
+  // Direct URL is always a browser intent.
+  if (/https?:\/\//i.test(t) || /\bwww\./i.test(t)) return true;
+
+  // Common intents (CN/EN)
+  const intentHit =
+    /(\bopen\b|\bvisit\b|\bnavigate\b|\bgo\s+to\b)/i.test(t) ||
+    /浏览器|打开|访问|前往|跳转|去\s*到|用浏览器/.test(userText);
+
+  if (!intentHit) return false;
+
+  // If the text contains something that looks like a domain or a known website keyword.
+  const hasDomainLike = /\b[a-z0-9-]+(\.[a-z0-9-]+)+\b/i.test(t);
+  const hasKnownSite = /\bgoogle\b|\byoutube\b|\bgmail\b|\bgithub\b|\bbing\b/i.test(t);
+  return hasDomainLike || hasKnownSite;
+}
+
+type PendingBrowserTask = {
+  requestId: string;
+  sessionId: string;
+  targetEventId: string;
+  /**
+   * Raw structured JSON parsed from the final LLM output.
+   */
+  payload: any;
+  summary: string;
+  title?: string;
+  createdAt: number;
+};
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function summarizeBrowserTask(parsed: unknown): string | null {
+  if (!isRecord(parsed)) return null;
+  const type = parsed.type;
+  if (type !== 'mimo_browser_task' && type !== 'browser_task') return null;
+
+  const summary =
+    (typeof parsed.summary === 'string' && parsed.summary.trim()) ||
+    (typeof parsed.brief === 'string' && parsed.brief.trim()) ||
+    '请求开启浏览器任务';
+  return summary;
+}
+
+function extractBrowserAction(parsed: unknown): Record<string, Record<string, unknown>> | null {
+  if (!isRecord(parsed)) return null;
+  const action = (parsed as any).action ?? (parsed as any).browserAction ?? (parsed as any).browser_action;
+  if (!isRecord(action)) return null;
+
+  // Ensure action is Record<string, Record<string, unknown>>
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const [k, v] of Object.entries(action)) {
+    if (!k) continue;
+    if (isRecord(v)) out[k] = v as Record<string, unknown>;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function extractFirstNavigateUrl(action: Record<string, Record<string, unknown>> | null): string | null {
+  if (!action) return null;
+  const nav = (action as any).browser_navigate;
+  const url = typeof nav?.url === 'string' ? String(nav.url) : '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return null;
+}
+
+function sanitizeTitle(input: string): string {
+  const s = String(input || '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/["'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s) return '浏览器任务';
+  // Keep it short for tabGroup title
+  return s.length > 18 ? s.slice(0, 18) : s;
+}
+
+async function generateBrowserTaskTitle(params: {
+  llm: any;
+  model: string;
+  userText: string;
+  summary: string;
+  url?: string | null;
+}): Promise<string> {
+  try {
+    const prompt = [
+      `用户需求: ${params.userText || ''}`.trim(),
+      `任务摘要: ${params.summary || ''}`.trim(),
+      params.url ? `目标URL: ${params.url}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const resp = await params.llm.complete({
+      model: params.model,
+      temperature: 0.2,
+      maxTokens: 64,
+      messages: [
+        {
+          role: 'system',
+          content:
+            '你是一个任务命名助手。请为浏览器自动化任务生成一个简短标题：中文为主，<= 12 个字，避免标点和引号，只输出标题文本。',
+        },
+        { role: 'user', content: prompt },
+      ] as any,
+    } as any);
+
+    return sanitizeTitle(resp?.content ?? '');
+  } catch {
+    return sanitizeTitle(params.summary || '浏览器任务');
+  }
+}
+
 /**
  * A minimal server-side Bion runtime stored on `globalThis`.
  * Other server routes can emit UI events or call plugins by reading `globalThis.__bion`.
@@ -87,13 +303,41 @@ export default defineNitroPlugin((nitroApp) => {
     process.env.LLM_MODEL ||
     'anthropic/claude-3-5-haiku';
 
+  const persistBrowserSession =
+    process.env.MIMO_PERSIST_BROWSER_SESSION !== undefined
+      ? process.env.MIMO_PERSIST_BROWSER_SESSION === 'true'
+      : process.env.NODE_ENV === 'development';
+  const browserSessionTtlMs = Math.max(
+    30_000,
+    Number.parseInt(String(process.env.MIMO_BROWSER_SESSION_TTL_MS || '600000'), 10) || 600_000
+  );
+
   // sessionId -> chat history (best-effort, in-memory)
   const historyBySessionId = new Map<
     string,
     Array<{ role: 'system' | 'user' | 'assistant'; content: string; timestamp: number }>
   >();
 
-  const port = 6007;
+  type ActiveBrowserSession = {
+    requestId: string;
+    clientId: string;
+    title: string;
+    startedAt: number;
+    lastUsedAt: number;
+  };
+  // sessionId -> active browser session (when persistence enabled)
+  const activeBrowserSessionBySessionId = new Map<string, ActiveBrowserSession>();
+
+  // Socket.IO port:
+  // - Prefer explicit env override: BION_SOCKET_PORT
+  // - Otherwise, try to follow Nitro's port (+1) in dev, falling back to 6007
+  const explicitSocketPort = parsePort(process.env.BION_SOCKET_PORT);
+  const nitroPort =
+    parsePort(process.env.NITRO_PORT) ??
+    parsePort(process.env.PORT) ??
+    parsePort((nitroApp as any)?.options?.devServer?.port) ??
+    parsePort((nitroApp as any)?.options?.port);
+  const preferredPort = explicitSocketPort ?? (nitroPort ? nitroPort + 1 : 6007);
   const namespaceName = '/mimo';
 
   const httpServer = createServer();
@@ -106,12 +350,89 @@ export default defineNitroPlugin((nitroApp) => {
 
   // plugin clientId -> socket
   const pluginByClientId = new Map<string, Socket>();
+  const pluginMetaByClientId = new Map<
+    string,
+    { clientId: string; clientName: string; ua: string; version: string; allowOtherClientId: boolean }
+  >();
+
+  const toolDisclosure = new ToolDisclosurePolicy();
+
+  // sessionId -> selected browser extension clientId
+  const selectedClientIdBySessionId = new Map<string, string>();
+
+  // sessionIds that are currently waiting for browser selection UI.
+  const waitingBrowserSelectionSessionIds = new Set<string>();
+
+  // sessionId -> pending browser task (waiting for user confirmation)
+  const pendingBrowserTaskBySessionId = new Map<string, PendingBrowserTask>();
+
+  const getBrowserCandidates = (): BionBrowserCandidate[] => {
+    const candidates: BionBrowserCandidate[] = [];
+    for (const [clientId] of pluginByClientId.entries()) {
+      const meta = pluginMetaByClientId.get(clientId);
+      candidates.push({
+        clientId,
+        clientName: meta?.clientName ?? 'MimoBrowser',
+        ua: meta?.ua ?? '',
+        allowOtherClientId: meta?.allowOtherClientId ?? true,
+      });
+    }
+    return candidates;
+  };
+
+  const refreshWaitingBrowserSelections = () => {
+    const candidates = getBrowserCandidates();
+    const sessions = Array.from(waitingBrowserSelectionSessionIds);
+    for (const sessionId of sessions) {
+      if (candidates.length === 1) {
+        const only = candidates[0]!;
+        selectedClientIdBySessionId.set(sessionId, only.clientId);
+        waitingBrowserSelectionSessionIds.delete(sessionId);
+        emitUiEvent(sessionId, {
+          type: 'myBrowserSelection',
+          id: randomId(),
+          timestamp: Date.now(),
+          status: 'selected',
+          connectedBrowser: only,
+        } satisfies BionFrontendEvent);
+
+        const pending = pendingBrowserTaskBySessionId.get(sessionId);
+        if (pending) {
+          emitUiEvent(sessionId, {
+            type: 'browserTaskConfirmationRequested',
+            id: randomId(),
+            timestamp: Date.now(),
+            requestId: pending.requestId,
+            clientId: only.clientId,
+            summary: pending.summary,
+            browserActionPreview: extractBrowserAction(pending.payload) ?? pending.payload,
+            targetEventId: pending.targetEventId,
+          } satisfies BionFrontendEvent);
+        }
+      } else {
+        emitUiEvent(sessionId, {
+          type: 'myBrowserSelection',
+          id: randomId(),
+          timestamp: Date.now(),
+          status: 'waiting_for_selection',
+          browserCandidates: candidates,
+        } satisfies BionFrontendEvent);
+      }
+    }
+  };
 
   nsp.on('connection', (socket) => {
     const clientType = getClientType(socket);
     if (process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
       console.log('[Bion] connected', { socketId: socket.id, clientType });
+    }
+    if (clientType === 'unknown' && process.env.NODE_ENV === 'development') {
+      // eslint-disable-next-line no-console
+      console.warn('[Bion] unknown clientType handshake', {
+        socketId: socket.id,
+        auth: (socket.handshake as any)?.auth,
+      });
     }
 
     if (clientType === 'page') {
@@ -122,12 +443,182 @@ export default defineNitroPlugin((nitroApp) => {
           socket.join(sessionRoom(sessionId));
         }
 
-        if ((msg as any)?.type !== 'user_message') return;
         if (typeof sessionId !== 'string' || sessionId.length === 0) return;
+        const msgType = String((msg as any)?.type || '');
+
+        // User selects a connected browser extension clientId.
+        if (msgType === BionSocketEvent.SelectMyBrowser || msgType === 'select_my_browser') {
+          const targetClientId = String((msg as any)?.targetClientId || '').trim();
+          if (!targetClientId) return;
+          selectedClientIdBySessionId.set(sessionId, targetClientId);
+          waitingBrowserSelectionSessionIds.delete(sessionId);
+
+          const candidates = getBrowserCandidates();
+          const connected = candidates.find((c) => c.clientId === targetClientId);
+          if (connected) {
+            emitUiEvent(sessionId, {
+              type: 'myBrowserSelection',
+              id: randomId(),
+              timestamp: Date.now(),
+              status: 'selected',
+              connectedBrowser: connected,
+            } satisfies BionFrontendEvent);
+          }
+
+          const pending = pendingBrowserTaskBySessionId.get(sessionId);
+          if (pending) {
+            emitUiEvent(sessionId, {
+              type: 'browserTaskConfirmationRequested',
+              id: randomId(),
+              timestamp: Date.now(),
+              requestId: pending.requestId,
+              clientId: targetClientId,
+              summary: pending.summary,
+              browserActionPreview: extractBrowserAction(pending.payload) ?? pending.payload,
+              targetEventId: pending.targetEventId,
+            } satisfies BionFrontendEvent);
+          }
+          return;
+        }
+
+        // User confirms / cancels starting a browser task.
+        if (msgType === 'confirm_browser_task') {
+          const requestId = String((msg as any)?.requestId || '').trim();
+          const confirmed = Boolean((msg as any)?.confirmed);
+          if (!requestId) return;
+
+          const pending = pendingBrowserTaskBySessionId.get(sessionId);
+          if (!pending || pending.requestId !== requestId) return;
+
+          const clientId = selectedClientIdBySessionId.get(sessionId);
+          if (!clientId) {
+            emitUiEvent(sessionId, {
+              type: 'structuredOutput',
+              id: randomId(),
+              timestamp: Date.now(),
+              status: 'error',
+              error: 'No browser selected. Please select a browser extension first.',
+              isComplete: true,
+              targetEventId: pending.targetEventId,
+            } as any);
+            return;
+          }
+
+          if (!confirmed) {
+            pendingBrowserTaskBySessionId.delete(sessionId);
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: 'browser_task',
+              actionId: requestId,
+              status: 'success',
+              brief: 'Browser task cancelled by user',
+            } satisfies BionFrontendEvent);
+            return;
+          }
+
+          emitUiEvent(sessionId, {
+            type: 'toolUsed',
+            id: randomId(),
+            timestamp: Date.now(),
+            tool: 'browser_task',
+            actionId: requestId,
+            status: 'start',
+            brief: 'Starting browser task',
+            description: pending.summary,
+          } satisfies BionFrontendEvent);
+
+          try {
+            const action = extractBrowserAction(pending.payload);
+            const initialUrl = extractFirstNavigateUrl(action);
+            const history = historyBySessionId.get(sessionId) ?? [];
+            const lastUserText =
+              [...history].reverse().find((m) => m.role === 'user')?.content ?? pending.summary;
+
+            const llm = llmProvider.getClient(defaultModel);
+            const title = await generateBrowserTaskTitle({
+              llm,
+              model: defaultModel,
+              userText: lastUserText,
+              summary: pending.summary,
+              url: initialUrl,
+            });
+            pending.title = title;
+
+            const transport = createBionBrowserTransport({
+              callPluginBrowserAction,
+              timeoutMs: 90_000,
+            });
+
+            await runBrowserTask({
+              transport,
+              sessionId,
+              clientId,
+              requestId,
+              summary: pending.summary,
+              title,
+              initialUrl,
+              targetEventId: pending.targetEventId,
+              action,
+            });
+
+            pendingBrowserTaskBySessionId.delete(sessionId);
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: 'browser_task',
+              actionId: requestId,
+              status: 'success',
+              brief: 'Browser task finished',
+            } satisfies BionFrontendEvent);
+          } catch (e) {
+            pendingBrowserTaskBySessionId.delete(sessionId);
+            const err = e instanceof Error ? e.message : String(e);
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: 'browser_task',
+              actionId: requestId,
+              status: 'error',
+              brief: 'Browser task failed',
+              detail: { error: err },
+            } satisfies BionFrontendEvent);
+          }
+          return;
+        }
+
+        if (msgType !== 'user_message') return;
 
         const userMessageId = typeof (msg as any)?.id === 'string' ? String((msg as any).id) : randomId();
         const userText = extractUserText(msg);
         if (!userText.trim()) return;
+
+        // If we keep browser sessions across messages, expire stale ones.
+        let activeBrowserSession = persistBrowserSession ? activeBrowserSessionBySessionId.get(sessionId) ?? null : null;
+        const now = Date.now();
+        if (activeBrowserSession && now - activeBrowserSession.lastUsedAt > browserSessionTtlMs) {
+          try {
+            const transport = createBionBrowserTransport({
+              callPluginBrowserAction,
+              timeoutMs: 20_000,
+            });
+            await transport.execute({
+              sessionId,
+              clientId: activeBrowserSession.clientId,
+              actionId: `${activeBrowserSession.requestId}:session_stop:ttl`,
+              actionName: 'session/stop',
+              params: { requestId: activeBrowserSession.requestId },
+            });
+          } catch {
+            // ignore best-effort stop on TTL expiry
+          } finally {
+            activeBrowserSessionBySessionId.delete(sessionId);
+            activeBrowserSession = null;
+          }
+        }
 
         // Append user message to session history.
         const history = historyBySessionId.get(sessionId) ?? [];
@@ -139,6 +630,597 @@ export default defineNitroPlugin((nitroApp) => {
         const temperature = 0.2;
         const maxTokens = 800;
         const startedAt = Date.now();
+
+        // Agent loop is powerful but invasive (it starts a dedicated browser session per message).
+        // Default to OFF; enable explicitly with MIMO_AGENT_LOOP=true.
+        const agentLoopEnabled = process.env.MIMO_AGENT_LOOP === 'true';
+        if (agentLoopEnabled) {
+          const loopActionId = `llmloop:${sessionId}:${userMessageId}`;
+          const requestId = `browser:${sessionId}:${userMessageId}:${randomId()}`;
+
+          emitUiEvent(sessionId, {
+            type: 'toolUsed',
+            id: randomId(),
+            timestamp: Date.now(),
+            tool: 'llm',
+            actionId: loopActionId,
+            status: 'start',
+            brief: 'Agent loop started',
+            description: `model=${model}`,
+          } satisfies BionFrontendEvent);
+
+          // Resolve a browser extension clientId (dev-friendly auto-pick if only one).
+          let clientId = selectedClientIdBySessionId.get(sessionId) ?? null;
+          if (!clientId) {
+            const candidates = getBrowserCandidates();
+            if (candidates.length === 1) {
+              clientId = candidates[0]!.clientId;
+              selectedClientIdBySessionId.set(sessionId, clientId);
+              waitingBrowserSelectionSessionIds.delete(sessionId);
+              emitUiEvent(sessionId, {
+                type: 'myBrowserSelection',
+                id: randomId(),
+                timestamp: Date.now(),
+                status: 'selected',
+                connectedBrowser: candidates[0]!,
+              } satisfies BionFrontendEvent);
+            } else {
+              waitingBrowserSelectionSessionIds.add(sessionId);
+              emitUiEvent(sessionId, {
+                type: 'myBrowserSelection',
+                id: randomId(),
+                timestamp: Date.now(),
+                status: 'waiting_for_selection',
+                browserCandidates: candidates,
+              } satisfies BionFrontendEvent);
+            }
+          }
+
+          if (!clientId) {
+            const msgText = 'Please select a browser extension first, then retry your request.';
+            history.push({ role: 'assistant', content: msgText, timestamp: Date.now() });
+            historyBySessionId.set(sessionId, history);
+            emitUiEvent(sessionId, {
+              type: 'chatDelta',
+              id: randomId(),
+              timestamp: Date.now(),
+              delta: { content: msgText },
+              finished: true,
+              sender: 'assistant',
+              targetEventId: userMessageId,
+            } satisfies BionFrontendEvent);
+            return;
+          }
+
+          const transport = createBionBrowserTransport({
+            callPluginBrowserAction,
+            timeoutMs: 90_000,
+          });
+
+          const registry = new ToolRegistry();
+          registerBrowserTools(registry);
+          const scheduler = new ToolScheduler({ defaultGroup: 'default' });
+
+          const browserToolsConfig = {
+            transport,
+            sessionId,
+            clientId,
+            createActionId: () => `${requestId}:${randomId()}`,
+          };
+
+          // Start a dedicated browser session for this request.
+          const historyForTitle = historyBySessionId.get(sessionId) ?? [];
+          const lastUserText =
+            [...historyForTitle].reverse().find((m) => m.role === 'user')?.content ?? userText;
+          const title = await generateBrowserTaskTitle({
+            llm,
+            model,
+            userText: lastUserText,
+            summary: userText,
+            url: null,
+          });
+
+          const startTool = registry.getTool('browser_session_start');
+          if (!startTool) throw new Error('browser_session_start tool not registered');
+          const startExec = await scheduler.execute(
+            startTool,
+            { requestId, summary: userText, title },
+            { config: { browserTools: browserToolsConfig } } as any
+          );
+          if (!startExec.success) throw new Error(startExec.error || 'browser_session_start failed');
+
+          let lastObservation: unknown = null;
+          const maxSteps = Math.max(1, Number.parseInt(String(process.env.MIMO_AGENT_LOOP_MAX_STEPS || '8'), 10) || 8);
+
+          for (let step = 0; step < maxSteps; step++) {
+            const obsJson =
+              lastObservation == null
+                ? ''
+                : JSON.stringify(lastObservation).slice(0, 12_000);
+
+            const decision = await llm.complete({
+              model,
+              temperature: 0.2,
+              maxTokens: 512,
+              messages: [
+                {
+                  role: 'system',
+                  content:
+                    [
+                      'You are a tool-using agent controlling a browser extension.',
+                      'You MUST respond with a single JSON object and nothing else.',
+                      'Choose either:',
+                      '{"type":"tool","name":"<tool_name>","arguments":{...}} or {"type":"final","content":"..."}',
+                      'Allowed tool names:',
+                      '- browser_navigate { url }',
+                      '- browser_get_content { maxChars? }',
+                      '- browser_click { selector? , xpath? }',
+                      '- browser_fill { selector? , xpath? , text }',
+                      '- browser_screenshot { reason? }',
+                      '- browser_session_stop { requestId }',
+                      'Prefer calling browser_get_content after navigation to observe the page.',
+                    ].join('\n'),
+                },
+                { role: 'user', content: `User request:\n${userText}` },
+                obsJson ? { role: 'user', content: `Last observation (JSON, may be truncated):\n${obsJson}` } : null,
+              ].filter(Boolean) as any,
+            } as any);
+
+            const parsed = safeJsonParse(String(decision?.content ?? '').trim());
+            if (!parsed || typeof parsed !== 'object') {
+              // If the model refuses to produce JSON, treat as final.
+              const finalText = String(decision?.content ?? '').trim() || 'Done.';
+              history.push({ role: 'assistant', content: finalText, timestamp: Date.now() });
+              historyBySessionId.set(sessionId, history);
+              emitUiEvent(sessionId, {
+                type: 'chatDelta',
+                id: randomId(),
+                timestamp: Date.now(),
+                delta: { content: finalText },
+                finished: true,
+                sender: 'assistant',
+                targetEventId: userMessageId,
+              } satisfies BionFrontendEvent);
+              break;
+            }
+
+            const t = (parsed as any).type;
+            if (t === 'final') {
+              const finalText = String((parsed as any).content ?? '').trim() || 'Done.';
+              history.push({ role: 'assistant', content: finalText, timestamp: Date.now() });
+              historyBySessionId.set(sessionId, history);
+              emitUiEvent(sessionId, {
+                type: 'chatDelta',
+                id: randomId(),
+                timestamp: Date.now(),
+                delta: { content: finalText },
+                finished: true,
+                sender: 'assistant',
+                targetEventId: userMessageId,
+              } satisfies BionFrontendEvent);
+              break;
+            }
+
+            if (t !== 'tool') throw new Error('Invalid agent loop JSON: missing type');
+
+            const toolName = String((parsed as any).name || '').trim();
+            const toolArgs = (parsed as any).arguments ?? {};
+            if (!toolName) throw new Error('Invalid tool call: missing name');
+
+            const tool = registry.getTool(toolName);
+            if (!tool) throw new Error(`Unknown tool: ${toolName}`);
+
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: toolName,
+              actionId: `${loopActionId}:${step}`,
+              status: 'start',
+              brief: `Running ${toolName}`,
+              argumentsDetail: toolArgs,
+            } satisfies BionFrontendEvent);
+
+            const exec = await scheduler.execute(tool, toolArgs, { config: { browserTools: browserToolsConfig } } as any);
+            if (!exec.success) {
+              emitUiEvent(sessionId, {
+                type: 'toolUsed',
+                id: randomId(),
+                timestamp: Date.now(),
+                tool: toolName,
+                actionId: `${loopActionId}:${step}`,
+                status: 'error',
+                brief: `${toolName} failed`,
+                detail: { error: exec.error },
+              } satisfies BionFrontendEvent);
+              throw new Error(exec.error || `${toolName} failed`);
+            }
+
+            lastObservation = exec.result ?? null;
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: toolName,
+              actionId: `${loopActionId}:${step}`,
+              status: 'success',
+              brief: `${toolName} success`,
+            } satisfies BionFrontendEvent);
+
+            if (toolName === 'browser_session_stop') {
+              // If the model stops the session, end loop with a short final response.
+              const finalText = 'Browser session stopped.';
+              history.push({ role: 'assistant', content: finalText, timestamp: Date.now() });
+              historyBySessionId.set(sessionId, history);
+              emitUiEvent(sessionId, {
+                type: 'chatDelta',
+                id: randomId(),
+                timestamp: Date.now(),
+                delta: { content: finalText },
+                finished: true,
+                sender: 'assistant',
+                targetEventId: userMessageId,
+              } satisfies BionFrontendEvent);
+              break;
+            }
+          }
+
+          // Best-effort session stop if loop didn't call it.
+          try {
+            const stopTool = registry.getTool('browser_session_stop');
+            if (stopTool) {
+              await scheduler.execute(stopTool, { requestId }, { config: { browserTools: browserToolsConfig } } as any);
+            }
+          } catch {
+            // ignore
+          }
+
+          emitUiEvent(sessionId, {
+            type: 'toolUsed',
+            id: randomId(),
+            timestamp: Date.now(),
+            tool: 'llm',
+            actionId: loopActionId,
+            status: 'success',
+            brief: 'Agent loop finished',
+            detail: { durationMs: Date.now() - startedAt },
+          } satisfies BionFrontendEvent);
+
+          return;
+        }
+
+        // Native tool calling (non-invasive): only enable when the user's message
+        // clearly asks to open/visit a website.
+        const wantsBrowserStop = /关闭浏览器|关闭\s*会话|stop\s+browser|stop\s+session/i.test(userText);
+        const browserIntent = isBrowserIntent(userText) || (persistBrowserSession && Boolean(activeBrowserSession));
+        const browserRequestId = activeBrowserSession?.requestId ?? (browserIntent ? `browser:${sessionId}:${userMessageId}:${randomId()}` : null);
+        let browserSessionStop: (() => Promise<void>) | null = null;
+
+        // If browser intent, prepare a browser session + toolset for the LLM.
+        let llmMessages: any = history as any;
+        let llmTools: any = undefined;
+        let llmExperimentalContext: any = undefined;
+        // Tool-policy vars must live in this scope (used by retry + policy recorders below).
+        let intent: ToolIntent = 'unknown';
+        let domain = '';
+        let extensionVersion = 'unknown';
+        let selectedTier: ToolTier = 'tier1';
+        let toolNames: string[] = [];
+        const observedUsedTools = new Set<string>();
+
+        if (browserIntent && browserRequestId) {
+          // Resolve a browser extension clientId (dev-friendly auto-pick if only one).
+          let clientId = activeBrowserSession?.clientId ?? selectedClientIdBySessionId.get(sessionId) ?? null;
+          if (clientId && !pluginByClientId.has(clientId)) {
+            // Connected extension disappeared; drop the persisted session.
+            if (persistBrowserSession) activeBrowserSessionBySessionId.delete(sessionId);
+            activeBrowserSession = null;
+            clientId = selectedClientIdBySessionId.get(sessionId) ?? null;
+          }
+          if (!clientId) {
+            const candidates = getBrowserCandidates();
+            if (candidates.length === 1) {
+              clientId = candidates[0]!.clientId;
+              selectedClientIdBySessionId.set(sessionId, clientId);
+              waitingBrowserSelectionSessionIds.delete(sessionId);
+              emitUiEvent(sessionId, {
+                type: 'myBrowserSelection',
+                id: randomId(),
+                timestamp: Date.now(),
+                status: 'selected',
+                connectedBrowser: candidates[0]!,
+              } satisfies BionFrontendEvent);
+            } else {
+              waitingBrowserSelectionSessionIds.add(sessionId);
+              emitUiEvent(sessionId, {
+                type: 'myBrowserSelection',
+                id: randomId(),
+                timestamp: Date.now(),
+                status: 'waiting_for_selection',
+                browserCandidates: candidates,
+              } satisfies BionFrontendEvent);
+            }
+          }
+
+          if (!clientId) {
+            const msgText = 'Please select a browser extension first, then retry your request.';
+            history.push({ role: 'assistant', content: msgText, timestamp: Date.now() });
+            historyBySessionId.set(sessionId, history);
+            emitUiEvent(sessionId, {
+              type: 'chatDelta',
+              id: randomId(),
+              timestamp: Date.now(),
+              delta: { content: msgText },
+              finished: true,
+              sender: 'assistant',
+              targetEventId: userMessageId,
+            } satisfies BionFrontendEvent);
+            return;
+          }
+
+          const transport = createBionBrowserTransport({
+            callPluginBrowserAction,
+            timeoutMs: 90_000,
+          });
+
+          const registry = new ToolRegistry();
+          registerBrowserTools(registry);
+          const scheduler = new ToolScheduler({ defaultGroup: 'default' });
+
+          const browserToolsConfig = {
+            transport,
+            sessionId,
+            clientId,
+            createActionId: () => `${browserRequestId}:${randomId()}`,
+          };
+
+          const toolContext = { config: { browserTools: browserToolsConfig } } as any;
+          llmExperimentalContext = toolContext;
+
+          // Start a browser session if we don't already have one persisted.
+          const lastUrl = extractFirstUrlLike(userText) ?? inferKnownUrlFromText(userText);
+          const title = activeBrowserSession?.title
+            ? activeBrowserSession.title
+            : await generateBrowserTaskTitle({
+                llm,
+                model,
+                userText,
+                summary: userText,
+                url: lastUrl,
+              });
+
+          if (!activeBrowserSession) {
+            const startTool = registry.getTool('browser_session_start');
+            if (!startTool) throw new Error('browser_session_start tool not registered');
+
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: 'browser_session_start',
+              actionId: `${browserRequestId}:session_start`,
+              status: 'start',
+              brief: 'Starting browser session',
+            } satisfies BionFrontendEvent);
+
+            const startExec = await scheduler.execute(
+              startTool,
+              { requestId: browserRequestId, summary: userText, title, initialUrl: lastUrl ?? undefined },
+              toolContext as any
+            );
+            if (!startExec.success) {
+              emitUiEvent(sessionId, {
+                type: 'toolUsed',
+                id: randomId(),
+                timestamp: Date.now(),
+                tool: 'browser_session_start',
+                actionId: `${browserRequestId}:session_start`,
+                status: 'error',
+                brief: 'browser_session_start failed',
+                detail: { error: startExec.error },
+              } satisfies BionFrontendEvent);
+              throw new Error(startExec.error || 'browser_session_start failed');
+            }
+
+            emitUiEvent(sessionId, {
+              type: 'toolUsed',
+              id: randomId(),
+              timestamp: Date.now(),
+              tool: 'browser_session_start',
+              actionId: `${browserRequestId}:session_start`,
+              status: 'success',
+              brief: 'Browser session started',
+            } satisfies BionFrontendEvent);
+
+            if (persistBrowserSession) {
+              activeBrowserSession = {
+                requestId: browserRequestId,
+                clientId,
+                title,
+                startedAt: Date.now(),
+                lastUsedAt: Date.now(),
+              };
+              activeBrowserSessionBySessionId.set(sessionId, activeBrowserSession);
+            } else {
+              browserSessionStop = async () => {
+                try {
+                  const stopTool = registry.getTool('browser_session_stop');
+                  if (!stopTool) return;
+                  emitUiEvent(sessionId, {
+                    type: 'toolUsed',
+                    id: randomId(),
+                    timestamp: Date.now(),
+                    tool: 'browser_session_stop',
+                    actionId: `${browserRequestId}:session_stop`,
+                    status: 'start',
+                    brief: 'Stopping browser session',
+                  } satisfies BionFrontendEvent);
+                  const stopExec = await scheduler.execute(stopTool, { requestId: browserRequestId }, toolContext as any);
+                  emitUiEvent(sessionId, {
+                    type: 'toolUsed',
+                    id: randomId(),
+                    timestamp: Date.now(),
+                    tool: 'browser_session_stop',
+                    actionId: `${browserRequestId}:session_stop`,
+                    status: stopExec.success ? 'success' : 'error',
+                    brief: stopExec.success ? 'Browser session stopped' : 'browser_session_stop failed',
+                    detail: stopExec.success ? undefined : { error: stopExec.error },
+                  } satisfies BionFrontendEvent);
+                } catch {
+                  // ignore best-effort stop failures
+                }
+              };
+            }
+          } else {
+            // Refresh activity timestamp for persisted sessions.
+            activeBrowserSession.lastUsedAt = Date.now();
+            activeBrowserSessionBySessionId.set(sessionId, activeBrowserSession);
+          }
+
+          // Handle explicit stop request.
+          if (wantsBrowserStop) {
+            if (persistBrowserSession && activeBrowserSession) {
+              try {
+                const stopTool = registry.getTool('browser_session_stop');
+                if (!stopTool) throw new Error('browser_session_stop tool not registered');
+                await scheduler.execute(stopTool, { requestId: activeBrowserSession.requestId }, toolContext as any);
+              } catch {
+                // ignore
+              } finally {
+                activeBrowserSessionBySessionId.delete(sessionId);
+                activeBrowserSession = null;
+              }
+            }
+
+            const msgText = 'Browser session stopped.';
+            history.push({ role: 'assistant', content: msgText, timestamp: Date.now() });
+            historyBySessionId.set(sessionId, history);
+            emitUiEvent(sessionId, {
+              type: 'chatDelta',
+              id: randomId(),
+              timestamp: Date.now(),
+              delta: { content: msgText },
+              finished: true,
+              sender: 'assistant',
+              targetEventId: userMessageId,
+            } satisfies BionFrontendEvent);
+            return;
+          }
+
+          intent = inferIntent(userText);
+          domain = inferDomain(lastUrl);
+          extensionVersion = pluginMetaByClientId.get(clientId)?.version || 'unknown';
+
+          const recommended = await toolDisclosure.getRecommendedTier({
+            intent,
+            domain,
+            model,
+            extensionVersion,
+          });
+          selectedTier = recommended.tier;
+
+          // Prefer the smallest tier that historically worked for this (intent, domain, model, extensionVersion).
+          // The selected tier expands to include all tools from lower tiers.
+          toolNames = toolsForTier(selectedTier);
+
+          // Allow the model to explicitly request a larger tier when it knows it needs discovery/debug tools.
+          // NOTE: this triggers a server-side rerun with expanded tools (see stream loop below).
+          const requestToolsParams = z.object({
+            tier: z.enum(['tier0', 'tier1', 'tier2', 'tier3']).optional(),
+            reason: z.string().optional(),
+          });
+
+          const buildToolSet = (): Record<string, any> => {
+            toolNames = toolsForTier(selectedTier);
+
+            const toolSet: Record<string, any> = {};
+            toolSet['mimo_request_tools'] = {
+              name: 'mimo_request_tools',
+              group: 'mimo',
+              description:
+                'Request the server to expand the available tool tier for this request. Use when you need additional browser tools not currently available (e.g. xpath scan/mark).',
+              parameters: requestToolsParams,
+              execute: async (params: any) => {
+                const requested = (params?.tier as ToolTier | undefined) ?? 'tier2';
+                const reason = typeof params?.reason === 'string' ? params.reason : undefined;
+                observedUsedTools.add('mimo_request_tools');
+                throw new ToolUpgradeRequestedError(requested, reason);
+              },
+            };
+
+            for (const name of toolNames) {
+              const t = registry.getTool(name);
+              if (!t) continue;
+              toolSet[name] = {
+                ...t,
+                execute: async (params: any, ctx: any) => {
+                  observedUsedTools.add(name);
+                  const toolCallId = (ctx as any)?.metadata?.toolCallId;
+                  const actionId = toolCallId ? String(toolCallId) : `${browserRequestId}:${randomId()}`;
+
+                  emitUiEvent(sessionId, {
+                    type: 'toolUsed',
+                    id: randomId(),
+                    timestamp: Date.now(),
+                    tool: name,
+                    actionId,
+                    status: 'start',
+                    brief: `Running ${name}`,
+                    argumentsDetail: params,
+                  } satisfies BionFrontendEvent);
+
+                  const exec = await scheduler.execute(t, params, ctx as any);
+                  if (!exec.success) {
+                    emitUiEvent(sessionId, {
+                      type: 'toolUsed',
+                      id: randomId(),
+                      timestamp: Date.now(),
+                      tool: name,
+                      actionId,
+                      status: 'error',
+                      brief: `${name} failed`,
+                      detail: { error: exec.error },
+                    } satisfies BionFrontendEvent);
+                    throw new Error(exec.error || `${name} failed`);
+                  }
+
+                  emitUiEvent(sessionId, {
+                    type: 'toolUsed',
+                    id: randomId(),
+                    timestamp: Date.now(),
+                    tool: name,
+                    actionId,
+                    status: 'success',
+                    brief: `${name} success`,
+                  } satisfies BionFrontendEvent);
+
+                  return exec.result;
+                },
+              };
+            }
+
+            return toolSet;
+          };
+
+          let toolSet: Record<string, any> = buildToolSet();
+
+          llmTools = Object.keys(toolSet).length > 0 ? toolSet : undefined;
+          llmMessages = [
+            {
+              role: 'system',
+              content: [
+                'You can use browser tools to open and interact with websites.',
+                'When the user asks to open/visit a website, use the browser tools instead of saying you cannot.',
+                'If the user provides a site name (e.g. \"google\"), infer a reasonable https URL.',
+                'After navigation, you may call browser_get_content to confirm the page opened.',
+                'To highlight all interactive elements: call browser_xpath_scan, then call browser_xpath_mark with { xpaths: scan.xpaths ?? scan.items.map(i => i.xpath) }.',
+                'If you need additional tools that are not available, call mimo_request_tools FIRST (before writing assistant text).',
+                'Example: mimo_request_tools { tier: \"tier2\", reason: \"need xpath scan/mark\" }',
+              ].join('\\n'),
+            },
+            ...history,
+          ] as any;
+        }
 
         // Stream text tokens as chatDelta
         let assistantAccum = '';
@@ -174,29 +1256,70 @@ export default defineNitroPlugin((nitroApp) => {
             },
           } satisfies BionFrontendEvent);
 
-          for await (const chunk of llm.stream({
-            model,
-            // Cast: the runtime only needs role/content fields.
-            messages: history as any,
-            temperature,
-            maxTokens,
-          } as any)) {
-            const delta = chunk.content ?? '';
-            if (chunk.usage && (chunk.usage as any).totalTokens !== undefined) {
-              lastUsage = chunk.usage;
-            }
-            if (!delta) continue;
-            assistantAccum += delta;
+          let streamedOk = false;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            // Reset per attempt (in case we rerun with expanded tools).
+            assistantAccum = '';
+            lastUsage = null;
 
-            emitUiEvent(sessionId, {
-              type: 'chatDelta',
-              id: randomId(),
-              timestamp: Date.now(),
-              delta: { content: delta },
-              finished: false,
-              sender: 'assistant',
-              targetEventId: userMessageId,
-            } satisfies BionFrontendEvent);
+            try {
+              for await (const chunk of llm.stream({
+                model,
+                // Cast: the runtime only needs role/content fields.
+                messages: llmMessages,
+                temperature,
+                maxTokens,
+                tools: llmTools,
+                toolChoice: llmTools ? 'auto' : undefined,
+                experimentalContext: llmExperimentalContext,
+              } as any)) {
+                const delta = chunk.content ?? '';
+                if (chunk.usage && (chunk.usage as any).totalTokens !== undefined) {
+                  lastUsage = chunk.usage;
+                }
+                if (!delta) continue;
+                assistantAccum += delta;
+
+                emitUiEvent(sessionId, {
+                  type: 'chatDelta',
+                  id: randomId(),
+                  timestamp: Date.now(),
+                  delta: { content: delta },
+                  finished: false,
+                  sender: 'assistant',
+                  targetEventId: userMessageId,
+                } satisfies BionFrontendEvent);
+              }
+
+              streamedOk = true;
+              break;
+            } catch (e) {
+              if (e instanceof ToolUpgradeRequestedError) {
+                const fromTier = selectedTier;
+                selectedTier = maxTier(selectedTier, e.requestedTier);
+                toolSet = buildToolSet();
+                llmTools = Object.keys(toolSet).length > 0 ? toolSet : undefined;
+
+                void toolDisclosure
+                  .recordUpgrade({
+                    intent,
+                    domain,
+                    model,
+                    extensionVersion,
+                    fromTier,
+                    toTier: selectedTier,
+                  })
+                  .catch(() => {});
+
+                // Retry with expanded tools.
+                continue;
+              }
+              throw e;
+            }
+          }
+
+          if (!streamedOk) {
+            throw new Error('LLM streaming failed after tool-tier retries');
           }
 
           // Persist assistant message in history.
@@ -226,6 +1349,45 @@ export default defineNitroPlugin((nitroApp) => {
               isComplete: true,
               targetEventId: userMessageId,
             } as any);
+
+            // If the final structured output indicates a browser task request, trigger selection/confirmation flow.
+            const summary = summarizeBrowserTask(parsed);
+            if (summary) {
+              const requestId = `browser:${sessionId}:${userMessageId}:${randomId()}`;
+              pendingBrowserTaskBySessionId.set(sessionId, {
+                requestId,
+                sessionId,
+                targetEventId: userMessageId,
+                payload: parsed as any,
+                summary,
+                createdAt: Date.now(),
+              });
+
+              const selectedClientId = selectedClientIdBySessionId.get(sessionId);
+              if (!selectedClientId) {
+                const candidates = getBrowserCandidates();
+                waitingBrowserSelectionSessionIds.add(sessionId);
+                emitUiEvent(sessionId, {
+                  type: 'myBrowserSelection',
+                  id: randomId(),
+                  timestamp: Date.now(),
+                  status: 'waiting_for_selection',
+                  browserCandidates: candidates,
+                } satisfies BionFrontendEvent);
+              } else {
+                waitingBrowserSelectionSessionIds.delete(sessionId);
+                emitUiEvent(sessionId, {
+                  type: 'browserTaskConfirmationRequested',
+                  id: randomId(),
+                  timestamp: Date.now(),
+                  requestId,
+                  clientId: selectedClientId,
+                  summary,
+                  browserActionPreview: extractBrowserAction(parsed) ?? parsed,
+                  targetEventId: userMessageId,
+                } satisfies BionFrontendEvent);
+              }
+            }
           }
 
           emitUiEvent(sessionId, {
@@ -255,6 +1417,24 @@ export default defineNitroPlugin((nitroApp) => {
             },
             '[Bion] LLM stream success'
           );
+
+          // Best-effort: persist the smallest successful tool tier for this (intent, domain, model, extensionVersion).
+          if (llmTools) {
+            void toolDisclosure
+              .recordSuccess({
+                intent,
+                domain,
+                model,
+                extensionVersion,
+                tier: selectedTier,
+                toolNames,
+                observedUsedTools: Array.from(observedUsedTools),
+              })
+              .catch((e: unknown) => {
+                const message = e instanceof Error ? e.message : String(e);
+                logger.warn({ sessionId, message }, '[Bion] tool disclosure policy save failed');
+              });
+          }
 
           void persistLlmRun({
             sessionId,
@@ -342,6 +1522,10 @@ export default defineNitroPlugin((nitroApp) => {
                 '[Bion] persist LLM run failed (error)'
               );
             });
+        } finally {
+          if (browserSessionStop) {
+            await browserSessionStop();
+          }
         }
       });
     }
@@ -354,6 +1538,23 @@ export default defineNitroPlugin((nitroApp) => {
           const clientId = (decoded as any)?.clientId;
           if (typeof clientId === 'string' && clientId.length > 0) {
             pluginByClientId.set(clientId, socket);
+            pluginMetaByClientId.set(clientId, {
+              clientId,
+              clientName: String((decoded as any)?.browserName || 'MimoBrowser'),
+              ua: String((decoded as any)?.ua || ''),
+              version: String((decoded as any)?.version || ''),
+              allowOtherClientId: Boolean((decoded as any)?.allowOtherClient),
+            });
+            if (process.env.NODE_ENV === 'development') {
+              // eslint-disable-next-line no-console
+              console.log('[Bion] activate_extension', {
+                socketId: socket.id,
+                clientId,
+                browserName: String((decoded as any)?.browserName || 'MimoBrowser'),
+              });
+            }
+            // If some sessions are waiting for browser selection, refresh candidates.
+            refreshWaitingBrowserSelections();
           }
         }
 
@@ -366,8 +1567,13 @@ export default defineNitroPlugin((nitroApp) => {
 
     socket.on('disconnect', (reason) => {
       for (const [clientId, s] of pluginByClientId.entries()) {
-        if (s.id === socket.id) pluginByClientId.delete(clientId);
+        if (s.id === socket.id) {
+          pluginByClientId.delete(clientId);
+          pluginMetaByClientId.delete(clientId);
+        }
       }
+      // Refresh waiting selection UI after plugin disconnect.
+      refreshWaitingBrowserSelections();
 
       if (process.env.NODE_ENV === 'development') {
         // eslint-disable-next-line no-console
@@ -460,9 +1666,34 @@ export default defineNitroPlugin((nitroApp) => {
   process.on('SIGINT', shutdown);
 
   // Start immediately (works in dev + production builds)
-  httpServer.listen(port, () => {
-    // eslint-disable-next-line no-console
-    console.log(`[Bion] Socket.IO server listening on :${port}${namespaceName}`);
-  });
+  void listenOnAvailablePort({
+    httpServer,
+    preferredPort,
+    strict: Boolean(explicitSocketPort),
+    maxTries: process.env.NODE_ENV === 'development' ? 20 : 1,
+  })
+    .then((boundPort) => {
+      if (preferredPort !== boundPort) {
+        logger.warn(
+          { preferredPort, boundPort },
+          `[Bion] Socket.IO port ${preferredPort} is in use; using ${boundPort} instead`
+        );
+      }
+
+      // eslint-disable-next-line no-console
+      console.log(`[Bion] Socket.IO server listening on :${boundPort}${namespaceName}`);
+
+      if (process.env.NODE_ENV === 'development' && !explicitSocketPort) {
+        // eslint-disable-next-line no-console
+        console.log(`[Bion] Tip: set NEXT_PUBLIC_BION_URL=http://localhost:${boundPort}`);
+      }
+    })
+    .catch((e) => {
+      const message = e instanceof Error ? e.message : String(e);
+      logger.error({ message }, '[Bion] Socket.IO server failed to start');
+      // Avoid unhandled promise rejection warnings; keep Nitro running so HTTP routes still work.
+      // eslint-disable-next-line no-console
+      console.error(`[Bion] Socket.IO server failed to start: ${message}`);
+    });
 });
 
