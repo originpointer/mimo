@@ -1213,6 +1213,8 @@ export default defineNitroPlugin((nitroApp) => {
                 'When the user asks to open/visit a website, use the browser tools instead of saying you cannot.',
                 'If the user provides a site name (e.g. \"google\"), infer a reasonable https URL.',
                 'After navigation, you may call browser_get_content to confirm the page opened.',
+                'For interactions: use browser_click (click buttons/links) and browser_fill (type into inputs). If you need click/fill tools and they are not available, call mimo_request_tools FIRST with tier1.',
+                'Example: mimo_request_tools { tier: \"tier1\", reason: \"need click/fill\" }',
                 'To highlight all interactive elements: call browser_xpath_scan, then call browser_xpath_mark with { xpaths: scan.xpaths ?? scan.items.map(i => i.xpath) }.',
                 'If you need additional tools that are not available, call mimo_request_tools FIRST (before writing assistant text).',
                 'Example: mimo_request_tools { tier: \"tier2\", reason: \"need xpath scan/mark\" }',

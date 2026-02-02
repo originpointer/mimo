@@ -191,10 +191,15 @@ export class LegacyHandlerRegistry {
     const payload = message.payload as Partial<StagehandXPathScanPayload> | undefined;
     const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
 
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies StagehandXPathScanResponse);
+      return true;
+    }
+
     const runOnTab = async (tabId: number) => {
       try {
         const { tabId, tabUrl } = await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可扫描。请使用 http/https 页面。'
         );
@@ -219,20 +224,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies StagehandXPathScanResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 
@@ -265,10 +257,17 @@ export class LegacyHandlerRegistry {
       });
     };
 
+    if (requestedTabId == null) {
+      const message = 'targetTabId is required';
+      reportToolCallResult({ ok: false, error: message });
+      sendResponse({ ok: false, error: message } satisfies StagehandViewportScreenshotResponse);
+      return true;
+    }
+
     const runOnTab = async (tabId: number) => {
       try {
         const { tabUrl } = await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可截图。请使用 http/https 页面。'
         );
@@ -296,22 +295,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        reportToolCallResult({ ok: false, error: message });
-        sendResponse({
-          ok: false,
-          error: message,
-        } satisfies StagehandViewportScreenshotResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 
@@ -326,10 +310,15 @@ export class LegacyHandlerRegistry {
     const payload = message.payload as Partial<ResumeBlocksExtractPayload> | undefined;
     const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
 
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies ResumeBlocksExtractResponse);
+      return true;
+    }
+
     const runOnTab = async (tabId: number) => {
       try {
         await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可抽取。请使用 http/https 页面。'
         );
@@ -368,20 +357,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies ResumeBlocksExtractResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 
@@ -397,6 +373,11 @@ export class LegacyHandlerRegistry {
     const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
     const xpaths = Array.isArray(payload?.xpaths) ? payload!.xpaths : [];
 
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies ResumeXpathValidateResponse);
+      return true;
+    }
+
     if (!xpaths.length) {
       sendResponse({ ok: false, error: 'xpaths is empty' } satisfies ResumeXpathValidateResponse);
       return true;
@@ -405,7 +386,7 @@ export class LegacyHandlerRegistry {
     const runOnTab = async (tabId: number) => {
       try {
         await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可验证。请使用 http/https 页面。'
         );
@@ -420,20 +401,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies ResumeXpathValidateResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 
@@ -448,10 +416,15 @@ export class LegacyHandlerRegistry {
     const payload = message.payload as Partial<JsonCommonXpathFindPayload> | undefined;
     const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
 
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies JsonCommonXpathFindResponse);
+      return true;
+    }
+
     const runOnTab = async (tabId: number) => {
       try {
         await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可扫描。请使用 http/https 页面。'
         );
@@ -468,20 +441,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies JsonCommonXpathFindResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 
@@ -499,10 +459,15 @@ export class LegacyHandlerRegistry {
     const mode = rawMode === 'clear' ? 'clear' : 'mark';
     const xpaths = Array.isArray(payload?.xpaths) ? payload!.xpaths : [];
 
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies XPathMarkElementsResponse);
+      return true;
+    }
+
     const runOnTab = async (tabId: number) => {
       try {
         await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可扫描。请使用 http/https 页面。'
         );
@@ -522,20 +487,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies XPathMarkElementsResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 
@@ -558,10 +510,15 @@ export class LegacyHandlerRegistry {
       return true;
     }
 
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies XPathGetHtmlResponse);
+      return true;
+    }
+
     const runOnTab = async (tabId: number) => {
       try {
         await TabResolver.resolveTabWithValidation(
-          requestedTabId,
+          tabId,
           UrlValidator.isScannableUrl.bind(UrlValidator),
           '目标 Tab 不可扫描。请使用 http/https 页面。'
         );
@@ -576,20 +533,7 @@ export class LegacyHandlerRegistry {
       }
     };
 
-    if (requestedTabId != null) {
-      runOnTab(requestedTabId);
-      return true;
-    }
-
-    TabResolver.resolveTab()
-      .then(({ tabId }) => runOnTab(tabId))
-      .catch((error) => {
-        sendResponse({
-          ok: false,
-          error: error instanceof Error ? error.message : String(error),
-        } satisfies XPathGetHtmlResponse);
-      });
-
+    runOnTab(requestedTabId);
     return true;
   }
 

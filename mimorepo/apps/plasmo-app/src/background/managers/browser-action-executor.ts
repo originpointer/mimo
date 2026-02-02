@@ -1,6 +1,6 @@
 import type { BionBrowserActionMessage, BionBrowserActionResult, BionPluginMessage } from '@bion/protocol';
 
-import { TabResolver } from '../utils/tab-resolver';
+import { isCommandUiTabUrl } from '../utils/command-ui-tab';
 import { DebuggerSessionManager } from './debugger-session-manager';
 
 type PluginEmitter = (msg: BionPluginMessage) => void;
@@ -140,6 +140,29 @@ export class BrowserActionExecutor {
     private readonly emitPluginMessage: PluginEmitter
   ) {}
 
+  private async getSessionTabIdOrThrow(sessionId: string): Promise<number> {
+    const existingTabId = this.debuggerSessions.findTabIdBySessionId(sessionId);
+    if (!existingTabId) {
+      throw new Error('Browser session is not started. Please run session/start (browser_session_start) first.');
+    }
+
+    const tab = await chrome.tabs.get(existingTabId);
+    const tabUrl = tab?.url || '';
+    if (tabUrl && isCommandUiTabUrl(tabUrl)) {
+      throw new Error(`Blocked: session tab is a command UI tab (tabId=${existingTabId}, url=${tabUrl})`);
+    }
+
+    // Must always run inside a groupTab. If user removed it from group, re-group it.
+    if (typeof tab.groupId !== 'number' || tab.groupId === chrome.tabGroups.TAB_GROUP_ID_NONE) {
+      const info = this.debuggerSessions.getSessionByTabId(existingTabId);
+      const title = info?.title || '浏览器任务';
+      const groupId = await groupTab({ tabId: existingTabId, title, color: 'blue', collapsed: false });
+      this.debuggerSessions.updateSessionInfo(existingTabId, { groupId });
+    }
+
+    return existingTabId;
+  }
+
   async execute(msg: BionBrowserActionMessage): Promise<BionBrowserActionResult> {
     const actionId = msg.id;
     try {
@@ -164,19 +187,6 @@ export class BrowserActionExecutor {
     }
   }
 
-  private async resolveTargetTabId(params: Record<string, unknown>, sessionId: string): Promise<number> {
-    const requested =
-      typeof (params as any).tabId === 'number'
-        ? (params as any).tabId
-        : typeof (params as any).targetTabId === 'number'
-          ? (params as any).targetTabId
-          : undefined;
-
-    const existing = this.debuggerSessions.findTabIdBySessionId(sessionId);
-    const tabId = existing ?? (await TabResolver.resolveTab(requested)).tabId;
-    return tabId;
-  }
-
   private async executeOne(input: {
     name: string;
     params: Record<string, unknown>;
@@ -191,6 +201,8 @@ export class BrowserActionExecutor {
         const requestId = typeof params.requestId === 'string' ? params.requestId : undefined;
         const summary = typeof params.summary === 'string' ? params.summary : undefined;
         const title = typeof params.title === 'string' ? params.title : summary;
+        // Ensure existing tab still satisfies constraints (grouped, non-command-ui).
+        await this.getSessionTabIdOrThrow(sessionId);
         await sendToContentWithRetry(existingTabId, {
           type: 'session/start',
           payload: { sessionId, requestId, summary, title },
@@ -208,7 +220,9 @@ export class BrowserActionExecutor {
 
       // Requirement: create a dedicated tab + tabGroup for this task, then run everything on that tab.
       // Ensure initial URL is a normal web page so content script can load.
-      const tab = await createBackgroundWindowWithTab({ url: initialUrl || 'https://example.com/' });
+      const safeInitialUrl =
+        initialUrl && !isCommandUiTabUrl(initialUrl) ? initialUrl : 'https://example.com/';
+      const tab = await createBackgroundWindowWithTab({ url: safeInitialUrl });
       const groupId = await groupTab({ tabId: tab.tabId, title, color: 'blue', collapsed: false });
 
       await sendToContentWithRetry(tab.tabId, {
@@ -230,7 +244,8 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'session/stop') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = this.debuggerSessions.findTabIdBySessionId(sessionId);
+      if (!tabId) return null;
 
       await sendToContent(tabId, { type: 'session/stop', payload: { sessionId } });
       await this.debuggerSessions.detach(tabId);
@@ -247,7 +262,8 @@ export class BrowserActionExecutor {
 
     // A minimal, commonly used action: navigation.
     if (name === 'browser_navigate') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      // Ignore requested tabId for safety; always run on session tab.
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const url = typeof params.url === 'string' ? params.url : '';
       if (!url) throw new Error('browser_navigate.url is required');
 
@@ -267,7 +283,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_click') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const selector = typeof (params as any).selector === 'string' ? String((params as any).selector) : undefined;
       const xpath = typeof (params as any).xpath === 'string' ? String((params as any).xpath) : undefined;
       const resp = await sendToContentRequest<{ ok: boolean; error?: string }>(tabId, {
@@ -279,7 +295,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_fill') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const selector = typeof (params as any).selector === 'string' ? String((params as any).selector) : undefined;
       const xpath = typeof (params as any).xpath === 'string' ? String((params as any).xpath) : undefined;
       const text = typeof (params as any).text === 'string' ? String((params as any).text) : '';
@@ -292,7 +308,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_getContent' || name === 'browser_get_content') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const maxChars = typeof (params as any).maxChars === 'number' ? (params as any).maxChars : undefined;
       const tab = await chrome.tabs.get(tabId);
 
@@ -330,7 +346,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_screenshot') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const tab = await chrome.tabs.get(tabId);
       const attached = this.debuggerSessions.getSessionByTabId(tabId);
 
@@ -375,7 +391,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_xpathScan' || name === 'browser_xpath_scan') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const maxItems = typeof (params as any).maxItems === 'number' ? (params as any).maxItems : undefined;
       const selector = typeof (params as any).selector === 'string' ? String((params as any).selector) : undefined;
       const includeShadow = typeof (params as any).includeShadow === 'boolean' ? (params as any).includeShadow : undefined;
@@ -389,7 +405,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_xpathMarkElements' || name === 'browser_xpath_mark') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const xpaths = Array.isArray((params as any).xpaths) ? (params as any).xpaths : [];
       const modeRaw = typeof (params as any).mode === 'string' ? String((params as any).mode) : undefined;
       const mode = modeRaw === 'clear' ? 'clear' : 'mark';
@@ -403,7 +419,7 @@ export class BrowserActionExecutor {
     }
 
     if (name === 'browser_xpathGetHtml' || name === 'browser_get_html') {
-      const tabId = await this.resolveTargetTabId(params, sessionId);
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
       const xpath = typeof (params as any).xpath === 'string' ? String((params as any).xpath) : '';
       const maxChars = typeof (params as any).maxChars === 'number' ? (params as any).maxChars : undefined;
       if (!xpath) throw new Error('browser_xpathGetHtml.xpath is required');

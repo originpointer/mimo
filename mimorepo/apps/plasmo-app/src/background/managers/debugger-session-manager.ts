@@ -15,6 +15,12 @@ export class DebuggerSessionManager {
     return this.sessionsByTabId.get(tabId) ?? null;
   }
 
+  updateSessionInfo(tabId: number, patch: Partial<DebuggerSessionInfo>): void {
+    const existing = this.sessionsByTabId.get(tabId);
+    if (!existing) return;
+    this.sessionsByTabId.set(tabId, { ...existing, ...patch });
+  }
+
   findTabIdBySessionId(sessionId: string): number | null {
     for (const [tabId, info] of this.sessionsByTabId.entries()) {
       if (info.sessionId === sessionId) return tabId;

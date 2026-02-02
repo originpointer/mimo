@@ -12,6 +12,20 @@ export interface TabResolution {
 
 export class TabResolver {
   /**
+   * Resolve ONLY an explicit tabId.
+   *
+   * This intentionally does not fall back to the active tab, to avoid accidentally
+   * operating on user command UI tabs (e.g. chat/id page) or other unrelated tabs.
+   */
+  static async resolveExplicitTab(requestedTabId: number | undefined): Promise<TabResolution> {
+    if (requestedTabId == null) {
+      throw new Error('targetTabId is required');
+    }
+
+    return await TabResolver.resolveTab(requestedTabId);
+  }
+
+  /**
    * Resolve a tab from either an explicit tabId or the active tab.
    *
    * @param requestedTabId - Optional explicit tab ID to resolve

@@ -2,7 +2,7 @@
  * CDP Click by XPath - Click elements using Chrome DevTools Protocol
  */
 
-import type { HandlerContext, ResponseCallback } from '../background/handlers/types';
+import type { ResponseCallback } from '../background/handlers/types';
 import { TabResolver } from '../background/utils/tab-resolver';
 
 /**
@@ -54,10 +54,15 @@ export function handleCdpClickByXPath(
     return true;
   }
 
+  if (requestedTabId == null) {
+    sendResponse({ ok: false, clicked: false, error: 'targetTabId is required' } satisfies CdpClickByXPathResponse);
+    return true;
+  }
+
   const runOnTab = async (tabId: number) => {
     let debuggerAttached = false;
     try {
-      await TabResolver.resolveTab(requestedTabId);
+      await TabResolver.resolveExplicitTab(tabId);
 
       // 1. Attach debugger
       await chrome.debugger.attach({ tabId }, '1.3');
@@ -109,27 +114,21 @@ export function handleCdpClickByXPath(
       const x = (content[0] + content[2] + content[4] + content[6]) / 4;
       const y = (content[1] + content[5]) / 2;
 
-      // 6. Execute window.focus() first
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        func: () => window.focus(),
-      });
-
-      // 7. Send mouse press event
+      // Send mouse press event (no focus stealing).
       await chrome.debugger.sendCommand(
         { tabId },
         'Input.dispatchMouseEvent',
         { type: 'mousePressed', x, y, button: 'left', clickCount: 1 }
       );
 
-      // 8. Send mouse release event
+      // Send mouse release event.
       await chrome.debugger.sendCommand(
         { tabId },
         'Input.dispatchMouseEvent',
         { type: 'mouseReleased', x, y, button: 'left', clickCount: 1 }
       );
 
-      // 9. Get element info
+      // Get element info
       const nodeResult = await chrome.debugger.sendCommand(
         { tabId },
         'DOM.describeNode',
@@ -163,20 +162,6 @@ export function handleCdpClickByXPath(
     }
   };
 
-  if (requestedTabId != null) {
-    runOnTab(requestedTabId);
-    return true;
-  }
-
-  TabResolver.resolveTab()
-    .then(({ tabId }) => runOnTab(tabId))
-    .catch((error) => {
-      sendResponse({
-        ok: false,
-        clicked: false,
-        error: error instanceof Error ? error.message : String(error),
-      } satisfies CdpClickByXPathResponse);
-    });
-
+  runOnTab(requestedTabId);
   return true;
 }

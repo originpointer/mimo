@@ -77,17 +77,18 @@ export function inferIntent(userText: string): ToolIntent {
     return 'highlight';
   }
 
-  // Navigate / open / visit
-  if (t.includes('打开') || t.includes('open') || t.includes('visit') || t.includes('navigate')) return 'navigate';
-
   // Extract / scrape
   if (t.includes('抽取') || t.includes('extract') || t.includes('简历') || t.includes('resume')) return 'extract';
 
   // Debug-ish
   if (t.includes('调试') || t.includes('debug') || t.includes('html')) return 'debug';
 
-  // Otherwise assume interaction
+  // Interaction (click/fill/type). This must take priority over navigation because
+  // many real user requests combine "open + click" and need tier1 tools.
   if (t.includes('点击') || t.includes('click') || t.includes('输入') || t.includes('fill') || t.includes('type')) return 'interact';
+
+  // Navigate / open / visit (only when it's NOT a richer request above)
+  if (t.includes('打开') || t.includes('open') || t.includes('visit') || t.includes('navigate')) return 'navigate';
 
   return 'unknown';
 }
