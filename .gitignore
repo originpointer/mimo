@@ -9,6 +9,7 @@ dist/
 # caches / local data
 .cache/
 .data/
+.mimo-cache/
 
 # environment files (do not commit secrets)
 .env
