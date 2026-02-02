@@ -83,7 +83,7 @@ function buildBrowserTools(): ToolDefinition[] {
 
 // 2) 准备 LLM client（通过 AI Gateway 或 direct provider）
 const llmProvider = new LLMProvider();
-const llm = llmProvider.getClient('anthropic/claude-3-5-haiku');
+const llm = llmProvider.getClient('anthropic/claude-haiku-4.5');
 
 // 3) 注册工具 + executor
 const registry = new ToolRegistry();
@@ -96,7 +96,7 @@ const cache = new AgentCache({ store: new MemoryStore(), namespace: 'agent-sdk' 
 // 5) 构造 WorkflowAgent
 const agent = new WorkflowAgent({
   id: 'agent-sdk-demo',
-  model: 'anthropic/claude-3-5-haiku',
+  model: 'anthropic/claude-haiku-4.5',
   llm,
   registry,
   executor,

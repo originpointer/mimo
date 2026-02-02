@@ -11,7 +11,7 @@ describeWithAIGateway('Stage04 Cache Token (real LLM)', () => {
     it('tracks a real LLM call and persists the record', async () => {
       const tmp = await createTempDir('mimo-cache-token-');
       try {
-        const modelId = testModels.claude; // anthropic/claude-3-5-haiku
+        const modelId = testModels.claude; // anthropic/claude-haiku-4.5
         const pricing = new PricingManager();
         registerGatewayModelPricing(pricing, modelId, 'claude-3-5-haiku-20241022');
 

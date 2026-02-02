@@ -147,14 +147,16 @@ export async function probeBionClientInfoViaBridge(params?: { timeoutMs?: number
 
   const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
+  // Important: always clean up the message listener, even on timeout.
+  let onMessage: ((event: MessageEvent) => void) | null = null;
   const p = new Promise<BionClientInfo>((resolve) => {
-    const onMessage = (event: MessageEvent) => {
+    onMessage = (event: MessageEvent) => {
       if (event.source !== window) return;
       const data = event.data as any;
       if (!data || data.type !== BRIDGE_RESPONSE) return;
       if (data.requestId !== requestId) return;
 
-      window.removeEventListener('message', onMessage);
+      if (onMessage) window.removeEventListener('message', onMessage);
       const payload = data.payload as any;
       if (payload && typeof payload === 'object' && typeof payload.ok === 'boolean') {
         resolve(payload as BionClientInfo);
@@ -171,6 +173,8 @@ export async function probeBionClientInfoViaBridge(params?: { timeoutMs?: number
     return await withTimeout(p, timeoutMs);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  } finally {
+    if (onMessage) window.removeEventListener('message', onMessage);
   }
 }
 

@@ -50,4 +50,9 @@ sources:
     repo: git@github.com:vercel/ai.git
     ref: main
     shallow: true
+  - name: readability
+    repo: git@github.com:mozilla/readability.git
+    ref: main
+    shallow: true
+    notes: "Used for content extraction"
 

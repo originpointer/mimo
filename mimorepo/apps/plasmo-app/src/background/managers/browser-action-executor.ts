@@ -432,8 +432,42 @@ export class BrowserActionExecutor {
       return resp;
     }
 
+    if (name === 'browser_readabilityExtract' || name === 'browser_readability_extract') {
+      const tabId = await this.getSessionTabIdOrThrow(sessionId);
+      const tab = await chrome.tabs.get(tabId);
+
+      const options = (params as any).options ? (params as any).options : undefined;
+      const format = typeof (params as any).format === 'string' ? (params as any).format : undefined;
+      const maxChars = typeof (params as any).maxChars === 'number' ? (params as any).maxChars : undefined;
+      const includeMetadata = (params as any).includeMetadata !== false;
+
+      const resp = await sendToContentRequest<any>(tabId, {
+        type: 'READABILITY_EXTRACT',
+        payload: { targetTabId: tabId, options, format, maxChars, includeMetadata },
+      });
+
+      if (!resp?.ok) throw new Error(resp?.error || 'browser_readabilityExtract failed');
+
+      const article = resp.article || {};
+      return {
+        url: tab.url || '',
+        title: article.title || tab.title || '',
+        result: article.content || '',
+        elements: '',
+        markdown: article.textContent || '',
+        fullMarkdown: article.textContent || '',
+        viewportWidth: 0,
+        viewportHeight: 0,
+        pixelsAbove: 0,
+        pixelsBelow: 0,
+        newPages: [],
+        screenshotUploaded: false,
+        cleanScreenshotUploaded: false,
+      };
+    }
+
     // Unknown actions: treat as no-op for now (keeps server/flow stable while we iterate).
-    console.warn('[BrowserActionExecutor] Unhandled browser action', { name, sessionId, actionId });
+    console.warn('[BrowserActionExecutor] Unhandled browser action', { name, sessionId });
     return null;
   }
 }

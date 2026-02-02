@@ -26,7 +26,7 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
 
   describe('Anthropic through Gateway', () => {
     it('should complete chat with claude-3-5-haiku', async () => {
-      const client = provider.getClient('anthropic/claude-3-5-haiku') as AIGatewayClient;
+      const client = provider.getClient('anthropic/claude-haiku-4.5') as AIGatewayClient;
 
       const response = await client.chatCompletion(SIMPLE_TEST_MESSAGE);
 
@@ -37,7 +37,7 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
     });
 
     it('should stream with claude-3-5-haiku', async () => {
-      const client = provider.getClient('anthropic/claude-3-5-haiku') as AIGatewayClient;
+      const client = provider.getClient('anthropic/claude-haiku-4.5') as AIGatewayClient;
 
       const chunks: string[] = [];
 
@@ -177,7 +177,7 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
       'should handle multiple providers in same session',
       async () => {
         const anthropicClient = provider.getClient(
-          'anthropic/claude-3-5-haiku',
+          'anthropic/claude-haiku-4.5',
         ) as AIGatewayClient;
 
         const openaiClient = provider.getClient('openai/gpt-4o-mini') as AIGatewayClient;
@@ -205,7 +205,7 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
 
   describe('Provider factory with Gateway', () => {
     it('should return AIGatewayClient when AI_GATEWAY_API_KEY is set', () => {
-      const client = provider.getClient('anthropic/claude-3-5-haiku');
+      const client = provider.getClient('anthropic/claude-haiku-4.5');
 
       expect(client).toBeInstanceOf(AIGatewayClient);
     });
@@ -218,7 +218,7 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
     });
 
     it('should create different clients for different models', () => {
-      const client1 = provider.getClient('anthropic/claude-3-5-haiku');
+      const client1 = provider.getClient('anthropic/claude-haiku-4.5');
       const client2 = provider.getClient('openai/gpt-4o-mini');
 
       expect(client1).not.toBe(client2);
@@ -227,7 +227,7 @@ describe.skipIf(!hasApiKey)('Vercel AI Gateway Integration Tests', () => {
 
   describe('Multi-turn conversations', () => {
     it('should handle multi-turn through gateway', async () => {
-      const client = provider.getClient('anthropic/claude-3-5-haiku') as AIGatewayClient;
+      const client = provider.getClient('anthropic/claude-haiku-4.5') as AIGatewayClient;
 
       const response = await client.chatCompletion(MULTI_TURN_MESSAGES);
 

@@ -62,6 +62,11 @@ import {
 } from '../../types/tab-groups';
 import { WINDOW_FOCUS, handleWindowFocus } from '../../types/window-focus';
 import { CDP_CLICK_BY_XPATH, handleCdpClickByXPath } from '../../types/cdp-click-by-xpath';
+import type {
+  ReadabilityExtractPayload,
+  ReadabilityExtractResponse,
+} from '../../types/readability-extract';
+import { READABILITY_EXTRACT } from '../../types/readability-extract';
 import type { HandlerContext, ResponseCallback } from './types';
 import { LegacyMessageType } from './types';
 import type { PageStateInfo } from '../../../cached/page-state.type';
@@ -175,6 +180,8 @@ export class LegacyHandlerRegistry {
         return handleWindowFocus(message, sender, sendResponse);
       case CDP_CLICK_BY_XPATH:
         return handleCdpClickByXPath(message, sender, sendResponse);
+      case READABILITY_EXTRACT:
+        return this.handleReadabilityExtract(message, sender, sendResponse);
       default:
         return false;
     }
@@ -704,6 +711,47 @@ export class LegacyHandlerRegistry {
         } satisfies TabGroupResponse)
       );
 
+    return true;
+  }
+
+  /**
+   * Handle READABILITY_EXTRACT message
+   */
+  private handleReadabilityExtract(
+    message: any,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: ResponseCallback<ReadabilityExtractResponse>
+  ): boolean {
+    const payload = message.payload as Partial<ReadabilityExtractPayload> | undefined;
+
+    const runOnTab = async (tabId: number) => {
+      try {
+        await TabResolver.resolveTabWithValidation(
+          tabId,
+          UrlValidator.isScannableUrl.bind(UrlValidator),
+          '目标 Tab 不可扫描。请使用 http/https 页面。'
+        );
+
+        const resp = await this.stagehandManager
+          .getReadabilityExtractor()
+          .extract(tabId, (payload || {}) as ReadabilityExtractPayload);
+        sendResponse(resp);
+      } catch (error) {
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        } satisfies ReadabilityExtractResponse);
+      }
+    };
+
+    // For Readability extract, we can get the tabId from the sender if not provided
+    const requestedTabId = payload && typeof payload.targetTabId === 'number' ? payload.targetTabId : undefined;
+    if (requestedTabId == null) {
+      sendResponse({ ok: false, error: 'targetTabId is required' } satisfies ReadabilityExtractResponse);
+      return true;
+    }
+
+    runOnTab(requestedTabId);
     return true;
   }
 }

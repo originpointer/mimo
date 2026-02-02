@@ -112,7 +112,7 @@ describeWithAIGateway('Stage04 Cache Replay (real LLM, gated)', () => {
       try {
         const startUrl = server.url('/');
         const instruction = 'Replay a small deterministic flow (real LLM plan)';
-        const modelId = testModels.claude; // anthropic/claude-3-5-haiku
+        const modelId = testModels.claude; // anthropic/claude-haiku-4.5
 
         const client = createLLMClient(modelId);
         let llmCalls = 0;

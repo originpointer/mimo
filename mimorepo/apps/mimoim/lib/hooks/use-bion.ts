@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createBionFrontendClient, type BionFrontendClient } from '@bion/client';
 import type { BionFrontendMessageEnvelope } from '@bion/protocol';
 
@@ -26,8 +26,30 @@ export function useBionClient(options?: { enabled?: boolean; url?: string }): {
   const [lastEnvelope, setLastEnvelope] = useState<BionFrontendMessageEnvelope | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Track which client instance we've connected to avoid re-connecting
+  const connectedClientRef = useRef<BionFrontendClient | null>(null);
+
   useEffect(() => {
-    if (!client) return;
+    // Skip if client is null or if we've already connected this exact client instance
+    if (!client) {
+      connectedClientRef.current = null;
+      return;
+    }
+
+    // If we've already connected this exact client instance, skip
+    if (client === connectedClientRef.current) {
+      return;
+    }
+
+    // Clean up previous connection if client changed
+    if (connectedClientRef.current && connectedClientRef.current !== client) {
+      try {
+        connectedClientRef.current.disconnect();
+      } catch {
+        // Ignore cleanup errors
+      }
+      setIsConnected(false);
+    }
 
     let unsub: (() => void) | null = null;
     let mounted = true;
@@ -35,7 +57,12 @@ export function useBionClient(options?: { enabled?: boolean; url?: string }): {
     const run = async () => {
       try {
         await client.connect();
-        if (!mounted) return;
+        if (!mounted) {
+          // If unmounted before connection completed, disconnect
+          client.disconnect();
+          return;
+        }
+        connectedClientRef.current = client;
         setIsConnected(true);
         unsub = client.onEnvelope((env) => setLastEnvelope(env));
       } catch (e) {
@@ -48,11 +75,19 @@ export function useBionClient(options?: { enabled?: boolean; url?: string }): {
 
     return () => {
       mounted = false;
-      try {
-        unsub?.();
-      } finally {
-        client.disconnect();
+      if (unsub) {
+        unsub();
+        unsub = null;
+      }
+      // Only disconnect if this is still the current client
+      if (connectedClientRef.current === client) {
+        try {
+          client.disconnect();
+        } catch {
+          // Ignore disconnect errors
+        }
         setIsConnected(false);
+        connectedClientRef.current = null;
       }
     };
   }, [client]);

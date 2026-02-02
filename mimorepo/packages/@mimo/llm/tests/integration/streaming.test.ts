@@ -278,7 +278,7 @@ describe.skipIf(!hasAnyApiKey)('Streaming Tests', () => {
       const providers: string[] = [];
 
       if (OpenAIHelper.hasApiKey()) providers.push('openai/gpt-4o-mini');
-      if (Anthropic.hasApiKey()) providers.push('anthropic/claude-3-5-haiku-20241022');
+      if (Anthropic.hasApiKey()) providers.push('anthropic/claude-haiku-4.5-20241022');
       if (Google.hasApiKey()) providers.push('google/gemini-1.5-flash');
 
       for (const model of providers) {

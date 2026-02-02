@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+/* Tailwind v4 (in monorepos) can end up scanning the entire workspace by default,
+   which may cause Next (Turbopack) to hang while spawning many PostCSS workers.
+   Limit Tailwind's source scan to this app's code. */
+@source "../app/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../components/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../lib/**/*.{js,ts,jsx,tsx,mdx}";
+
 /* define design tokens (light mode) */
 :root {
   --background: hsl(0 0% 100%);

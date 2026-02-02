@@ -22,7 +22,7 @@ describe('Stage04 Cache Token (contract)', () => {
 
   it('includes cache read/write token costs for Anthropic pricing when provided', () => {
     const pricing = new PricingManager();
-    const modelId = 'anthropic/claude-3-5-haiku';
+    const modelId = 'anthropic/claude-haiku-4.5';
     registerGatewayModelPricing(pricing, modelId, 'claude-3-5-haiku-20241022');
 
     const record = pricing.calculateCost(modelId, {

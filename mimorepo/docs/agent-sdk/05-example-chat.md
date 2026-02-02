@@ -23,11 +23,11 @@ import { LLMProvider } from '@mimo/llm';
 import { ChatAgent } from '@mimo/agent-multi';
 
 const llmProvider = new LLMProvider();
-const llm = llmProvider.getClient('anthropic/claude-3-5-haiku');
+const llm = llmProvider.getClient('anthropic/claude-haiku-4.5');
 
 const agent = new ChatAgent({
   id: 'chat-demo',
-  model: 'anthropic/claude-3-5-haiku',
+  model: 'anthropic/claude-haiku-4.5',
   llm,
   // 可选：prompt 模板（默认 default）
   promptTemplate: 'default',

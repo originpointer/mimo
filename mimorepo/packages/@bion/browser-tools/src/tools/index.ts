@@ -19,3 +19,6 @@ export { createBrowserTabGroupsQueryTool } from './browser_tab_groups_query.js';
 export { createBrowserWindowFocusTool } from './browser_window_focus.js';
 export { createBrowserCdpClickTool } from './browser_cdp_click.js';
 
+// Readability tool
+export { createBrowserReadabilityExtractTool } from './browser_readability_extract.js';
+

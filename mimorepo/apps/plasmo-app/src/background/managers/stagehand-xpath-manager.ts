@@ -20,6 +20,7 @@ import { JsonCommonXpathFinder } from '../libs/JsonCommonXpathFinder';
 import { XpathMarker } from '../libs/XpathMarker';
 import { XpathHtmlGetter } from '../libs/XpathHtmlGetter';
 import { TabGroupManager } from '../libs/TabGroupManager';
+import { ReadabilityExtractor } from '../libs/ReadabilityExtractor';
 
 /**
  * Stagehand XPath Manager
@@ -36,6 +37,7 @@ export class StagehandXPathManager {
   private readonly xpathMarker: XpathMarker;
   private readonly xpathHtmlGetter: XpathHtmlGetter;
   private readonly tabGroupManager: TabGroupManager;
+  private readonly readabilityExtractor: ReadabilityExtractor;
 
   constructor() {
     // Initialize all tool/library classes
@@ -47,6 +49,7 @@ export class StagehandXPathManager {
     this.xpathMarker = new XpathMarker();
     this.xpathHtmlGetter = new XpathHtmlGetter();
     this.tabGroupManager = new TabGroupManager();
+    this.readabilityExtractor = new ReadabilityExtractor();
 
     // Report extension ID to server
     this.reportExtensionId();
@@ -110,6 +113,13 @@ export class StagehandXPathManager {
    */
   getTabGroupManager(): TabGroupManager {
     return this.tabGroupManager;
+  }
+
+  /**
+   * Get the Readability extractor instance
+   */
+  getReadabilityExtractor(): ReadabilityExtractor {
+    return this.readabilityExtractor;
   }
 
   // ==================== Private Methods ====================

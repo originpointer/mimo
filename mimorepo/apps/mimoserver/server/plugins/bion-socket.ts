@@ -24,6 +24,7 @@ import { ToolScheduler } from '@mimo/agent-tools/scheduler';
 import { z } from 'zod';
 import { logger } from '../utils/logger';
 import { persistLlmRun } from '../utils/persist-llm-run';
+import { persistMessage } from '../utils/persist-message';
 import {
   ToolDisclosurePolicy,
   inferDomain,
@@ -34,11 +35,29 @@ import {
   type ToolTier,
 } from '../utils/tool-disclosure';
 
+/**
+ * 客户端类型枚举
+ * - page: 前端页面客户端
+ * - extension: 浏览器扩展客户端
+ * - unknown: 未知类型客户端
+ */
 type ClientType = 'page' | 'extension' | 'unknown';
 
+/**
+ * 工具升级请求错误类
+ * 当 LLM 请求使用更高层级的工具时抛出此错误
+ */
 class ToolUpgradeRequestedError extends Error {
+  /** 请求的工具层级 */
   readonly requestedTier: ToolTier;
+  /** 升级原因（可选） */
   readonly reason?: string;
+
+  /**
+   * 创建工具升级请求错误实例
+   * @param requestedTier - 请求的工具层级
+   * @param reason - 升级原因的描述文本（可选）
+   */
   constructor(requestedTier: ToolTier, reason?: string) {
     super(`Tool upgrade requested: ${requestedTier}${reason ? ` (${reason})` : ''}`);
     this.requestedTier = requestedTier;
@@ -46,6 +65,11 @@ class ToolUpgradeRequestedError extends Error {
   }
 }
 
+/**
+ * 解析端口号字符串
+ * @param raw - 原始端口号字符串（可能为 undefined）
+ * @returns 解析后的端口号（有效范围 1-65535），解析失败返回 null
+ */
 function parsePort(raw: string | undefined): number | null {
   if (!raw) return null;
   const n = Number.parseInt(String(raw).trim(), 10);
@@ -53,6 +77,15 @@ function parsePort(raw: string | undefined): number | null {
   return n;
 }
 
+/**
+ * 在可用端口上启动 HTTP 服务器监听
+ * @param params - 配置参数对象
+ * @param params.httpServer - HTTP 服务器实例（由 createServer 创建）
+ * @param params.preferredPort - 首选端口号
+ * @param params.strict - 是否严格模式：true 时仅尝试首选端口，false 时尝试连续端口；当端口由环境变量显式配置时应使用 true
+ * @param params.maxTries - 最大尝试次数（默认 20），仅在非严格模式下生效
+ * @returns 成功绑定的端口号 Promise
+ */
 async function listenOnAvailablePort(params: {
   httpServer: ReturnType<typeof createServer>;
   preferredPort: number;
@@ -97,20 +130,39 @@ async function listenOnAvailablePort(params: {
   );
 }
 
+/**
+ * 获取 Socket 连接的客户端类型
+ * @param socket - Socket.IO Socket 实例
+ * @returns 客户端类型：'page'、'extension' 或 'unknown'
+ */
 function getClientType(socket: Socket): ClientType {
   const t = (socket.handshake as any)?.auth?.clientType;
   if (t === 'page' || t === 'extension') return t;
   return 'unknown';
 }
 
+/**
+ * 生成会话房间名称
+ * @param sessionId - 会话 ID
+ * @returns Socket.IO 房间名称，格式为 `bion:session:{sessionId}`
+ */
 function sessionRoom(sessionId: string) {
   return `bion:session:${sessionId}`;
 }
 
+/**
+ * 生成随机 ID 字符串
+ * @returns 20 字符长度的随机字符串（由两个 10 字符的 base36 随机数拼接而成）
+ */
 function randomId(): string {
   return Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 12);
 }
 
+/**
+ * 从前端消息中提取用户文本内容
+ * @param msg - 前端到服务器的消息对象（部分类型）
+ * @returns 提取的用户文本内容，如果未找到返回空字符串
+ */
 function extractUserText(msg: Partial<BionFrontendToServerMessage>): string {
   const anyMsg = msg as any;
   if (typeof anyMsg?.content === 'string' && anyMsg.content.length > 0) return anyMsg.content;
@@ -126,6 +178,11 @@ function extractUserText(msg: Partial<BionFrontendToServerMessage>): string {
   return '';
 }
 
+/**
+ * 安全地解析 JSON 字符串
+ * @param text - 待解析的 JSON 字符串
+ * @returns 解析后的对象，解析失败返回 null
+ */
 function safeJsonParse(text: string): unknown | null {
   try {
     return JSON.parse(text);
@@ -134,6 +191,11 @@ function safeJsonParse(text: string): unknown | null {
   }
 }
 
+/**
+ * 从文本中提取首个 URL
+ * @param text - 待搜索的文本
+ * @returns 提取的完整 URL（含 https:// 协议头），未找到返回 null
+ */
 function extractFirstUrlLike(text: string): string | null {
   const s = String(text || '');
   const http = s.match(/https?:\/\/[^\s]+/i)?.[0];
@@ -145,6 +207,12 @@ function extractFirstUrlLike(text: string): string | null {
   return null;
 }
 
+/**
+ * 根据文本推断已知网站的 URL
+ * 仅识别高置信度的全球知名网站
+ * @param text - 用户输入的文本
+ * @returns 推断出的完整 URL，未匹配到返回 null
+ */
 function inferKnownUrlFromText(text: string): string | null {
   const t = String(text || '').toLowerCase();
   // Keep this list tiny and conservative: only the high-confidence global sites.
@@ -156,6 +224,11 @@ function inferKnownUrlFromText(text: string): string | null {
   return null;
 }
 
+/**
+ * 判断用户文本是否表达浏览器操作意图
+ * @param userText - 用户输入的文本
+ * @returns 是否为浏览器操作意图
+ */
 function isBrowserIntent(userText: string): boolean {
   const t = String(userText || '').toLowerCase();
   if (!t.trim()) return false;
@@ -176,23 +249,42 @@ function isBrowserIntent(userText: string): boolean {
   return hasDomainLike || hasKnownSite;
 }
 
+/**
+ * 待确认的浏览器任务
+ */
 type PendingBrowserTask = {
+  /** 请求 ID */
   requestId: string;
+  /** 会话 ID */
   sessionId: string;
+  /** 目标事件 ID */
   targetEventId: string;
   /**
    * Raw structured JSON parsed from the final LLM output.
    */
   payload: any;
+  /** 任务摘要描述 */
   summary: string;
+  /** 任务标题（可选） */
   title?: string;
+  /** 创建时间戳 */
   createdAt: number;
 };
 
+/**
+ * 类型守卫：检查值是否为普通对象（Record）
+ * @param v - 待检查的值
+ * @returns 是否为 Record<string, unknown> 类型
+ */
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null;
 }
 
+/**
+ * 从解析的 JSON 中提取浏览器任务摘要
+ * @param parsed - 解析后的 JSON 对象
+ * @returns 任务摘要字符串，如果结构不匹配返回 null
+ */
 function summarizeBrowserTask(parsed: unknown): string | null {
   if (!isRecord(parsed)) return null;
   const type = parsed.type;
@@ -205,6 +297,11 @@ function summarizeBrowserTask(parsed: unknown): string | null {
   return summary;
 }
 
+/**
+ * 从解析的 JSON 中提取浏览器操作
+ * @param parsed - 解析后的 JSON 对象
+ * @returns 浏览器操作对象（键为操作名，值为参数），提取失败返回 null
+ */
 function extractBrowserAction(parsed: unknown): Record<string, Record<string, unknown>> | null {
   if (!isRecord(parsed)) return null;
   const action = (parsed as any).action ?? (parsed as any).browserAction ?? (parsed as any).browser_action;
@@ -219,6 +316,11 @@ function extractBrowserAction(parsed: unknown): Record<string, Record<string, un
   return Object.keys(out).length > 0 ? out : null;
 }
 
+/**
+ * 从浏览器操作中提取首个导航 URL
+ * @param action - 浏览器操作对象
+ * @returns 提取的 HTTP/HTTPS URL，未找到返回 null
+ */
 function extractFirstNavigateUrl(action: Record<string, Record<string, unknown>> | null): string | null {
   if (!action) return null;
   const nav = (action as any).browser_navigate;
@@ -227,6 +329,11 @@ function extractFirstNavigateUrl(action: Record<string, Record<string, unknown>>
   return null;
 }
 
+/**
+ * 清理和截断标题文本
+ * @param input - 原始标题输入
+ * @returns 清理后的标题，最多 18 个字符
+ */
 function sanitizeTitle(input: string): string {
   const s = String(input || '')
     .replace(/[\r\n\t]+/g, ' ')
@@ -238,6 +345,16 @@ function sanitizeTitle(input: string): string {
   return s.length > 18 ? s.slice(0, 18) : s;
 }
 
+/**
+ * 使用 LLM 生成浏览器任务标题
+ * @param params - 生成标题的参数
+ * @param params.llm - LLM 客户端实例
+ * @param params.model - 模型名称
+ * @param params.userText - 用户原始输入文本
+ * @param params.summary - 任务摘要
+ * @param params.url - 目标 URL（可选）
+ * @returns 生成的任务标题 Promise
+ */
 async function generateBrowserTaskTitle(params: {
   llm: any;
   model: string;
@@ -275,14 +392,34 @@ async function generateBrowserTaskTitle(params: {
 }
 
 /**
- * A minimal server-side Bion runtime stored on `globalThis`.
- * Other server routes can emit UI events or call plugins by reading `globalThis.__bion`.
+ * Bion 服务器端运行时类型
+ * 存储在 `globalThis` 上，供其他服务器路由访问
+ * 其他服务器路由可以通过读取 `globalThis.__bion` 来发送 UI 事件或调用插件
  */
 export type BionRuntime = {
+  /** Socket.IO 服务器实例 */
   io: SocketIOServer;
+  /** Socket.IO 命名空间实例 */
   namespace: ReturnType<SocketIOServer['of']>;
+  /**
+   * 向指定会话发送 UI 事件
+   * @param sessionId - 会话 ID
+   * @param event - 前端事件对象
+   * @param envelopeId - 消息包 ID（可选）
+   */
   emitUiEvent(sessionId: string, event: BionFrontendEvent, envelopeId?: string): void;
+  /**
+   * 调用浏览器插件的浏览器操作
+   * @param clientId - 客户端 ID
+   * @param msg - 浏览器操作消息
+   * @param timeoutMs - 超时时间（毫秒，默认 30000）
+   * @returns 浏览器操作执行结果 Promise
+   */
   callPluginBrowserAction(clientId: string, msg: BionBrowserActionMessage, timeoutMs?: number): Promise<BionBrowserActionResult>;
+  /**
+   * 获取所有已连接的插件列表
+   * @returns 插件信息数组，包含 clientId 和 socketId
+   */
   getPlugins(): { clientId: string; socketId: string }[];
 };
 
@@ -291,7 +428,13 @@ declare global {
   var __bion: BionRuntime | undefined;
 }
 
+/**
+ * Bion Socket.IO 插件入口
+ * 创建并初始化 Socket.IO 服务器，处理浏览器扩展与前端页面之间的实时通信
+ * @param nitroApp - Nitro 应用实例
+ */
 export default defineNitroPlugin((nitroApp) => {
+  // 防止重复初始化
   if (globalThis.__bion) {
     return;
   }
@@ -301,7 +444,7 @@ export default defineNitroPlugin((nitroApp) => {
     process.env.MIMO_MODEL ||
     process.env.MIMO_LLM_MODEL ||
     process.env.LLM_MODEL ||
-    'anthropic/claude-3-5-haiku';
+    'anthropic/claude-haiku-4.5';
 
   const persistBrowserSession =
     process.env.MIMO_PERSIST_BROWSER_SESSION !== undefined
@@ -318,11 +461,19 @@ export default defineNitroPlugin((nitroApp) => {
     Array<{ role: 'system' | 'user' | 'assistant'; content: string; timestamp: number }>
   >();
 
+  /**
+   * 活跃的浏览器会话信息
+   */
   type ActiveBrowserSession = {
+    /** 请求 ID */
     requestId: string;
+    /** 客户端 ID */
     clientId: string;
+    /** 会话标题 */
     title: string;
+    /** 会话开始时间戳 */
     startedAt: number;
+    /** 最后使用时间戳 */
     lastUsedAt: number;
   };
   // sessionId -> active browser session (when persistence enabled)
@@ -366,6 +517,10 @@ export default defineNitroPlugin((nitroApp) => {
   // sessionId -> pending browser task (waiting for user confirmation)
   const pendingBrowserTaskBySessionId = new Map<string, PendingBrowserTask>();
 
+  /**
+   * 获取所有可用的浏览器扩展候选列表
+   * @returns 浏览器扩展候选数组
+   */
   const getBrowserCandidates = (): BionBrowserCandidate[] => {
     const candidates: BionBrowserCandidate[] = [];
     for (const [clientId] of pluginByClientId.entries()) {
@@ -380,6 +535,11 @@ export default defineNitroPlugin((nitroApp) => {
     return candidates;
   };
 
+  /**
+   * 刷新正在等待浏览器选择的会话状态
+   * - 如果只有一个候选浏览器，自动选择并触发确认流程
+   * - 如果有多个候选浏览器，发送选择 UI 事件
+   */
   const refreshWaitingBrowserSelections = () => {
     const candidates = getBrowserCandidates();
     const sessions = Array.from(waitingBrowserSelectionSessionIds);
@@ -638,6 +798,20 @@ export default defineNitroPlugin((nitroApp) => {
           const loopActionId = `llmloop:${sessionId}:${userMessageId}`;
           const requestId = `browser:${sessionId}:${userMessageId}:${randomId()}`;
 
+          logger.info(
+            {
+              sessionId,
+              userMessageId,
+              loopActionId,
+              model,
+              temperature,
+              maxTokens,
+              historyCount: history.length,
+              userText,
+            },
+            '[Bion] Agent loop start'
+          );
+
           emitUiEvent(sessionId, {
             type: 'toolUsed',
             id: randomId(),
@@ -821,8 +995,17 @@ export default defineNitroPlugin((nitroApp) => {
               argumentsDetail: toolArgs,
             } satisfies BionFrontendEvent);
 
+            logger.info(
+              { sessionId, userMessageId, tool: toolName, step, actionId: loopActionId, params: toolArgs },
+              '[Bion] Agent loop tool execute start'
+            );
+
             const exec = await scheduler.execute(tool, toolArgs, { config: { browserTools: browserToolsConfig } } as any);
             if (!exec.success) {
+              logger.error(
+                { sessionId, userMessageId, tool: toolName, step, actionId: loopActionId, error: exec.error },
+                '[Bion] Agent loop tool execute failed'
+              );
               emitUiEvent(sessionId, {
                 type: 'toolUsed',
                 id: randomId(),
@@ -837,6 +1020,18 @@ export default defineNitroPlugin((nitroApp) => {
             }
 
             lastObservation = exec.result ?? null;
+            logger.info(
+              {
+                sessionId,
+                userMessageId,
+                tool: toolName,
+                step,
+                actionId: loopActionId,
+                result: exec.result,
+              },
+              '[Bion] Agent loop tool execute success'
+            );
+
             emitUiEvent(sessionId, {
               type: 'toolUsed',
               id: randomId(),
@@ -886,6 +1081,48 @@ export default defineNitroPlugin((nitroApp) => {
             detail: { durationMs: Date.now() - startedAt },
           } satisfies BionFrontendEvent);
 
+          const durationMs = Date.now() - startedAt;
+          const finalHistory = historyBySessionId.get(sessionId) ?? [];
+          const lastAssistantMsg = [...finalHistory].reverse().find((m) => m.role === 'assistant');
+          const assistantText = lastAssistantMsg?.content ?? '';
+
+          logger.info(
+            {
+              sessionId,
+              userMessageId,
+              loopActionId,
+              model,
+              durationMs,
+              historyCount: finalHistory.length,
+              assistantChars: assistantText.length,
+              assistantText,
+            },
+            '[Bion] Agent loop success'
+          );
+
+          // Persist full conversation messages for Agent Loop
+          void persistMessage({
+            sessionId,
+            userMessageId,
+            llmActionId: loopActionId,
+            model,
+            temperature,
+            maxTokens,
+            userText,
+            llmMessages: finalHistory.map((m: any) => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+            assistantText,
+            durationMs,
+            tools: ['browser_navigate', 'browser_get_content', 'browser_click', 'browser_fill', 'browser_screenshot', 'browser_session_stop'],
+          })
+            .then((filePath) => {
+              logger.info({ sessionId, userMessageId, loopActionId, filePath }, '[Bion] persisted message (agent loop)');
+            })
+            .catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              const stack = err instanceof Error ? err.stack : undefined;
+              logger.error({ sessionId, userMessageId, loopActionId, message, stack }, '[Bion] persist message failed (agent loop)');
+            });
+
           return;
         }
 
@@ -907,6 +1144,10 @@ export default defineNitroPlugin((nitroApp) => {
         let selectedTier: ToolTier = 'tier1';
         let toolNames: string[] = [];
         const observedUsedTools = new Set<string>();
+
+        // Declare these outside the conditional block so they're accessible in the catch block
+        let buildToolSet: (() => Record<string, any>) | null = null;
+        var toolSet: Record<string, any> = {};
 
         if (browserIntent && browserRequestId) {
           // Resolve a browser extension clientId (dev-friendly auto-pick if only one).
@@ -993,6 +1234,11 @@ export default defineNitroPlugin((nitroApp) => {
             const startTool = registry.getTool('browser_session_start');
             if (!startTool) throw new Error('browser_session_start tool not registered');
 
+            logger.info(
+              { sessionId, userMessageId, tool: 'browser_session_start', actionId: `${browserRequestId}:session_start` },
+              '[Bion] Browser session start'
+            );
+
             emitUiEvent(sessionId, {
               type: 'toolUsed',
               id: randomId(),
@@ -1009,6 +1255,10 @@ export default defineNitroPlugin((nitroApp) => {
               toolContext as any
             );
             if (!startExec.success) {
+              logger.error(
+                { sessionId, userMessageId, tool: 'browser_session_start', actionId: `${browserRequestId}:session_start`, error: startExec.error },
+                '[Bion] Browser session start failed'
+              );
               emitUiEvent(sessionId, {
                 type: 'toolUsed',
                 id: randomId(),
@@ -1021,6 +1271,11 @@ export default defineNitroPlugin((nitroApp) => {
               } satisfies BionFrontendEvent);
               throw new Error(startExec.error || 'browser_session_start failed');
             }
+
+            logger.info(
+              { sessionId, userMessageId, tool: 'browser_session_start', actionId: `${browserRequestId}:session_start`, result: startExec.result },
+              '[Bion] Browser session start success'
+            );
 
             emitUiEvent(sessionId, {
               type: 'toolUsed',
@@ -1046,6 +1301,12 @@ export default defineNitroPlugin((nitroApp) => {
                 try {
                   const stopTool = registry.getTool('browser_session_stop');
                   if (!stopTool) return;
+
+                  logger.info(
+                    { sessionId, userMessageId, tool: 'browser_session_stop', actionId: `${browserRequestId}:session_stop` },
+                    '[Bion] Browser session stop'
+                  );
+
                   emitUiEvent(sessionId, {
                     type: 'toolUsed',
                     id: randomId(),
@@ -1056,6 +1317,19 @@ export default defineNitroPlugin((nitroApp) => {
                     brief: 'Stopping browser session',
                   } satisfies BionFrontendEvent);
                   const stopExec = await scheduler.execute(stopTool, { requestId: browserRequestId }, toolContext as any);
+
+                  if (stopExec.success) {
+                    logger.info(
+                      { sessionId, userMessageId, tool: 'browser_session_stop', actionId: `${browserRequestId}:session_stop`, result: stopExec.result },
+                      '[Bion] Browser session stop success'
+                    );
+                  } else {
+                    logger.error(
+                      { sessionId, userMessageId, tool: 'browser_session_stop', actionId: `${browserRequestId}:session_stop`, error: stopExec.error },
+                      '[Bion] Browser session stop failed'
+                    );
+                  }
+
                   emitUiEvent(sessionId, {
                     type: 'toolUsed',
                     id: randomId(),
@@ -1130,11 +1404,16 @@ export default defineNitroPlugin((nitroApp) => {
             reason: z.string().optional(),
           });
 
-          const buildToolSet = (): Record<string, any> => {
+          /**
+           * 构建当前层级的工具集
+           * 根据选定的工具层级，返回包含所有可用工具的工具集对象
+           * @returns 工具集对象，键为工具名称，值为工具配置
+           */
+          buildToolSet = (): Record<string, any> => {
             toolNames = toolsForTier(selectedTier);
 
-            const toolSet: Record<string, any> = {};
-            toolSet['mimo_request_tools'] = {
+            const newToolSet: Record<string, any> = {};
+            newToolSet['mimo_request_tools'] = {
               name: 'mimo_request_tools',
               group: 'mimo',
               description:
@@ -1151,12 +1430,17 @@ export default defineNitroPlugin((nitroApp) => {
             for (const name of toolNames) {
               const t = registry.getTool(name);
               if (!t) continue;
-              toolSet[name] = {
+              newToolSet[name] = {
                 ...t,
                 execute: async (params: any, ctx: any) => {
                   observedUsedTools.add(name);
                   const toolCallId = (ctx as any)?.metadata?.toolCallId;
                   const actionId = toolCallId ? String(toolCallId) : `${browserRequestId}:${randomId()}`;
+
+                  logger.info(
+                    { sessionId, userMessageId, tool: name, actionId, params },
+                    '[Bion] Tool execute start'
+                  );
 
                   emitUiEvent(sessionId, {
                     type: 'toolUsed',
@@ -1171,6 +1455,10 @@ export default defineNitroPlugin((nitroApp) => {
 
                   const exec = await scheduler.execute(t, params, ctx as any);
                   if (!exec.success) {
+                    logger.error(
+                      { sessionId, userMessageId, tool: name, actionId, error: exec.error },
+                      '[Bion] Tool execute failed'
+                    );
                     emitUiEvent(sessionId, {
                       type: 'toolUsed',
                       id: randomId(),
@@ -1183,6 +1471,18 @@ export default defineNitroPlugin((nitroApp) => {
                     } satisfies BionFrontendEvent);
                     throw new Error(exec.error || `${name} failed`);
                   }
+
+                  // Log tool execution result - this is critical for understanding model reasoning
+                  logger.info(
+                    {
+                      sessionId,
+                      userMessageId,
+                      tool: name,
+                      actionId,
+                      result: exec.result,
+                    },
+                    '[Bion] Tool execute success'
+                  );
 
                   emitUiEvent(sessionId, {
                     type: 'toolUsed',
@@ -1199,10 +1499,10 @@ export default defineNitroPlugin((nitroApp) => {
               };
             }
 
-            return toolSet;
+            return newToolSet;
           };
 
-          let toolSet: Record<string, any> = buildToolSet();
+          toolSet = buildToolSet();
 
           llmTools = Object.keys(toolSet).length > 0 ? toolSet : undefined;
           llmMessages = [
@@ -1238,6 +1538,9 @@ export default defineNitroPlugin((nitroApp) => {
               temperature,
               maxTokens,
               historyCount: history.length,
+              userText,
+              llmMessages: llmMessages.map((m: any) => ({ role: m.role, content: m.content })),
+              tools: llmTools ? Object.keys(llmTools) : undefined,
             },
             '[Bion] LLM stream start'
           );
@@ -1299,8 +1602,10 @@ export default defineNitroPlugin((nitroApp) => {
               if (e instanceof ToolUpgradeRequestedError) {
                 const fromTier = selectedTier;
                 selectedTier = maxTier(selectedTier, e.requestedTier);
-                toolSet = buildToolSet();
-                llmTools = Object.keys(toolSet).length > 0 ? toolSet : undefined;
+                if (buildToolSet) {
+                  toolSet = buildToolSet();
+                  llmTools = Object.keys(toolSet).length > 0 ? toolSet : undefined;
+                }
 
                 void toolDisclosure
                   .recordUpgrade({
@@ -1416,6 +1721,7 @@ export default defineNitroPlugin((nitroApp) => {
               durationMs,
               usage: lastUsage ?? undefined,
               assistantChars: assistantAccum.length,
+              assistantText: assistantAccum,
             },
             '[Bion] LLM stream success'
           );
@@ -1458,6 +1764,30 @@ export default defineNitroPlugin((nitroApp) => {
               const message = err instanceof Error ? err.message : String(err);
               const stack = err instanceof Error ? err.stack : undefined;
               logger.error({ sessionId, userMessageId, llmActionId, message, stack }, '[Bion] persist LLM run failed');
+            });
+
+          // Persist full conversation messages
+          void persistMessage({
+            sessionId,
+            userMessageId,
+            llmActionId,
+            model,
+            temperature,
+            maxTokens,
+            userText,
+            llmMessages: llmMessages.map((m: any) => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+            assistantText: assistantAccum,
+            usage: lastUsage ?? undefined,
+            durationMs,
+            tools: llmTools ? Object.keys(llmTools) : undefined,
+          })
+            .then((filePath) => {
+              logger.info({ sessionId, userMessageId, llmActionId, filePath }, '[Bion] persisted message');
+            })
+            .catch((err: unknown) => {
+              const message = err instanceof Error ? err.message : String(err);
+              const stack = err instanceof Error ? err.stack : undefined;
+              logger.error({ sessionId, userMessageId, llmActionId, message, stack }, '[Bion] persist message failed');
             });
         } catch (e) {
           const err = e instanceof Error ? e.message : String(e);
@@ -1524,6 +1854,37 @@ export default defineNitroPlugin((nitroApp) => {
                 '[Bion] persist LLM run failed (error)'
               );
             });
+
+          // Persist full conversation messages (error case)
+          void persistMessage({
+            sessionId,
+            userMessageId,
+            llmActionId,
+            model,
+            temperature,
+            maxTokens,
+            userText,
+            llmMessages: llmMessages.map((m: any) => ({ role: m.role, content: m.content, timestamp: m.timestamp })),
+            assistantText: assistantAccum,
+            usage: lastUsage ?? undefined,
+            durationMs,
+            tools: llmTools ? Object.keys(llmTools) : undefined,
+            error: {
+              message: err,
+              stack: e instanceof Error ? e.stack : undefined,
+            },
+          })
+            .then((filePath) => {
+              logger.info({ sessionId, userMessageId, llmActionId, filePath }, '[Bion] persisted message (error)');
+            })
+            .catch((persistErr: unknown) => {
+              const message = persistErr instanceof Error ? persistErr.message : String(persistErr);
+              const stack = persistErr instanceof Error ? persistErr.stack : undefined;
+              logger.error(
+                { sessionId, userMessageId, llmActionId, message, stack },
+                '[Bion] persist message failed (error)'
+              );
+            });
         } finally {
           if (browserSessionStop) {
             await browserSessionStop();
@@ -1584,10 +1945,21 @@ export default defineNitroPlugin((nitroApp) => {
     });
   });
 
+  /**
+   * 向指定会话发送前端消息包
+   * @param sessionId - 会话 ID
+   * @param envelope - 前端消息包对象
+   */
   const emitUiEnvelope = (sessionId: string, envelope: BionFrontendMessageEnvelope) => {
     nsp.to(sessionRoom(sessionId)).emit(BionSocketEvent.Message, encodeFrontendEnvelope(envelope));
   };
 
+  /**
+   * 向指定会话发送 UI 事件
+   * @param sessionId - 会话 ID
+   * @param event - 前端事件对象
+   * @param envelopeId - 消息包 ID（可选），不提供则自动生成
+   */
   const emitUiEvent = (sessionId: string, event: BionFrontendEvent, envelopeId?: string) => {
     const id = envelopeId ?? randomId();
     const envelope: BionFrontendMessageEnvelope = {
@@ -1600,6 +1972,14 @@ export default defineNitroPlugin((nitroApp) => {
     emitUiEnvelope(sessionId, envelope);
   };
 
+  /**
+   * 调用浏览器插件执行浏览器操作
+   * @param clientId - 浏览器扩展的客户端 ID
+   * @param msg - 浏览器操作消息
+   * @param timeoutMs - 超时时间（毫秒，默认 30000）
+   * @returns 浏览器操作执行结果 Promise
+   * @throws 当找不到对应客户端的 socket 时抛出错误
+   */
   const callPluginBrowserAction = async (clientId: string, msg: BionBrowserActionMessage, timeoutMs = 30_000) => {
     const socket = pluginByClientId.get(clientId);
     if (!socket) throw new Error(`No plugin connected for clientId=${clientId}`);
@@ -1615,6 +1995,10 @@ export default defineNitroPlugin((nitroApp) => {
     return result;
   };
 
+  /**
+   * Bion 运行时对象
+   * 包含 Socket.IO 服务器实例和相关方法，供全局访问
+   */
   const runtime: BionRuntime = {
     io,
     namespace: nsp,
@@ -1623,8 +2007,13 @@ export default defineNitroPlugin((nitroApp) => {
     getPlugins: () => Array.from(pluginByClientId.entries()).map(([clientId, s]) => ({ clientId, socketId: s.id })),
   };
 
+  // 将运行时对象存储在全局变量中，供其他路由访问
   globalThis.__bion = runtime;
 
+  /**
+   * Nitro 应用关闭时的清理钩子
+   * 按顺序关闭 Socket.IO 服务器、HTTP 连接和 HTTP 服务器
+   */
   nitroApp.hooks.hook('close', async () => {
     // Close Socket.IO server first
     await new Promise<void>((resolve) => {
@@ -1651,7 +2040,10 @@ export default defineNitroPlugin((nitroApp) => {
     globalThis.__bion = undefined;
   });
 
-  // Also handle process termination signals
+  /**
+   * 进程终止信号处理函数
+   * 清理 Socket.IO 服务器、HTTP 连接和全局运行时对象
+   */
   const shutdown = async () => {
     console.log('[Bion] Shutting down Socket.IO server...');
     await new Promise<void>((resolve) => {

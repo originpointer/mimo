@@ -82,6 +82,7 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
   const sessionId = options.id;
   const autoSelectInFlightRef = useRef(false);
   const autoSelectedRef = useRef(false);
+  const envelopeCleanupRef = useRef<(() => void) | null>(null);
 
   const ensureAssistantMessage = useCallback(
     (targetEventId: string) => {
@@ -92,7 +93,7 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
       });
       return assistantId;
     },
-    [setMessages]
+    []
   );
 
   const appendAssistantText = useCallback(
@@ -252,9 +253,15 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
     return () => {
       cancelled = true;
     };
-  }, [bionEnabled, browserSelection.status, client, selectBrowser]);
+  }, [bionEnabled, client, selectBrowser]);
 
   useEffect(() => {
+    // Clean up previous envelope handler before attaching a new one
+    if (envelopeCleanupRef.current) {
+      envelopeCleanupRef.current();
+      envelopeCleanupRef.current = null;
+    }
+
     if (!bionEnabled || !client) return;
 
     const unsub = client.onEnvelope((env) => {
@@ -339,8 +346,13 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
       }
     });
 
+    envelopeCleanupRef.current = unsub;
+
     return () => {
-      unsub();
+      if (envelopeCleanupRef.current) {
+        envelopeCleanupRef.current();
+        envelopeCleanupRef.current = null;
+      }
     };
   }, [appendAssistantText, bionEnabled, client, ensureAssistantMessage]);
 

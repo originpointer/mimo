@@ -1,0 +1,48 @@
+{
+  "name": "@mimo/skills",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Progressive disclosure skills framework for AI agents with BM25-powered discovery",
+  "private": true,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./toolset": {
+      "types": "./dist/toolset/index.d.mts",
+      "import": "./dist/toolset/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "check-types": "tsc --noEmit",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "@mimo/agent-core": "workspace:*",
+    "@mimo/types": "workspace:*",
+    "@orama/orama": "^3.1.18",
+    "@orama/highlight": "^0.1.9",
+    "@orama/stopwords": "^3.1.18",
+    "@orama/tokenizers": "^3.1.18",
+    "glob": "^11.0.0",
+    "yaml": "^2.7.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "@types/node": "^20.17.0",
+    "tsdown": "^0.3.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.0.7"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

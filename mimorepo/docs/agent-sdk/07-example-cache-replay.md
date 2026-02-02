@@ -35,7 +35,7 @@ import { WorkflowAgent } from '@mimo/agent-multi';
 import { buildBrowserTools } from './tools';
 
 const llmProvider = new LLMProvider();
-const llm = llmProvider.getClient('anthropic/claude-3-5-haiku');
+const llm = llmProvider.getClient('anthropic/claude-haiku-4.5');
 
 const registry = new ToolRegistry();
 registry.registerBatch(buildBrowserTools() as any);
@@ -45,7 +45,7 @@ const cache = new AgentCache({ store: new MemoryStore(), namespace: 'agent-sdk' 
 
 const agent = new WorkflowAgent({
   id: 'cache-demo',
-  model: 'anthropic/claude-3-5-haiku',
+  model: 'anthropic/claude-haiku-4.5',
   llm,
   registry,
   executor,

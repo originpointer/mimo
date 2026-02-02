@@ -12,7 +12,7 @@ import { LLMProvider } from '@mimo/llm';
 
 /**
  * Create LLM client for testing
- * @param model - Model identifier (e.g., "anthropic/claude-3-5-haiku")
+ * @param model - Model identifier (e.g., "anthropic/claude-haiku-4.5")
  * @returns LLM client instance
  */
 export function createLLMClient(model: string) {
@@ -26,7 +26,7 @@ export function createLLMClient(model: string) {
  */
 export const testModels = {
   // Claude 3.5 Haiku - Recommended for integration tests (fast and cheap)
-  claude: 'anthropic/claude-3-5-haiku',
+  claude: 'anthropic/claude-haiku-4.5',
 
   // GPT-4o Mini - OpenAI's fast model
   gpt4o: 'openai/gpt-4o-mini',
