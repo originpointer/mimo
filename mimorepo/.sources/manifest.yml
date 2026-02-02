@@ -55,4 +55,9 @@ sources:
     ref: main
     shallow: true
     notes: "Used for content extraction"
+  - name: pydantic-ai-skills
+    repo: git@github.com:DougTrajano/pydantic-ai-skills.git
+    ref: main
+    shallow: true
+    notes: "Used as reference only"
 
