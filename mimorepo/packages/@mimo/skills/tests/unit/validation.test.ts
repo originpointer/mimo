@@ -31,8 +31,9 @@ describe('validation', () => {
     });
 
     it('should throw on invalid characters', () => {
-      expect(() => normalizeSkillName('Invalid_Name')).toThrow();
-      expect(() => normalizeSkillName('test--name')).toThrow();
+      // Mixed case is converted to lowercase and should pass if valid after conversion
+      expect(() => normalizeSkillName('test--name')).toThrow(); // Double hyphens
+      expect(() => normalizeSkillName('test$name')).toThrow(); // Invalid character
     });
 
     it('should throw on names too long', () => {

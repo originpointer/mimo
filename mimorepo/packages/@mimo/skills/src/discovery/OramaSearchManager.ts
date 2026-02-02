@@ -144,10 +144,10 @@ export class OramaSearchManager {
       boost,
       limit,
       threshold
-    }) as SkillsResult;
+    }) as any;
 
     // Map results to skills
-    return results.hits.map((hit) => {
+    return results.hits.map((hit: any) => {
       const skill = this.skills.get(hit.document.id);
       if (!skill) {
         throw new Error(`Skill '${hit.document.id}' not found in skills map`);

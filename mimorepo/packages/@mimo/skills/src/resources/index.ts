@@ -15,5 +15,3 @@ export {
   createStaticResource,
   createCallableResource
 } from './SkillResource.js';
-
-export type { BaseSkillResource } from './SkillResource.js';

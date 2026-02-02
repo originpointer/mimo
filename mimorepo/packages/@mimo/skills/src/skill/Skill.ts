@@ -7,7 +7,7 @@
  */
 
 import type { Skill, SkillResource, SkillScript, ResourceCallable, ScriptCallable, FunctionSchema } from '../types.js';
-import { normalizeSkillName } from '../types.js';
+import { normalizeSkillName } from '../validation.js';
 import { createCallableResource, createStaticResource } from '../resources/index.js';
 import { createCallableScript } from '../scripts/index.js';
 import { SkillValidationError } from '../exceptions.js';
@@ -195,6 +195,5 @@ export function createSkillFromOptions(options: {
   };
 }
 
-// Re-exports
-export { SkillBuilder };
+// Default export
 export default SkillBuilder;

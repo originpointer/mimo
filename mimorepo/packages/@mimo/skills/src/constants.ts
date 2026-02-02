@@ -14,12 +14,12 @@
  * SKILL_NAME_PATTERN.test('arxiv--search'); // false
  * ```
  */
-export const SKILL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const SKILL_NAME_PATTERN: RegExp = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * Reserved words that cannot be used in skill names.
  */
-export const RESERVED_WORDS = new Set(['anthropic', 'claude']);
+export const RESERVED_WORDS: Set<string> = new Set(['anthropic', 'claude']);
 
 /**
  * Maximum allowed length for skill names (Anthropic spec).

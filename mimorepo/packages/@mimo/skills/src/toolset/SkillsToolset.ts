@@ -18,7 +18,8 @@ import {
 } from '../exceptions.js';
 import { FileSystemDiscovery } from '../discovery/FileSystemDiscovery.js';
 import { OramaSearchManager } from '../discovery/OramaSearchManager.js';
-import { createFileBasedResource, createFileBasedScript } from '../resources/index.js';
+import { createFileBasedResource } from '../resources/index.js';
+import { createFileBasedScript } from '../scripts/index.js';
 import { createLocalScriptExecutor } from '../execution/index.js';
 
 /**
@@ -83,7 +84,14 @@ const LOAD_SKILL_TEMPLATE = `<skill>
 export class SkillsToolset {
   private skills: Map<string, Skill> = new Map();
   private searchManager: OramaSearchManager;
-  private options: Required<Omit<SkillsToolsetOptions, 'skills' | 'directories'>>>;
+  private options: SkillsToolsetOptions = {
+    validate: true,
+    maxDepth: 3,
+    enableBM25: false,
+    bm25Threshold: 0.3,
+    instructionTemplate: undefined,
+    excludeTools: new Set()
+  };
 
   /**
    * Create a skills toolset.
@@ -144,13 +152,19 @@ export class SkillsToolset {
    */
   private async _buildSkill(skill: Skill): Promise<Skill> {
     // Convert resource descriptors to instances
+    // If already an instance (has load method), keep as-is
     const resources = await Promise.all(
       skill.resources.map(async (r) => {
-        if (typeof r === 'object' && 'uri' in r && !('function' in r)) {
-          // File-based resource descriptor
+        // If already a resource instance, keep it
+        if (typeof r === 'object' && 'load' in r && typeof r.load === 'function') {
+          return r;
+        }
+        // File-based resource descriptor (has uri but no function)
+        if (typeof r === 'object' && 'uri' in r && r.uri && !('function' in r)) {
           return createFileBasedResource(r.name, r.uri as string, r.description);
-        } else if (typeof r === 'object' && 'content' in r) {
-          // Static resource descriptor
+        }
+        // Static resource descriptor (has content, no uri)
+        if (typeof r === 'object' && 'content' in r && r.content && !('uri' in r)) {
           return createFileBasedResource(r.name, r.content as string, r.description);
         }
         return r;
@@ -158,8 +172,12 @@ export class SkillsToolset {
     );
 
     // Convert script descriptors to instances
+    // If already an instance (has run method), keep as-is
     const scripts = skill.scripts.map((s) => {
-      if (typeof s === 'object' && 'uri' in s && !('function' in s)) {
+      if (typeof s === 'object' && 'run' in s && typeof s.run === 'function') {
+        return s;
+      }
+      if (typeof s === 'object' && 'uri' in s && s.uri && !('function' in s)) {
         // File-based script descriptor
         const executor = createLocalScriptExecutor();
         return createFileBasedScript(s.name, s.uri as string, executor, s.description);
@@ -378,7 +396,7 @@ export class SkillsToolset {
    * Check if BM25 search is enabled.
    */
   isBM25Enabled(): boolean {
-    return this.options.enableBM25 && this.searchManager.isReady();
+    return (this.options.enableBM25 === true) && this.searchManager.isReady();
   }
 
   /**

@@ -8,7 +8,7 @@
 
 import { promises as fs } from 'fs';
 import { extname } from 'path';
-import { parse as parseJSON } from 'json5';
+import JSON5 from 'json5';
 import { parse as parseYAML } from 'yaml';
 import type { SkillResource, ResourceCallable, FunctionSchema } from '../types.js';
 import { SkillResourceLoadError } from '../exceptions.js';
@@ -17,16 +17,19 @@ import { SkillResourceLoadError } from '../exceptions.js';
  * Base class for skill resources.
  */
 abstract class BaseSkillResource implements SkillResource {
+  public function?: ResourceCallable;
+
   constructor(
     public name: string,
     public description: string | undefined = undefined,
     public content?: string,
-    public function?: ResourceCallable,
+    func?: ResourceCallable,
     public takesCtx: boolean = false,
     public functionSchema?: FunctionSchema,
     public uri?: string
   ) {
-    if (!content && !function && !uri) {
+    this.function = func;
+    if (!content && !func && !uri) {
       throw new Error(`Resource '${name}' must have either content, function, or uri`);
     }
   }
@@ -138,7 +141,7 @@ export class FileBasedSkillResource extends BaseSkillResource {
       // Parse based on file extension
       if (ext === '.json') {
         try {
-          return parseJSON(content);
+          return JSON5.parse(content);
         } catch {
           return content; // Fallback to text
         }

@@ -8,12 +8,12 @@
   "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./toolset": {
-      "types": "./dist/toolset/index.d.mts",
-      "import": "./dist/toolset/index.mjs"
+      "types": "./dist/toolset/index.d.ts",
+      "import": "./dist/toolset/index.js"
     }
   },
   "scripts": {
@@ -32,12 +32,14 @@
     "@orama/stopwords": "^3.1.18",
     "@orama/tokenizers": "^3.1.18",
     "glob": "^11.0.0",
+    "json5": "^2.2.3",
     "yaml": "^2.7.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@types/node": "^20.17.0",
+    "@vitest/coverage-v8": "^3.2.4",
     "tsdown": "^0.3.0",
     "typescript": "^5.9.2",
     "vitest": "^3.0.7"

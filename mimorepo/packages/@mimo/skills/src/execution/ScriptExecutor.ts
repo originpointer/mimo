@@ -27,7 +27,7 @@ export class LocalScriptExecutor implements ScriptExecutor {
    * @param pythonPath - Path to Python executable (default: 'python3')
    */
   constructor(
-    private timeout = DEFAULT_SCRIPT_TIMEOUT,
+    private timeout: number = DEFAULT_SCRIPT_TIMEOUT,
     pythonPath?: string
   ) {
     this.pythonPath = pythonPath || process.env.PYTHON || 'python3';

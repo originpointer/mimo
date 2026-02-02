@@ -7,34 +7,6 @@
  * @module types
  */
 
-import { SKILL_NAME_PATTERN } from './constants.js';
-import { SkillValidationError } from './exceptions.js';
-
-/**
- * Normalizes a function name to a valid skill name.
- *
- * Converts underscores to hyphens and validates against the skill naming pattern.
- *
- * @param funcName - The function name to normalize
- * @returns Normalized skill name (lowercase, underscores replaced with hyphens)
- * @throws {@link SkillValidationError} If the name contains invalid characters
- */
-export function normalizeSkillName(funcName: string): string {
-  const normalized = funcName.replace(/_/g, '-').toLowerCase();
-  if (!SKILL_NAME_PATTERN.test(normalized)) {
-    throw new SkillValidationError(
-      `Skill name '${normalized}' (derived from '${funcName}') is invalid. ` +
-      `Skill names must contain only lowercase letters, numbers, and hyphens.`
-    );
-  }
-  if (normalized.length > 64) {
-    throw new SkillValidationError(
-      `Skill name '${normalized}' exceeds 64 characters (${normalized.length} chars).`
-    );
-  }
-  return normalized;
-}
-
 /**
  * A skill resource: static content or callable that generates content.
  */

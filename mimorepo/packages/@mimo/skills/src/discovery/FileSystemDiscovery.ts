@@ -13,6 +13,9 @@ import { FrontmatterParser } from './FrontmatterParser.js';
 import { validateSkillMetadata } from '../validation.js';
 import { SUPPORTED_RESOURCE_EXTENSIONS, DEFAULT_MAX_DEPTH } from '../constants.js';
 import type { Skill, DiscoveryOptions, ParsedSkillContent } from '../types.js';
+import { FileBasedSkillResource } from '../resources/SkillResource.js';
+import { FileBasedSkillScript } from '../scripts/SkillScript.js';
+import { createLocalScriptExecutor } from '../execution/ScriptExecutor.js';
 
 /**
  * Result from finding skill files.
@@ -178,12 +181,12 @@ export class FileSystemDiscovery {
    * Resources are text files other than SKILL.md in any subdirectory.
    *
    * @param skillFolder - Path to the skill directory
-   * @returns List of resource descriptors
+   * @returns List of resource objects
    */
   private static async _discoverResources(
     skillFolder: string
-  ): Promise<Array<{ name: string; uri: string; description?: string }>> {
-    const resources: Array<{ name: string; uri: string; description?: string }> = [];
+  ): Promise<FileBasedSkillResource[]> {
+    const resources: FileBasedSkillResource[] = [];
     const skillFolderResolved = resolve(skillFolder);
 
     for (const ext of SUPPORTED_RESOURCE_EXTENSIONS) {
@@ -208,11 +211,12 @@ export class FileSystemDiscovery {
             continue;
           }
 
-          resources.push({
-            name: file.replace(/\\/g, '/'), // Normalize path separators
-            uri: resolvedPath,
-            description: `Resource file: ${file}`
-          });
+          const normalizedName = file.replace(/\\/g, '/'); // Normalize path separators
+          resources.push(new FileBasedSkillResource(
+            normalizedName,
+            resolvedPath,
+            `Resource file: ${file}`
+          ));
         }
       } catch {
         // glob package not available, skip
@@ -229,14 +233,15 @@ export class FileSystemDiscovery {
    *
    * @param skillFolder - Path to the skill directory
    * @param skillName - Name of the parent skill
-   * @returns List of script descriptors
+   * @returns List of script objects
    */
   private static async _discoverScripts(
     skillFolder: string,
     skillName: string
-  ): Promise<Array<{ name: string; uri: string; description?: string }>> {
-    const scripts: Array<{ name: string; uri: string; description?: string }> = [];
+  ): Promise<FileBasedSkillScript[]> {
+    const scripts: FileBasedSkillScript[] = [];
     const skillFolderResolved = resolve(skillFolder);
+    const executor = createLocalScriptExecutor();
 
     const scriptLocations = [
       skillFolder, // Root directory
@@ -263,11 +268,13 @@ export class FileSystemDiscovery {
             // Get relative path from skill folder
             const relPath = relative(skillFolder, scriptPath).replace(/\\/g, '/');
 
-            scripts.push({
-              name: relPath,
-              uri: resolvedPath,
-              description: `Script: ${relPath}`
-            });
+            scripts.push(new FileBasedSkillScript(
+              relPath,
+              resolvedPath,
+              executor,
+              `Script: ${relPath}`,
+              skillName
+            ));
           }
         }
       } catch {

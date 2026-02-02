@@ -14,17 +14,20 @@ import { SkillScriptExecutionError } from '../exceptions.js';
  * Base class for skill scripts.
  */
 abstract class BaseSkillScript implements SkillScript {
+  public function?: ScriptCallable;
+
   constructor(
     public name: string,
     public description: string | undefined = undefined,
-    public function?: ScriptCallable,
+    func?: ScriptCallable,
     public takesCtx: boolean = false,
     public functionSchema?: FunctionSchema,
     public uri?: string,
     public skillName?: string,
     public executor?: ScriptExecutor
   ) {
-    if (!function && !uri) {
+    this.function = func;
+    if (!func && !uri) {
       throw new Error(`Script '${name}' must have either function or uri`);
     }
   }

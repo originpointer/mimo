@@ -4,10 +4,11 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import { FileSystemDiscovery } from '../../src/discovery/index.js';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import type { Skill } from '../../src/types.js';
 
-const FIXTURES_DIR = resolve(import.meta.url, '../fixtures/skills').replace('file://', '');
+const FIXTURES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/skills');
 
 describe('FileSystemDiscovery', () => {
   let skills: Skill[];

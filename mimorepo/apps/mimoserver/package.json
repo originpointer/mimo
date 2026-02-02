@@ -11,6 +11,7 @@
     "nitropack": "^2.12.4"
   },
   "dependencies": {
+    "@mimo/skills": "workspace:*",
     "@bion/browser-bion-adapter": "workspace:*",
     "@bion/browser-tools": "workspace:*",
     "@bion/protocol": "workspace:*",

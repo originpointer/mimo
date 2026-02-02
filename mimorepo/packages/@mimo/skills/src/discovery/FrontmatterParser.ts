@@ -15,7 +15,7 @@ import type { ParsedSkillContent } from '../types.js';
  * Matches content between --- delimiters at the start of the file.
  * Uses DOTALL and MULTILINE flags for proper matching.
  */
-const FRONTMATTER_PATTERN = /^---\s*\n(.*?)^---\s*\n/s;
+const FRONTMATTER_PATTERN = /^---\s*\n([\s\S]*?)^---\s*\n/m;
 
 /**
  * Parse a SKILL.md file into frontmatter and instructions.

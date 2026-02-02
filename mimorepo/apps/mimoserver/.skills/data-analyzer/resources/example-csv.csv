@@ -1,0 +1,11 @@
+id,name,price,quantity,category
+1,Apple,2.50,100,Fruit
+2,Banana,1.20,150,Fruit
+3,Orange,3.00,80,Fruit
+4,Carrot,1.50,200,Vegetable
+5,Broccoli,2.80,75,Vegetable
+6,Chicken,8.50,50,Meat
+7,Beef,15.00,30,Meat
+8,Rice,4.00,120,Grain
+9,Pasta,3.50,90,Grain
+10,Milk,3.20,60,Dairy

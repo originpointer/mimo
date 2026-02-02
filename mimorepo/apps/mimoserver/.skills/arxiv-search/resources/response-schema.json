@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "arXiv Search Response Schema",
+  "type": "object",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "搜索查询字符串"
+    },
+    "count": {
+      "type": "integer",
+      "description": "返回的论文数量"
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "arXiv 论文 ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "论文标题"
+          },
+          "authors": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "作者列表"
+          },
+          "summary": {
+            "type": "string",
+            "description": "论文摘要"
+          },
+          "pdf_url": {
+            "type": "string",
+            "description": "PDF 下载链接"
+          }
+        },
+        "required": ["id", "title", "authors", "summary"]
+      }
+    }
+  },
+  "required": ["query", "count", "results"]
+}
