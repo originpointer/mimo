@@ -1,5 +1,5 @@
 import { eventHandler, readBody } from 'h3';
-import { setExtensionRegistration } from '../../../stores/extensionConfigStore';
+import { setExtensionRegistration } from '@/server/stores/extensionConfigStore';
 
 type Body = {
   extensionId?: string;

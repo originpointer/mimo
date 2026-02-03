@@ -11,6 +11,7 @@ export type ChatMessage = {
 
 export type PersistMessageInput = {
   sessionId: string;
+  taskId: string;  // Task ID (required, used in filename)
   userMessageId: string;
   llmActionId: string;
   model: string;
@@ -42,17 +43,15 @@ function safeSegment(input: string): string {
 
 export async function persistMessage(input: PersistMessageInput): Promise<string> {
   const day = isoDate();
-  const dir = path.join(
-    getDataDir(),
-    'messages',
-    day,
-    safeSegment(input.sessionId)
-  );
+
+  // Store in .data/messages/YYYY-MM-DD/ directory
+  const baseDir = path.join(getDataDir(), 'messages');
+  const dir = path.join(baseDir, day);
   await fs.mkdir(dir, { recursive: true });
 
-  // Generate filename with timestamp and userMessageId
+  // Generate filename with taskId, userMessageId, and timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const filePath = path.join(dir, `${safeSegment(input.userMessageId)}_${timestamp}.json`);
+  const filePath = path.join(dir, `${safeSegment(input.taskId)}_${safeSegment(input.userMessageId)}_${timestamp}.json`);
 
   const payload = {
     savedAt: new Date().toISOString(),

@@ -26,6 +26,7 @@ import { LegacyHandlerRegistry } from './handlers/legacy-handler-registry';
 import { HubCommandHandlerRegistry } from './handlers/hub-command-handler-registry';
 import { StagehandXPathManager } from './managers/stagehand-xpath-manager';
 import { BionSocketManager } from './managers/mimo-engine-manager';
+import { TabEventsHandler } from './handlers/tab-events-handler';
 
 // Import lifecycle management components (Manus-based patterns)
 import { ServiceWorkerLifecycleManager } from './managers/lifecycle-manager';
@@ -75,6 +76,14 @@ const mimoEngineManager = new BionSocketManager({
   autoReconnect: true,
   debug: process.env.NODE_ENV === 'development',
 });
+
+/**
+ * TabEventsHandler - 标签页事件处理器
+ *
+ * 监听 Chrome 标签页和窗口事件，并通过 Bion 协议实时同步到 Server 端。
+ * 用于维护浏览器数字孪生状态。
+ */
+const tabEventsHandler = new TabEventsHandler(mimoEngineManager);
 
 // ==================== 初始化生命周期管理组件 (Manus 模式) ====================
 
@@ -134,6 +143,7 @@ const keepAliveManager = new KeepAliveManager({
  */
 lifecycleManager.addManager(keepAliveManager);
 lifecycleManager.addManager(mimoEngineManager);
+lifecycleManager.addManager(tabEventsHandler);
 // stateManager implements LifecycleAware, add it if needed
 // lifecycleManager.addManager(stateManager);
 
@@ -236,6 +246,10 @@ async function initialize(): Promise<void> {
     console.info('[Background] Auto-reconnect will be attempted');
   }
 
+  // 6. 启动标签页事件监听
+  tabEventsHandler.start();
+  console.info('[Background] Tab events handler started');
+
   console.info('[Background] ===== Initialization Complete =====');
 }
 
@@ -252,6 +266,7 @@ initialize().catch((error) => {
 export {
   stagehandManager,
   mimoEngineManager,
+  tabEventsHandler,
   lifecycleManager,
   keepAliveManager,
   stateManager,

@@ -76,11 +76,67 @@ export interface BionBrowserActionResult {
   error?: string;
 }
 
+/**
+ * 标签页事件类型
+ */
+export type BionTabEventType =
+  | 'tab_created'
+  | 'tab_updated'
+  | 'tab_activated'
+  | 'tab_removed'
+  | 'window_created'
+  | 'window_removed';
+
+/**
+ * 标签页数据（对应 chrome.tabs.Tab）
+ */
+export interface BionTabData {
+  tabId: number;
+  windowId: number;
+  url?: string;
+  title?: string;
+  favIconUrl?: string;
+  status?: 'loading' | 'complete';
+  active: boolean;
+  pinned: boolean;
+  hidden: boolean;
+  index: number;
+  openerTabId?: number;
+}
+
+/**
+ * 窗口数据（对应 chrome.windows.Window）
+ */
+export interface BionWindowData {
+  windowId: number;
+  focused: boolean;
+  top?: number;
+  left?: number;
+  width?: number;
+  height?: number;
+  type: 'normal' | 'popup' | 'panel' | 'app' | 'devtools';
+}
+
+/**
+ * 标签页事件消息
+ * 用于从插件实时同步标签页和窗口状态到 server
+ */
+export interface BionTabEventMessage {
+  type: 'tab_event';
+  eventType: BionTabEventType;
+  tab?: BionTabData;
+  window?: BionWindowData;
+  tabId?: number;  // 用于 tab_activated 和 tab_removed
+  windowId?: number;  // 用于 tab_activated、tab_removed 和 window_removed
+  timestamp: number;
+}
+
 export type BionPluginMessage =
   | BionActivateExtensionMessage
   | BionExtensionConnectedMessage
   | BionSessionStatusMessage
   | BionBrowserActionMessage
   | BionBrowserActionResult
+  | BionTabEventMessage
   | (Record<string, unknown> & { type: string });
 

@@ -1,5 +1,5 @@
 import { eventHandler, getQuery } from 'h3';
-import { getExtensionIdByName, getExtensionRegistrationById } from '../../../stores/extensionConfigStore';
+import { getExtensionIdByName, getExtensionRegistrationById } from '@/server/stores/extensionConfigStore';
 
 export default eventHandler(async (event) => {
   const query = getQuery(event);

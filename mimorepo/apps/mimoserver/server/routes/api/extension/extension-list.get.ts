@@ -1,5 +1,5 @@
 import { eventHandler } from 'h3';
-import { listExtensionRegistrations } from '../../../stores/extensionConfigStore';
+import { listExtensionRegistrations } from '@/server/stores/extensionConfigStore';
 
 export default eventHandler(async (event) => {
   let items = [];

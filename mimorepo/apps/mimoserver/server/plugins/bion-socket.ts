@@ -15,16 +15,18 @@ import {
   type BionFrontendMessageEnvelope,
   type BionFrontendToServerMessage,
   type BionPluginMessage,
+  type BionTabEventMessage,
 } from '@bion/protocol';
 import { registerBrowserTools, runBrowserTask } from '@bion/browser-tools';
 import { createBionBrowserTransport } from '@bion/browser-bion-adapter';
+import { createBrowserTwin } from '@twin/chrome';
 import { LLMProvider } from '@mimo/llm';
 import { ToolRegistry } from '@mimo/agent-tools/registry';
 import { ToolScheduler } from '@mimo/agent-tools/scheduler';
 import { z } from 'zod';
-import { logger } from '../utils/logger';
-import { persistLlmRun } from '../utils/persist-llm-run';
-import { persistMessage } from '../utils/persist-message';
+import { logger } from '@/server/utils/logger';
+import { persistLlmRun } from '@/server/utils/persist-llm-run';
+import { persistMessage } from '@/server/utils/persist-message';
 import {
   ToolDisclosurePolicy,
   inferDomain,
@@ -33,7 +35,7 @@ import {
   toolsForTier,
   type ToolIntent,
   type ToolTier,
-} from '../utils/tool-disclosure';
+} from '@/server/utils/tool-disclosure';
 
 /**
  * 客户端类型枚举
@@ -222,6 +224,117 @@ function inferKnownUrlFromText(text: string): string | null {
   if (/\bgithub\b/.test(t)) return 'https://github.com';
   if (/\bbing\b/.test(t)) return 'https://www.bing.com';
   return null;
+}
+
+/**
+ * 将 Bion 协议的标签页事件转换为数字孪生事件格式
+ * @param bionEvent - Bion 协议的标签页事件
+ * @returns 数字孪生事件对象，转换失败返回 null
+ */
+function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import('@twin/chrome').TabEvent | null {
+  const { eventType, tab, window, tabId, windowId, timestamp } = bionEvent;
+
+  switch (eventType) {
+    case 'tab_created':
+      if (!tab) return null;
+      return {
+        type: 'tab_created',
+        tab: {
+          id: tab.tabId,
+          windowId: tab.windowId,
+          url: tab.url ?? null,
+          title: tab.title ?? null,
+          favIconUrl: tab.favIconUrl ?? null,
+          status: tab.status ?? null,
+          active: tab.active,
+          pinned: tab.pinned,
+          hidden: tab.hidden,
+          index: tab.index,
+          openerTabId: tab.openerTabId ?? null,
+          lastUpdated: timestamp,
+        },
+      };
+
+    case 'tab_updated':
+      if (!tab) return null;
+      return {
+        type: 'tab_updated',
+        tab: {
+          id: tab.tabId,
+          windowId: tab.windowId,
+          url: tab.url ?? null,
+          title: tab.title ?? null,
+          favIconUrl: tab.favIconUrl ?? null,
+          status: tab.status ?? null,
+          active: tab.active,
+          pinned: tab.pinned,
+          hidden: tab.hidden,
+          index: tab.index,
+          openerTabId: tab.openerTabId ?? null,
+          lastUpdated: timestamp,
+        },
+        changes: {
+          url: tab.url !== undefined,
+          status: tab.status !== undefined,
+          title: tab.title !== undefined,
+          favIconUrl: tab.favIconUrl !== undefined,
+        },
+      };
+
+    case 'tab_activated':
+      return {
+        type: 'tab_activated',
+        tabId: tabId ?? tab?.tabId ?? 0,
+        windowId: windowId ?? window?.windowId ?? 0,
+        tab: tab ? {
+          id: tab.tabId,
+          windowId: tab.windowId,
+          url: tab.url ?? null,
+          title: tab.title ?? null,
+          favIconUrl: tab.favIconUrl ?? null,
+          status: tab.status ?? null,
+          active: tab.active,
+          pinned: tab.pinned,
+          hidden: tab.hidden,
+          index: tab.index,
+          openerTabId: tab.openerTabId ?? null,
+          lastUpdated: timestamp,
+        } : undefined,
+      };
+
+    case 'tab_removed':
+      return {
+        type: 'tab_removed',
+        tabId: tabId ?? 0,
+        windowId: windowId ?? 0,
+      };
+
+    case 'window_created':
+      if (!window) return null;
+      return {
+        type: 'window_created',
+        window: {
+          id: window.windowId,
+          focused: window.focused,
+          top: window.top ?? null,
+          left: window.left ?? null,
+          width: window.width ?? null,
+          height: window.height ?? null,
+          type: window.type,
+          tabIds: [],
+          lastUpdated: timestamp,
+        },
+      };
+
+    case 'window_removed':
+      return {
+        type: 'window_removed',
+        windowId: windowId ?? 0,
+      };
+
+    default:
+      return null;
+  }
 }
 
 /**
@@ -421,6 +534,11 @@ export type BionRuntime = {
    * @returns 插件信息数组，包含 clientId 和 socketId
    */
   getPlugins(): { clientId: string; socketId: string }[];
+  /**
+   * 获取浏览器数字孪生状态存储
+   * @returns BrowserTwinStore 实例
+   */
+  getBrowserTwin(): ReturnType<typeof createBrowserTwin>;
 };
 
 declare global {
@@ -499,12 +617,26 @@ export default defineNitroPlugin((nitroApp) => {
 
   const nsp = io.of(namespaceName);
 
+  // Log ALL connections to the main server (any namespace)
+  io.on('connection', (socket) => {
+    console.log('[Bion] Root namespace connection:', {
+      socketId: socket.id,
+      namespace: socket.nsp.name,
+      auth: JSON.stringify((socket.handshake as any)?.auth),
+      url: socket.handshake.headers?.referer,
+    });
+  });
+
   // plugin clientId -> socket
   const pluginByClientId = new Map<string, Socket>();
   const pluginMetaByClientId = new Map<
     string,
     { clientId: string; clientName: string; ua: string; version: string; allowOtherClientId: boolean }
   >();
+
+  // Browser Twin Store - 数字孪生状态存储
+  // 实时同步浏览器标签页和窗口状态
+  const browserTwin = createBrowserTwin();
 
   const toolDisclosure = new ToolDisclosurePolicy();
 
@@ -583,15 +715,23 @@ export default defineNitroPlugin((nitroApp) => {
 
   nsp.on('connection', (socket) => {
     const clientType = getClientType(socket);
-    if (process.env.NODE_ENV === 'development') {
-      // eslint-disable-next-line no-console
-      console.log('[Bion] connected', { socketId: socket.id, clientType });
-    }
+    const handshakeAuth = (socket.handshake as any)?.auth;
+
+    // Log ALL connection attempts with full details
+    console.log('[Bion] NEW CONNECTION:', {
+      socketId: socket.id,
+      clientType,
+      namespace: socket.nsp.name,
+      handshakeAuth: JSON.stringify(handshakeAuth),
+      url: socket.handshake.headers?.referer,
+      userAgent: socket.handshake.headers?.['user-agent'],
+    });
+
     if (clientType === 'unknown' && process.env.NODE_ENV === 'development') {
       // eslint-disable-next-line no-console
       console.warn('[Bion] unknown clientType handshake', {
         socketId: socket.id,
-        auth: (socket.handshake as any)?.auth,
+        auth: handshakeAuth,
       });
     }
 
@@ -599,12 +739,19 @@ export default defineNitroPlugin((nitroApp) => {
       socket.on(BionSocketEvent.Message, async (payload: unknown) => {
         const msg = payload as Partial<BionFrontendToServerMessage>;
         const sessionId = (msg as any)?.sessionId;
+        const msgType = String((msg as any)?.type || '');
+
+        // Debug logging
+        console.log('[Bion] Page message received:', { sessionId, msgType, hasMsg: !!msg });
+
         if (typeof sessionId === 'string' && sessionId.length > 0) {
           socket.join(sessionRoom(sessionId));
         }
 
-        if (typeof sessionId !== 'string' || sessionId.length === 0) return;
-        const msgType = String((msg as any)?.type || '');
+        if (typeof sessionId !== 'string' || sessionId.length === 0) {
+          console.warn('[Bion] Invalid or missing sessionId, ignoring message');
+          return;
+        }
 
         // User selects a connected browser extension clientId.
         if (msgType === BionSocketEvent.SelectMyBrowser || msgType === 'select_my_browser') {
@@ -750,11 +897,16 @@ export default defineNitroPlugin((nitroApp) => {
           return;
         }
 
-        if (msgType !== 'user_message') return;
+        if (msgType !== 'user_message') {
+          console.log('[Bion] Skipping non-user_message:', msgType);
+          return;
+        }
 
         const userMessageId = typeof (msg as any)?.id === 'string' ? String((msg as any).id) : randomId();
         const userText = extractUserText(msg);
         if (!userText.trim()) return;
+
+        console.log('[Bion] Processing user_message:', { sessionId, userMessageId, userText });
 
         // If we keep browser sessions across messages, expire stale ones.
         let activeBrowserSession = persistBrowserSession ? activeBrowserSessionBySessionId.get(sessionId) ?? null : null;
@@ -1103,6 +1255,7 @@ export default defineNitroPlugin((nitroApp) => {
           // Persist full conversation messages for Agent Loop
           void persistMessage({
             sessionId,
+            taskId: sessionId,
             userMessageId,
             llmActionId: loopActionId,
             model,
@@ -1568,6 +1721,8 @@ export default defineNitroPlugin((nitroApp) => {
             lastUsage = null;
 
             try {
+              console.log('[Bion] Starting LLM stream:', { sessionId, userMessageId, model, temperature, maxTokens, hasTools: !!llmTools });
+
               for await (const chunk of llm.stream({
                 model,
                 // Cast: the runtime only needs role/content fields.
@@ -1769,6 +1924,7 @@ export default defineNitroPlugin((nitroApp) => {
           // Persist full conversation messages
           void persistMessage({
             sessionId,
+            taskId: sessionId,
             userMessageId,
             llmActionId,
             model,
@@ -1804,6 +1960,8 @@ export default defineNitroPlugin((nitroApp) => {
             },
             '[Bion] LLM stream error'
           );
+
+          console.error('[Bion] LLM stream error:', { sessionId, userMessageId, error: err, stack: e instanceof Error ? e.stack : undefined });
 
           emitUiEvent(sessionId, {
             type: 'structuredOutput',
@@ -1858,6 +2016,7 @@ export default defineNitroPlugin((nitroApp) => {
           // Persist full conversation messages (error case)
           void persistMessage({
             sessionId,
+            taskId: sessionId,
             userMessageId,
             llmActionId,
             model,
@@ -1896,8 +2055,32 @@ export default defineNitroPlugin((nitroApp) => {
     if (clientType === 'extension') {
       socket.on(BionSocketEvent.BrowserExtensionMessage, (payload: unknown, ack?: (response: unknown) => void) => {
         const decoded = decodePluginMessage(payload) ?? (payload as any);
+        const msgType = (decoded as any)?.type;
 
-        if ((decoded as any)?.type === 'activate_extension') {
+        // 处理标签页事件消息
+        if (msgType === 'tab_event') {
+          const tabEvent = decoded as BionTabEventMessage;
+          // 将 Bion 协议的标签页事件转换为数字孪生事件格式
+          const twinEvent = convertBionTabEventToTwinEvent(tabEvent);
+          if (twinEvent) {
+            browserTwin.applyEvent(twinEvent);
+            if (process.env.NODE_ENV === 'development') {
+              // eslint-disable-next-line no-console
+              console.log('[Bion] tab_event applied', {
+                eventType: tabEvent.eventType,
+                tabId: tabEvent.tab?.tabId ?? tabEvent.tabId,
+                windowId: tabEvent.window?.windowId ?? tabEvent.windowId,
+              });
+            }
+          }
+          // Acknowledge tab_event messages
+          if (typeof ack === 'function') {
+            ack({ ok: true });
+          }
+          return;
+        }
+
+        if (msgType === 'activate_extension') {
           const clientId = (decoded as any)?.clientId;
           if (typeof clientId === 'string' && clientId.length > 0) {
             pluginByClientId.set(clientId, socket);
@@ -2005,6 +2188,7 @@ export default defineNitroPlugin((nitroApp) => {
     emitUiEvent,
     callPluginBrowserAction,
     getPlugins: () => Array.from(pluginByClientId.entries()).map(([clientId, s]) => ({ clientId, socketId: s.id })),
+    getBrowserTwin: () => browserTwin,
   };
 
   // 将运行时对象存储在全局变量中，供其他路由访问

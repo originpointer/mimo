@@ -1,4 +1,4 @@
-import { Chat } from "@/components/chat/chat";
+import { ChatPageClient } from "./chat-page-client";
 import type { Metadata } from "next";
 
 interface ChatPageProps {
@@ -20,7 +20,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   return (
     <main className="flex h-dvh">
-      <Chat chatId={id} />
+      <ChatPageClient chatId={id} />
     </main>
   );
 }

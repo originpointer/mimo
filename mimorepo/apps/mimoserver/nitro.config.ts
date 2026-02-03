@@ -1,17 +1,24 @@
 import { defineNitroConfig } from "nitropack/config"
+import { fileURLToPath } from "node:url"
+import path from "node:path"
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://nitro.build/config
 export default defineNitroConfig({
   compatibilityDate: "latest",
   srcDir: "server",
   imports: false,
+  alias: {
+    "@": path.join(__dirname, "."),
+  },
   routeRules: {
     "/api/**": {
-      cors: true,
-      headers: {
-        "Access-Control-Allow-Origin": process.env.CORS_ORIGIN || "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allowHeaders: ["Content-Type", "Authorization"],
+        credentials: false,
       },
     },
   },

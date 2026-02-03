@@ -1,8 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ArrowUpIcon, SquareIcon, PaperclipIcon } from "lucide-react";
+import { ArrowUpIcon, SquareIcon, PaperclipIcon, CircleFadingArrowUpIcon, MoreHorizontalIcon, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ChatStatus } from "@/lib/types";
 
 interface ChatInputProps {
@@ -74,6 +81,25 @@ export function ChatInput({
               >
                 <PaperclipIcon size={14} style={{ width: 14, height: 14 }} />
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="aspect-square h-8 rounded-lg p-1"
+                    disabled={!isReady}
+                  >
+                    <Bot size={14} style={{ width: 14, height: 14 }} />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem>Profile</DropdownMenuItem>
+                  <DropdownMenuItem>Billing</DropdownMenuItem>
+                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>GitHub</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             {isStreaming ? (

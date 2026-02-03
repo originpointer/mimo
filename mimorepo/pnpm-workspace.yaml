@@ -3,4 +3,5 @@ packages:
   - "packages/*"
   - "packages/@mimo/*"
   - "packages/@bion/*"
+  - "packages/@twin/*"
   - "tests/*"

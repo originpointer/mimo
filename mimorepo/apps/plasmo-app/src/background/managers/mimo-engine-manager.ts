@@ -12,6 +12,7 @@ import type {
   BionBrowserActionMessage,
   BionBrowserActionResult,
   BionPluginMessage,
+  BionTabEventMessage,
 } from '@bion/protocol';
 import { registerExtensionId } from '@/apis';
 import type { LifecycleAware } from './lifecycle-manager';
@@ -333,6 +334,22 @@ export class BionSocketManager implements LifecycleAware {
     // to force activity, but we don't need to emit anything here.
     if (this.client?.socket.connected) {
       console.debug('[BionSocketManager] Heartbeat check - connection active');
+    }
+  }
+
+  /**
+   * Send a tab event to the server
+   *
+   * Used by TabEventsHandler to send tab/window events to the digital twin system.
+   */
+  sendTabEvent(message: BionTabEventMessage): void {
+    if (!this.client?.socket.connected) {
+      console.debug('[BionSocketManager] Cannot send tab event - not connected');
+      return;
+    }
+    this.client?.emit(message);
+    if (this.config.debug) {
+      console.debug('[BionSocketManager] Tab event sent:', message.eventType);
     }
   }
 }

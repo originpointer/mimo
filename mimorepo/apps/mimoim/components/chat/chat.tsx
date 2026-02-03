@@ -1,66 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import type { ChatMessage, ChatStatus } from "@/lib/types";
+import type { BionBrowserCandidate } from "@bion/protocol";
 import { Messages } from "./messages";
 import { ChatInput } from "./chat-input";
 import { BrowserSelection } from "./browser-selection";
 import { BrowserTaskConfirmation } from "./browser-task-confirmation";
-import type { ChatMessage } from "@/lib/types";
-import { useBionChat } from "@/lib/hooks/use-bion-chat";
 
 interface ChatProps {
-  chatId: string;
-  initialMessages?: ChatMessage[];
+  messages: ChatMessage[];
+  status: ChatStatus;
+  input: string;
+  setInput: (value: string) => void;
+  onSend: (text: string) => void;
+  onStop: () => void;
+  browserSelection:
+    | { status: "idle" }
+    | { status: "waiting"; candidates: BionBrowserCandidate[] }
+    | { status: "selected"; connected: BionBrowserCandidate };
+  browserTaskConfirmation:
+    | { status: "idle" }
+    | { status: "requested"; requestId: string; summary: string; clientId?: string };
+  onSelectBrowser: (clientId: string) => void;
+  onConfirmBrowserTask: (requestId: string, confirmed: boolean) => void;
 }
 
-export function Chat({ chatId, initialMessages = [] }: ChatProps) {
-  const [input, setInput] = useState("");
-
-  const {
-    messages,
-    sendMessage,
-    status,
-    stop,
-    browserSelection,
-    browserTaskConfirmation,
-    selectBrowser,
-    confirmBrowserTask,
-  } = useBionChat({
-    id: chatId,
-    initialMessages,
-  });
-
+export function Chat({
+  messages,
+  status,
+  input,
+  setInput,
+  onSend,
+  onStop,
+  browserSelection,
+  browserTaskConfirmation,
+  onSelectBrowser,
+  onConfirmBrowserTask,
+}: ChatProps) {
   const handleSend = () => {
-    if (input.trim()) {
-      sendMessage({
-        role: "user",
-        parts: [{ type: "text", text: input }],
-      });
-      setInput("");
-    }
+    onSend(input);
+    setInput("");
   };
 
   return (
     <div className="overscroll-behavior-contain flex h-dvh w-full min-w-0 touch-pan-y flex-col bg-background">
       <div className="mx-auto w-full max-w-4xl px-2 pt-3 md:px-4">
         {browserSelection.status === "waiting" && (
-          <BrowserSelection candidates={browserSelection.candidates} onSelect={selectBrowser} />
+          <BrowserSelection candidates={browserSelection.candidates} onSelect={onSelectBrowser} />
         )}
         {browserTaskConfirmation.status === "requested" && (
           <div className="mt-2">
             <BrowserTaskConfirmation
               summary={browserTaskConfirmation.summary}
               onCancel={() =>
-                confirmBrowserTask({
-                  requestId: browserTaskConfirmation.requestId,
-                  confirmed: false,
-                })
+                onConfirmBrowserTask(browserTaskConfirmation.requestId, false)
               }
               onConfirm={() =>
-                confirmBrowserTask({
-                  requestId: browserTaskConfirmation.requestId,
-                  confirmed: true,
-                })
+                onConfirmBrowserTask(browserTaskConfirmation.requestId, true)
               }
             />
           </div>
@@ -72,7 +68,7 @@ export function Chat({ chatId, initialMessages = [] }: ChatProps) {
         input={input}
         setInput={setInput}
         onSend={handleSend}
-        onStop={stop}
+        onStop={onStop}
         status={status}
       />
     </div>
