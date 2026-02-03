@@ -1,4 +1,5 @@
 import { ChatPageClient } from "./chat-page-client";
+import { Sidebar } from "@/components/sidebar/sidebar";
 import type { Metadata } from "next";
 
 interface ChatPageProps {
@@ -20,6 +21,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   return (
     <main className="flex h-dvh">
+      <Sidebar />
       <ChatPageClient chatId={id} />
     </main>
   );
