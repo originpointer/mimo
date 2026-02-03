@@ -60,4 +60,9 @@ sources:
     ref: main
     shallow: true
     notes: "Used as reference only"
+  - name: zustand
+    repo: git@github.com:pmndrs/zustand.git
+    ref: main
+    shallow: true
+    notes: "Used for state management"
 

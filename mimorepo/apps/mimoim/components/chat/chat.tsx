@@ -2,6 +2,7 @@
 
 import type { ChatMessage, ChatStatus } from "@/lib/types";
 import type { BionBrowserCandidate } from "@bion/protocol";
+import type { ExtensionRegistration } from "@/lib/extension-discovery";
 import { Messages } from "./messages";
 import { ChatInput } from "./chat-input";
 import { BrowserSelection } from "./browser-selection";
@@ -23,6 +24,11 @@ interface ChatProps {
     | { status: "requested"; requestId: string; summary: string; clientId?: string };
   onSelectBrowser: (clientId: string) => void;
   onConfirmBrowserTask: (requestId: string, confirmed: boolean) => void;
+  // 扩展插件相关 props
+  extensions: ExtensionRegistration[];
+  extensionsLoading: boolean;
+  selectedExtensionIds: Set<string>;
+  onToggleExtension: (extensionId: string) => void;
 }
 
 export function Chat({
@@ -36,6 +42,10 @@ export function Chat({
   browserTaskConfirmation,
   onSelectBrowser,
   onConfirmBrowserTask,
+  extensions,
+  extensionsLoading,
+  selectedExtensionIds,
+  onToggleExtension,
 }: ChatProps) {
   const handleSend = () => {
     onSend(input);
@@ -70,6 +80,10 @@ export function Chat({
         onSend={handleSend}
         onStop={onStop}
         status={status}
+        extensions={extensions}
+        extensionsLoading={extensionsLoading}
+        selectedExtensionIds={selectedExtensionIds}
+        onToggleExtension={onToggleExtension}
       />
     </div>
   );

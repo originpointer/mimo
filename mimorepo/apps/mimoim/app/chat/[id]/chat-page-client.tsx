@@ -5,6 +5,7 @@ import { Chat } from "@/components/chat/chat";
 import { useBionChat } from "@/lib/hooks/use-bion-chat";
 import type { ChatMessage } from "@/lib/types";
 import { usePluginInfo } from "./_hooks/use-plugin-info";
+import { useExtensions } from "./_hooks/use-extensions";
 
 /**
  * 聊天页面客户端组件属性
@@ -40,18 +41,8 @@ export function ChatPageClient({ chatId, initialMessages = [] }: ChatPageClientP
     initialMessages,
   });
 
-  // 插件信息 Hook：探测浏览器插件的连接状态
-  const pluginInfo = usePluginInfo();
-
-  // 在控制台输出插件信息（用于调试）
-  useEffect(() => {
-    if (pluginInfo.pluginInfo) {
-      console.log("[Plugin Info]", pluginInfo.pluginInfo);
-    }
-    if (pluginInfo.error) {
-      console.log("[Plugin Info] Error:", pluginInfo.error);
-    }
-  }, [pluginInfo.pluginInfo, pluginInfo.error]);
+  // 扩展插件 Hook：获取扩展列表并管理选中状态
+  const { extensions, isLoading, selectedExtensionIds, toggleExtension } = useExtensions();
 
   // 发送消息处理函数
   const handleSend = (text: string) => {
@@ -85,6 +76,10 @@ export function ChatPageClient({ chatId, initialMessages = [] }: ChatPageClientP
       browserTaskConfirmation={browserTaskConfirmation}
       onSelectBrowser={handleSelectBrowser}
       onConfirmBrowserTask={handleConfirmBrowserTask}
+      extensions={extensions}
+      extensionsLoading={isLoading}
+      selectedExtensionIds={selectedExtensionIds}
+      onToggleExtension={toggleExtension}
     />
   );
 }

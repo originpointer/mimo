@@ -7,10 +7,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import type { ChatStatus } from "@/lib/types";
+import type { ExtensionRegistration } from "@/lib/extension-discovery";
 
 interface ChatInputProps {
   input: string;
@@ -18,6 +21,11 @@ interface ChatInputProps {
   onSend: () => void;
   onStop: () => void;
   status: ChatStatus;
+  // 扩展插件相关 props
+  extensions: ExtensionRegistration[];
+  extensionsLoading: boolean;
+  selectedExtensionIds: Set<string>;
+  onToggleExtension: (extensionId: string) => void;
 }
 
 export function ChatInput({
@@ -26,6 +34,10 @@ export function ChatInput({
   onSend,
   onStop,
   status,
+  extensions,
+  extensionsLoading,
+  selectedExtensionIds,
+  onToggleExtension,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -92,12 +104,25 @@ export function ChatInput({
                     <Bot size={14} style={{ width: 14, height: 14 }} />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem>Profile</DropdownMenuItem>
-                  <DropdownMenuItem>Billing</DropdownMenuItem>
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
+                <DropdownMenuContent align="start" className="w-56">
+                  <DropdownMenuLabel>扩展插件</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>GitHub</DropdownMenuItem>
+                  {extensionsLoading ? (
+                    <DropdownMenuItem disabled>加载中...</DropdownMenuItem>
+                  ) : extensions.length === 0 ? (
+                    <DropdownMenuItem disabled>暂无可用插件</DropdownMenuItem>
+                  ) : (
+                    extensions.map((ext) => (
+                      <DropdownMenuCheckboxItem
+                        key={ext.extensionId}
+                        checked={selectedExtensionIds.has(ext.extensionId)}
+                        onCheckedChange={() => onToggleExtension(ext.extensionId)}
+                      >
+                        {ext.extensionName}
+                        {ext.version && <span className="ml-auto text-xs text-muted-foreground">v{ext.version}</span>}
+                      </DropdownMenuCheckboxItem>
+                    ))
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
