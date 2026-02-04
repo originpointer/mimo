@@ -5,7 +5,7 @@
  * 用于维护浏览器数字孪生状态。
  */
 
-import type { BionTabEventMessage, BionTabData, BionWindowData } from '@bion/protocol';
+import type { BionTabEventMessage, BionTabData, BionWindowData, BionTabGroupData } from '@bion/protocol';
 import type { BionSocketManager } from '../managers/mimo-engine-manager';
 
 export class TabEventsHandler {
@@ -22,6 +22,12 @@ export class TabEventsHandler {
       onCreated?: (window: chrome.windows.Window) => void;
       onRemoved?: (windowId: number) => void;
     };
+    groups?: {
+      onCreated?: (group: chrome.tabGroups.TabGroup) => void;
+      onUpdated?: (group: chrome.tabGroups.TabGroup) => void;
+      onRemoved?: (group: chrome.tabGroups.TabGroup) => void;
+      onMoved?: (group: chrome.tabGroups.TabGroup) => void;
+    };
   } = {};
 
   constructor(socketManager: BionSocketManager) {
@@ -29,7 +35,7 @@ export class TabEventsHandler {
   }
 
   /**
-   * 启动监听 Chrome 标签页和窗口事件
+   * 启动监听 Chrome 标签页、窗口和标签组事件
    */
   start(): void {
     if (this.enabled) {
@@ -99,7 +105,52 @@ export class TabEventsHandler {
     };
     chrome.windows.onRemoved.addListener(this.listeners.windows.onRemoved);
 
-    console.info('[TabEventsHandler] Started - Listening to tabs and windows events');
+    // 监听标签组事件
+    this.listeners.groups = this.listeners.groups || {};
+
+    // Group Created
+    this.listeners.groups.onCreated = (group: chrome.tabGroups.TabGroup) => {
+      this.sendTabEvent('tab_group_created', {
+        tabGroup: this.toTabGroupData(group)
+      });
+    };
+    chrome.tabGroups.onCreated.addListener(this.listeners.groups.onCreated);
+
+    // Group Updated
+    this.listeners.groups.onUpdated = (group: chrome.tabGroups.TabGroup) => {
+      this.sendTabEvent('tab_group_updated', {
+        tabGroup: this.toTabGroupData(group)
+      });
+    };
+    chrome.tabGroups.onUpdated.addListener(this.listeners.groups.onUpdated);
+
+    // Group Removed
+    this.listeners.groups.onRemoved = (group: chrome.tabGroups.TabGroup) => {
+      // NOTE: chrome.tabGroups.onRemoved signature passes the TabGroup object in typical definitions, 
+      // but checking generic docs, it might pass the group object. 
+      // However, @types/chrome definition for onRemoved says: (group: TabGroup) => void. 
+      // Wait, let me double check standard chrome API. Usually Removed events pass ID.
+      // Checking local @types/chrome: `onRemoved: Event<(group: TabGroup) => void>;` seems weird for "Removed".
+      // Actually standard API usually passes the object representing the closed group because it's gone?
+      // Re-reading docs: "Fired when a group is closed." Callback args: "(group: TabGroup)".
+      // So yes, we get the group object.
+
+      this.sendTabEvent('tab_group_removed', {
+        tabGroupId: group.id,
+        tabGroup: this.toTabGroupData(group)
+      });
+    };
+    chrome.tabGroups.onRemoved.addListener(this.listeners.groups.onRemoved);
+
+    // Group Moved
+    this.listeners.groups.onMoved = (group: chrome.tabGroups.TabGroup) => {
+      this.sendTabEvent('tab_group_moved', {
+        tabGroup: this.toTabGroupData(group)
+      });
+    };
+    chrome.tabGroups.onMoved.addListener(this.listeners.groups.onMoved);
+
+    console.info('[TabEventsHandler] Started - Listening to tabs, windows and groups events');
   }
 
   /**
@@ -139,6 +190,14 @@ export class TabEventsHandler {
       }
     }
 
+    // 移除标签组监听器
+    if (this.listeners.groups) {
+      if (this.listeners.groups.onCreated) chrome.tabGroups.onCreated.removeListener(this.listeners.groups.onCreated);
+      if (this.listeners.groups.onUpdated) chrome.tabGroups.onUpdated.removeListener(this.listeners.groups.onUpdated);
+      if (this.listeners.groups.onRemoved) chrome.tabGroups.onRemoved.removeListener(this.listeners.groups.onRemoved);
+      if (this.listeners.groups.onMoved) chrome.tabGroups.onMoved.removeListener(this.listeners.groups.onMoved);
+    }
+
     this.listeners = {};
     console.info('[TabEventsHandler] Stopped');
   }
@@ -151,8 +210,10 @@ export class TabEventsHandler {
     data: {
       tab?: BionTabData;
       window?: BionWindowData;
+      tabGroup?: BionTabGroupData;
       tabId?: number;
       windowId?: number;
+      tabGroupId?: number;
     }
   ): void {
     const message: BionTabEventMessage = {
@@ -160,8 +221,10 @@ export class TabEventsHandler {
       eventType,
       tab: data.tab,
       window: data.window,
+      tabGroup: data.tabGroup,
       tabId: data.tabId,
       windowId: data.windowId,
+      tabGroupId: data.tabGroupId,
       timestamp: Date.now(),
     };
 
@@ -175,13 +238,15 @@ export class TabEventsHandler {
     return {
       tabId: tab.id!,
       windowId: tab.windowId,
+      groupId: tab.groupId > 0 ? tab.groupId : undefined, // chrome returns -1 for no group
       url: tab.url,
       title: tab.title,
       favIconUrl: tab.favIconUrl,
       status: tab.status === 'loading' || tab.status === 'complete' ? tab.status : undefined,
       active: tab.active,
       pinned: tab.pinned,
-      hidden: tab.hidden || false,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      hidden: (tab as any).hidden || false,
       index: tab.index,
       openerTabId: tab.openerTabId,
     };
@@ -199,6 +264,19 @@ export class TabEventsHandler {
       width: window.width,
       height: window.height,
       type: window.type as 'normal' | 'popup' | 'panel' | 'app' | 'devtools',
+    };
+  }
+
+  /**
+   * 将 chrome.tabGroups.TabGroup 转换为 BionTabGroupData
+   */
+  private toTabGroupData(group: chrome.tabGroups.TabGroup): BionTabGroupData {
+    return {
+      id: group.id,
+      collapsed: group.collapsed,
+      color: group.color as BionTabGroupData['color'],
+      title: group.title,
+      windowId: group.windowId
     };
   }
 

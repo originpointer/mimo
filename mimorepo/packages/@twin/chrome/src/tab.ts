@@ -14,6 +14,9 @@ import type {
   TabProperties,
 } from './types';
 
+// Re-export TabRawData for external use
+export type { TabRawData };
+
 /**
  * Tab 对象 - 统一管理标签页的所有属性
  */

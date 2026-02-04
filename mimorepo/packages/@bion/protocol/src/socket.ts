@@ -13,6 +13,9 @@ export const BionSocketEvent = {
   /** Backend ↔ Plugin background (Manus-style) */
   BrowserExtensionMessage: 'my_browser_extension_message',
 
+  /** Backend → Frontend (twin state synchronization) */
+  TwinStateSync: 'twin_state_sync',
+
   /** Frontend → Backend (sent over `message`) */
   UserMessage: 'user_message',
   SelectMyBrowser: 'select_my_browser',

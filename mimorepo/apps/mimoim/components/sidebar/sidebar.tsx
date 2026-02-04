@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Plus,
   Search,
@@ -74,9 +75,9 @@ export function Sidebar({ className }: SidebarProps) {
           className="flex items-center justify-center size-8 rounded-md hover:bg-muted cursor-pointer transition-colors"
         >
           {isCollapsed ? (
-            <PanelLeftOpen className="size-4" />
+            <PanelLeftOpen className="size-4 text-foreground" />
           ) : (
-            <PanelLeftClose className="size-4" />
+            <PanelLeftClose className="size-4 text-foreground" />
           )}
         </button>
       </div>
@@ -92,7 +93,7 @@ export function Sidebar({ className }: SidebarProps) {
             )}
           >
             <div className="shrink-0 size-[18px] flex items-center justify-center">
-              <item.icon className="size-[18px]" />
+              <item.icon className="size-[18px] text-foreground" />
             </div>
             {!isCollapsed && (
               <>
@@ -131,7 +132,7 @@ export function Sidebar({ className }: SidebarProps) {
                   <ChevronRight className="size-3 text-muted-foreground shrink-0" />
                 </div>
                 <button className="flex items-center justify-center size-8 rounded-md hover:bg-muted">
-                  <Plus className="size-3" />
+                  <Plus className="size-3 text-foreground" />
                 </button>
               </div>
 
@@ -139,7 +140,7 @@ export function Sidebar({ className }: SidebarProps) {
               <div className="overflow-hidden">
                 <div className="w-full flex flex-col gap-px">
                   <button className="w-full flex items-center rounded-[10px] h-9 px-2.5 pr-2 gap-2 hover:bg-accent cursor-pointer">
-                    <FolderOpen className="size-4" />
+                    <FolderOpen className="size-4 text-foreground" />
                     <span className="text-foreground text-sm">新项目</span>
                   </button>
                   <ul className="flex flex-col gap-px" />
@@ -155,7 +156,7 @@ export function Sidebar({ className }: SidebarProps) {
                   <Layers className="size-3 text-muted-foreground shrink-0" />
                 </div>
                 <button className="flex items-center justify-center size-8 rounded-md hover:bg-muted">
-                  <MoreHorizontal className="size-3" />
+                  <MoreHorizontal className="size-3 text-foreground" />
                 </button>
               </div>
 
@@ -173,13 +174,24 @@ export function Sidebar({ className }: SidebarProps) {
                       className="flex items-center rounded-[10px] cursor-pointer transition-colors hover:bg-accent w-full gap-3 h-9 px-2.5 pr-0.5 group"
                     >
                       <div className="shrink-0 size-[18px] flex items-center justify-center">
-                        <task.icon className="size-[18px]" />
+                        <task.icon className="size-[18px] text-foreground" />
                       </div>
                       <div className="flex-1 min-w-0 flex items-center text-sm text-foreground">
                         <span className="truncate">{task.label}</span>
                       </div>
                     </button>
                   ))}
+                  <Link
+                    href="/twin"
+                    className="flex items-center rounded-[10px] cursor-pointer transition-colors hover:bg-accent w-full gap-3 h-9 px-2.5 pr-0.5 group"
+                  >
+                    <div className="shrink-0 size-[18px] flex items-center justify-center">
+                      <Layers className="size-[18px] text-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0 flex items-center text-sm text-foreground">
+                      <span className="truncate">Twin</span>
+                    </div>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -191,7 +203,7 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="flex flex-col gap-px mt-2">
             <div className="flex flex-col gap-px py-2">
               <button className="flex items-center justify-center rounded-[10px] cursor-pointer transition-colors hover:bg-accent w-full h-9 p-2">
-                <FolderOpen className="size-[18px]" />
+                <FolderOpen className="size-[18px] text-foreground" />
               </button>
             </div>
             <div className="w-full border-t border-border" />
@@ -206,9 +218,15 @@ export function Sidebar({ className }: SidebarProps) {
                   key={index}
                   className="flex items-center justify-center rounded-[10px] cursor-pointer transition-colors hover:bg-accent w-full h-9 p-2"
                 >
-                  <task.icon className="size-[18px]" />
+                  <task.icon className="size-[18px] text-foreground" />
                 </button>
               ))}
+              <Link
+                href="/twin"
+                className="flex items-center justify-center rounded-[10px] cursor-pointer transition-colors hover:bg-accent w-full h-9 p-2"
+              >
+                <Layers className="size-[18px] text-foreground" />
+              </Link>
             </div>
           </div>
         )}
@@ -220,10 +238,10 @@ export function Sidebar({ className }: SidebarProps) {
           <div className="flex items-center w-full p-0.5 justify-between">
             <div className="flex items-center gap-1">
               <button className="flex items-center justify-center cursor-pointer rounded-md hover:bg-muted size-8">
-                <Settings className="size-4" />
+                <Settings className="size-4 text-foreground" />
               </button>
               <button className="flex items-center justify-center cursor-pointer rounded-md hover:bg-muted size-8">
-                <HelpCircle className="size-4" />
+                <HelpCircle className="size-4 text-foreground" />
               </button>
             </div>
             <a
@@ -232,7 +250,7 @@ export function Sidebar({ className }: SidebarProps) {
               rel="noreferrer"
               className="flex items-center justify-center cursor-pointer rounded-md hover:bg-muted size-8"
             >
-              <Github className="size-4" />
+              <Github className="size-4 text-foreground" />
             </a>
           </div>
         ) : (
@@ -243,13 +261,13 @@ export function Sidebar({ className }: SidebarProps) {
               rel="noreferrer"
               className="flex items-center justify-center cursor-pointer rounded-md hover:bg-muted size-8"
             >
-              <HelpCircle className="size-4" />
+              <HelpCircle className="size-4 text-foreground" />
             </a>
             <button className="flex items-center justify-center cursor-pointer rounded-md hover:bg-muted size-8">
-              <Settings className="size-4" />
+              <Settings className="size-4 text-foreground" />
             </button>
             <button className="flex items-center justify-center cursor-pointer rounded-md hover:bg-muted size-8">
-              <Github className="size-4" />
+              <Github className="size-4 text-foreground" />
             </button>
           </div>
         )}

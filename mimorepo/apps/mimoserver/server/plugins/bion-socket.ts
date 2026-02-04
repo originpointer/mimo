@@ -14,6 +14,7 @@ import {
   type BionFrontendEvent,
   type BionFrontendMessageEnvelope,
   type BionFrontendToServerMessage,
+  type BionFullStateSyncMessage,
   type BionPluginMessage,
   type BionTabEventMessage,
 } from '@bion/protocol';
@@ -1376,12 +1377,12 @@ export default defineNitroPlugin((nitroApp) => {
           const title = activeBrowserSession?.title
             ? activeBrowserSession.title
             : await generateBrowserTaskTitle({
-                llm,
-                model,
-                userText,
-                summary: userText,
-                url: lastUrl,
-              });
+              llm,
+              model,
+              userText,
+              summary: userText,
+              url: lastUrl,
+            });
 
           if (!activeBrowserSession) {
             const startTool = registry.getTool('browser_session_start');
@@ -1771,7 +1772,7 @@ export default defineNitroPlugin((nitroApp) => {
                     fromTier,
                     toTier: selectedTier,
                   })
-                  .catch(() => {});
+                  .catch(() => { });
 
                 // Retry with expanded tools.
                 continue;
@@ -2057,6 +2058,178 @@ export default defineNitroPlugin((nitroApp) => {
         const decoded = decodePluginMessage(payload) ?? (payload as any);
         const msgType = (decoded as any)?.type;
 
+        // Debug: Log ALL incoming messages from extension
+        console.log('[Bion] === Received extension message ===', {
+          socketId: socket.id,
+          msgType,
+          hasPayload: !!payload,
+          payloadType: typeof payload,
+          payloadPreview: typeof payload === 'string' ? payload.slice(0, 200) : 'object',
+          payloadKeys: payload && typeof payload === 'object' ? Object.keys(payload as object) : [],
+        });
+
+        // 处理完整状态同步消息
+        if (msgType === 'full_state_sync') {
+          const processingStartTime = Date.now();
+          const fullSyncMsg = decoded as BionFullStateSyncMessage;
+
+          logger.info({
+            socketId: socket.id,
+            windowsCount: fullSyncMsg.windows.length,
+            tabsCount: fullSyncMsg.tabs.length,
+            activeWindowId: fullSyncMsg.activeWindowId,
+            activeTabId: fullSyncMsg.activeTabId,
+            messageTimestamp: fullSyncMsg.timestamp,
+            messageAge: `${Date.now() - fullSyncMsg.timestamp}ms`,
+          }, '[Bion] === Processing full_state_sync ===');
+
+          // 详细记录接收到的原始数据用于调试
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Bion] Raw full_state_sync message received:', fullSyncMsg);
+            console.log('[Bion] Parsed windows:', fullSyncMsg.windows.map(w => ({
+              windowId: w.windowId,
+              tabIds: w.tabIds,
+              tabIdsCount: w.tabIds.length,
+            })));
+            console.log('[Bion] Parsed tabs:', fullSyncMsg.tabs.map(t => ({
+              tabId: t.tabId,
+              windowId: t.windowId,
+              url: t.url,
+              title: t.title,
+            })));
+          }
+
+          // 验证消息
+          if (!fullSyncMsg.windows || fullSyncMsg.windows.length === 0) {
+            logger.warn('[Bion] full_state_sync has no windows');
+          }
+          if (!fullSyncMsg.tabs || fullSyncMsg.tabs.length === 0) {
+            logger.warn('[Bion] full_state_sync has no tabs');
+          }
+
+          // 1. 重置现有状态
+          const beforeReset = browserTwin.snapshot();
+          browserTwin.reset();
+          logger.info({
+            beforeWindowsCount: beforeReset.windows.size,
+            beforeTabsCount: beforeReset.tabs.size,
+          }, '[Bion] State reset');
+
+          // 2. 按顺序应用窗口创建事件
+          let windowCreatedCount = 0;
+          for (const win of fullSyncMsg.windows) {
+            browserTwin.applyEvent({
+              type: 'window_created',
+              window: {
+                id: win.windowId,
+                focused: win.focused,
+                top: win.top ?? null,
+                left: win.left ?? null,
+                width: win.width ?? null,
+                height: win.height ?? null,
+                type: win.type,
+                tabIds: win.tabIds,
+                lastUpdated: fullSyncMsg.timestamp,
+              },
+            });
+            windowCreatedCount++;
+          }
+          logger.info({
+            count: windowCreatedCount,
+            windowIds: fullSyncMsg.windows.map(w => w.windowId),
+          }, '[Bion] Windows applied');
+
+          // 3. 按顺序应用标签页创建事件
+          let tabCreatedCount = 0;
+          for (const tab of fullSyncMsg.tabs) {
+            browserTwin.applyEvent({
+              type: 'tab_created',
+              tab: {
+                id: tab.tabId,
+                windowId: tab.windowId,
+                url: tab.url ?? null,
+                title: tab.title ?? null,
+                favIconUrl: tab.favIconUrl ?? null,
+                status: tab.status ?? null,
+                active: tab.active,
+                pinned: tab.pinned,
+                hidden: tab.hidden,
+                index: tab.index,
+                openerTabId: tab.openerTabId ?? null,
+                lastUpdated: fullSyncMsg.timestamp,
+              },
+            });
+            tabCreatedCount++;
+          }
+          logger.info({
+            count: tabCreatedCount,
+            tabIds: fullSyncMsg.tabs.map(t => t.tabId),
+          }, '[Bion] Tabs applied');
+
+          // 4. 应用活动状态
+          if (fullSyncMsg.activeTabId && fullSyncMsg.activeWindowId) {
+            const activeTab = fullSyncMsg.tabs.find(t => t.tabId === fullSyncMsg.activeTabId);
+            logger.info({
+              activeWindowId: fullSyncMsg.activeWindowId,
+              activeTabId: fullSyncMsg.activeTabId,
+              activeTabFound: !!activeTab,
+            }, '[Bion] Applying active state');
+            browserTwin.applyEvent({
+              type: 'tab_activated',
+              tabId: fullSyncMsg.activeTabId,
+              windowId: fullSyncMsg.activeWindowId,
+              tab: activeTab ? {
+                id: fullSyncMsg.activeTabId,
+                windowId: fullSyncMsg.activeWindowId,
+                url: activeTab.url ?? null,
+                title: activeTab.title ?? null,
+                favIconUrl: activeTab.favIconUrl ?? null,
+                status: activeTab.status ?? null,
+                active: true,
+                pinned: activeTab.pinned,
+                hidden: activeTab.hidden,
+                index: activeTab.index,
+                openerTabId: activeTab.openerTabId ?? null,
+                lastUpdated: fullSyncMsg.timestamp,
+              } : undefined,
+            });
+          }
+
+          // 5. 验证最终状态
+          const finalSnapshot = browserTwin.snapshot();
+          logger.info({
+            windowsCount: finalSnapshot.windows.size,
+            tabsCount: finalSnapshot.tabs.size,
+            activeWindowId: finalSnapshot.activeWindowId,
+            activeTabId: finalSnapshot.activeTabId,
+            lastUpdated: finalSnapshot.lastUpdated,
+          }, '[Bion] Final state after sync');
+
+          // 6. 广播更新后的状态到所有前端客户端
+          nsp.emit(BionSocketEvent.TwinStateSync, {
+            type: 'twin_state_sync',
+            state: {
+              windows: Array.from(finalSnapshot.windows.values()),
+              tabs: Array.from(finalSnapshot.tabs.values()),
+              activeWindowId: finalSnapshot.activeWindowId,
+              activeTabId: finalSnapshot.activeTabId,
+              lastUpdated: finalSnapshot.lastUpdated,
+            },
+          });
+
+          const processingDuration = Date.now() - processingStartTime;
+          logger.info({
+            duration: processingDuration,
+            windowsProcessed: windowCreatedCount,
+            tabsProcessed: tabCreatedCount,
+          }, '[Bion] === Full state sync completed ===');
+
+          if (typeof ack === 'function') {
+            ack({ ok: true });
+          }
+          return;
+        }
+
         // 处理标签页事件消息
         if (msgType === 'tab_event') {
           const tabEvent = decoded as BionTabEventMessage;
@@ -2072,6 +2245,19 @@ export default defineNitroPlugin((nitroApp) => {
                 windowId: tabEvent.window?.windowId ?? tabEvent.windowId,
               });
             }
+
+            // 广播更新后的 twin 状态到所有 page 客户端
+            const twinSnapshot = browserTwin.snapshot();
+            nsp.emit(BionSocketEvent.TwinStateSync, {
+              type: 'twin_state_sync',
+              state: {
+                windows: Array.from(twinSnapshot.windows.values()),
+                tabs: Array.from(twinSnapshot.tabs.values()),
+                activeWindowId: twinSnapshot.activeWindowId,
+                activeTabId: twinSnapshot.activeTabId,
+                lastUpdated: twinSnapshot.lastUpdated,
+              },
+            });
           }
           // Acknowledge tab_event messages
           if (typeof ack === 'function') {
@@ -2099,6 +2285,7 @@ export default defineNitroPlugin((nitroApp) => {
                 browserName: String((decoded as any)?.browserName || 'MimoBrowser'),
               });
             }
+
             // If some sessions are waiting for browser selection, refresh candidates.
             refreshWaitingBrowserSelections();
           }

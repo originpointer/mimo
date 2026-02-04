@@ -91,7 +91,7 @@ export function ChatInput({
                 disabled={!isReady}
                 onClick={() => fileInputRef.current?.click()}
               >
-                <PaperclipIcon size={14} style={{ width: 14, height: 14 }} />
+                <PaperclipIcon size={16} strokeWidth={2} />
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -101,7 +101,7 @@ export function ChatInput({
                     className="aspect-square h-8 rounded-lg p-1"
                     disabled={!isReady}
                   >
-                    <Bot size={14} style={{ width: 14, height: 14 }} />
+                    <Bot size={16} strokeWidth={2} />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-56">
@@ -133,16 +133,16 @@ export function ChatInput({
                 onClick={onStop}
                 className="size-7 rounded-full bg-foreground p-1 text-background transition-colors duration-200 hover:bg-foreground/90"
               >
-                <SquareIcon size={14} />
+                <SquareIcon size={14} strokeWidth={2.5} />
               </Button>
             ) : (
-              <Button
+              <button
                 type="submit"
                 disabled={!input.trim()}
-                className="size-8 rounded-full bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
+                className="size-8 rounded-full !bg-white !text-black transition-colors duration-200 hover:!bg-white/90 disabled:!bg-muted disabled:!text-muted-foreground shadow-[0_0_15px_rgba(255,255,255,0.3)] flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <ArrowUpIcon size={14} />
-              </Button>
+                <ArrowUpIcon size={16} strokeWidth={2.5} />
+              </button>
             )}
           </div>
         </div>

@@ -10,6 +10,8 @@ import type {
   BrowserTwinState,
   TabEvent,
   BrowserTwinStoreEvents,
+  TabGroupState,
+  TabUpdatedEvent,
 } from './types';
 
 /**
@@ -32,8 +34,11 @@ export class BrowserTwinStore extends EventEmitter {
     return {
       windows: new Map(),
       tabs: new Map(),
+      groups: new Map(),
       activeWindowId: null,
       activeTabId: null,
+      extensionState: 'idle',
+      systemState: 'stopped', // Default to stopped until synced
       lastUpdated: Date.now(),
     };
   }
@@ -61,6 +66,18 @@ export class BrowserTwinStore extends EventEmitter {
       case 'window_removed':
         this.applyWindowRemoved(event);
         break;
+      case 'tab_group_created':
+        this.applyTabGroupCreated(event);
+        break;
+      case 'tab_group_updated':
+        this.applyTabGroupUpdated(event);
+        break;
+      case 'tab_group_removed':
+        this.applyTabGroupRemoved(event);
+        break;
+      case 'tab_group_moved':
+        this.applyTabGroupMoved(event);
+        break;
     }
     this.state.lastUpdated = Date.now();
     this.emit('state_changed', { state: this.snapshot(), event });
@@ -84,7 +101,6 @@ export class BrowserTwinStore extends EventEmitter {
     const existing = this.state.tabs.get(tab.id);
 
     if (existing) {
-      // 更新窗口关联（如果 windowId 变化）
       if (existing.windowId !== tab.windowId) {
         this.removeTabFromWindow(existing.windowId, tab.id);
         this.addTabToWindow(tab.windowId, tab.id);
@@ -94,7 +110,32 @@ export class BrowserTwinStore extends EventEmitter {
     }
 
     this.state.tabs.set(tab.id, tab);
+
+    if (tab.active) {
+      this.deactivateOtherTabsInWindow(tab.windowId, tab.id, event.timestamp);
+      this.state.activeTabId = tab.id;
+      this.state.activeWindowId = tab.windowId;
+    }
+
     this.emit('tab_updated', tab, changes);
+  }
+
+  /**
+   * Helper to deactivate other tabs in the same window
+   */
+  private deactivateOtherTabsInWindow(windowId: number, activeTabId: number, timestamp: number): void {
+    const tabIds = this.windowTabIdsMap.get(windowId);
+    if (!tabIds) return;
+
+    for (const id of tabIds) {
+      if (id === activeTabId) continue;
+      const tab = this.state.tabs.get(id);
+      if (tab && tab.active) {
+        tab.active = false;
+        tab.lastUpdated = timestamp;
+        this.emit('tab_updated', tab, { status: false });
+      }
+    }
   }
 
   /**
@@ -102,12 +143,20 @@ export class BrowserTwinStore extends EventEmitter {
    */
   private applyTabActivated(event: TabEvent & { type: 'tab_activated' }): void {
     const { tabId, windowId, tab } = event;
+
+    this.deactivateOtherTabsInWindow(windowId, tabId, event.timestamp);
+
     this.state.activeTabId = tabId;
     this.state.activeWindowId = windowId;
 
-    // 更新标签页的 active 状态
     if (tab) {
       this.state.tabs.set(tabId, tab);
+    } else {
+      const newTab = this.state.tabs.get(tabId);
+      if (newTab) {
+        newTab.active = true;
+        newTab.lastUpdated = event.timestamp;
+      }
     }
 
     this.emit('tab_activated', tabId, windowId);
@@ -124,7 +173,6 @@ export class BrowserTwinStore extends EventEmitter {
       this.removeTabFromWindow(tab.windowId, tabId);
       this.state.tabs.delete(tabId);
 
-      // 如果移除的是活动标签页，清除活动状态
       if (this.state.activeTabId === tabId) {
         this.state.activeTabId = null;
       }
@@ -149,7 +197,6 @@ export class BrowserTwinStore extends EventEmitter {
   private applyWindowRemoved(event: TabEvent & { type: 'window_removed' }): void {
     const { windowId } = event;
 
-    // 移除窗口及其所有标签页
     const tabIds = this.windowTabIdsMap.get(windowId);
     if (tabIds) {
       for (const tabId of tabIds) {
@@ -160,13 +207,48 @@ export class BrowserTwinStore extends EventEmitter {
 
     this.state.windows.delete(windowId);
 
-    // 如果移除的是活动窗口，清除活动状态
     if (this.state.activeWindowId === windowId) {
       this.state.activeWindowId = null;
       this.state.activeTabId = null;
     }
 
     this.emit('window_removed', windowId);
+  }
+
+  /**
+   * 处理标签组创建
+   */
+  private applyTabGroupCreated(event: TabEvent & { type: 'tab_group_created' }): void {
+    const { tabGroup } = event;
+    this.state.groups.set(tabGroup.id, tabGroup);
+    this.emit('tab_group_created', tabGroup);
+  }
+
+  /**
+   * 处理标签组更新
+   */
+  private applyTabGroupUpdated(event: TabEvent & { type: 'tab_group_updated' }): void {
+    const { tabGroup } = event;
+    this.state.groups.set(tabGroup.id, tabGroup);
+    this.emit('tab_group_updated', tabGroup);
+  }
+
+  /**
+   * 处理标签组移除
+   */
+  private applyTabGroupRemoved(event: TabEvent & { type: 'tab_group_removed' }): void {
+    const { tabGroupId } = event;
+    this.state.groups.delete(tabGroupId);
+    this.emit('tab_group_removed', tabGroupId);
+  }
+
+  /**
+   * 处理标签组移动
+   */
+  private applyTabGroupMoved(event: TabEvent & { type: 'tab_group_moved' }): void {
+    const { tabGroup } = event;
+    this.state.groups.set(tabGroup.id, tabGroup);
+    this.emit('tab_group_moved', tabGroup);
   }
 
   /**
@@ -178,7 +260,6 @@ export class BrowserTwinStore extends EventEmitter {
     }
     this.windowTabIdsMap.get(windowId)!.add(tabId);
 
-    // 更新窗口的 tabIds
     const window = this.state.windows.get(windowId);
     if (window) {
       window.tabIds = Array.from(this.windowTabIdsMap.get(windowId)!);
@@ -193,7 +274,6 @@ export class BrowserTwinStore extends EventEmitter {
     if (tabIds) {
       tabIds.delete(tabId);
 
-      // 更新窗口的 tabIds
       const window = this.state.windows.get(windowId);
       if (window) {
         window.tabIds = Array.from(tabIds);
@@ -208,8 +288,11 @@ export class BrowserTwinStore extends EventEmitter {
     return {
       windows: new Map(this.state.windows),
       tabs: new Map(this.state.tabs),
+      groups: new Map(this.state.groups),
       activeWindowId: this.state.activeWindowId,
       activeTabId: this.state.activeTabId,
+      extensionState: this.state.extensionState,
+      systemState: this.state.systemState,
       lastUpdated: this.state.lastUpdated,
     };
   }
@@ -220,8 +303,11 @@ export class BrowserTwinStore extends EventEmitter {
   toJSON(): {
     windows: Record<number, WindowState>;
     tabs: Record<number, TabState>;
+    groups: Record<number, TabGroupState>;
     activeWindowId: number | null;
     activeTabId: number | null;
+    extensionState: string;
+    systemState: string;
     lastUpdated: number;
   } {
     return {
@@ -232,8 +318,11 @@ export class BrowserTwinStore extends EventEmitter {
         ])
       ),
       tabs: Object.fromEntries(this.state.tabs.entries()),
+      groups: Object.fromEntries(this.state.groups.entries()),
       activeWindowId: this.state.activeWindowId,
       activeTabId: this.state.activeTabId,
+      extensionState: this.state.extensionState,
+      systemState: this.state.systemState,
       lastUpdated: this.state.lastUpdated,
     };
   }
@@ -290,6 +379,20 @@ export class BrowserTwinStore extends EventEmitter {
    */
   getActiveWindow(): WindowState | undefined {
     return this.state.activeWindowId ? this.state.windows.get(this.state.activeWindowId) : undefined;
+  }
+
+  /**
+   * 获取特定标签组
+   */
+  getGroup(groupId: number): TabGroupState | undefined {
+    return this.state.groups.get(groupId);
+  }
+
+  /**
+   * 获取所有标签组
+   */
+  getAllGroups(): TabGroupState[] {
+    return Array.from(this.state.groups.values());
   }
 
   /**

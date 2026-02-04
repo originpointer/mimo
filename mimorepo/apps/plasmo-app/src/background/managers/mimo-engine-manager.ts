@@ -18,6 +18,7 @@ import { registerExtensionId } from '@/apis';
 import type { LifecycleAware } from './lifecycle-manager';
 import { BrowserActionExecutor } from './browser-action-executor';
 import { DebuggerSessionManager } from './debugger-session-manager';
+import { BrowserStateSync } from '../utils/browser-state-sync';
 
 export interface BionSocketConfig {
   busUrl?: string;
@@ -106,6 +107,108 @@ export class BionSocketManager implements LifecycleAware {
         };
         this.client?.emit(activate);
         if (this.config.debug) console.log('[BionSocketManager] activate_extension sent', activate);
+
+        // 连接成功后，立即同步完整浏览器状态
+        (async () => {
+          const syncStartTime = Date.now();
+          console.log('[BionSocketManager] === Starting full browser state sync ===');
+          console.log('[BionSocketManager] Sync process started', {
+            timestamp: new Date().toISOString(),
+            hasClient: !!this.client,
+          });
+
+          try {
+            console.log('[BionSocketManager] Calling generateFullSyncMessage()...');
+            const fullSyncMessage = await BrowserStateSync.generateFullSyncMessage();
+            console.log('[BionSocketManager] generateFullSyncMessage() returned successfully');
+
+            console.log('[BionSocketManager] Generated full_state_sync message:', {
+              type: fullSyncMessage.type,
+              windowsCount: fullSyncMessage.windows.length,
+              tabsCount: fullSyncMessage.tabs.length,
+              activeWindowId: fullSyncMessage.activeWindowId,
+              activeTabId: fullSyncMessage.activeTabId,
+              timestamp: fullSyncMessage.timestamp,
+            });
+
+            // 详细记录每个窗口的信息
+            fullSyncMessage.windows.forEach((win, index) => {
+              console.log(`[BionSocketManager] Window ${index + 1}:`, {
+                windowId: win.windowId,
+                tabIds: win.tabIds,
+                tabIdsCount: win.tabIds.length,
+                focused: win.focused,
+                type: win.type,
+              });
+            });
+
+            // 详细记录每个标签页的信息
+            fullSyncMessage.tabs.forEach((tab, index) => {
+              console.log(`[BionSocketManager] Tab ${index + 1}:`, {
+                tabId: tab.tabId,
+                windowId: tab.windowId,
+                url: tab.url,
+                title: tab.title,
+                status: tab.status,
+                active: tab.active,
+              });
+            });
+
+            console.log('[BionSocketManager] Emitting full_state_sync message to server', {
+              messageType: fullSyncMessage.type,
+              windowsCount: fullSyncMessage.windows.length,
+              tabsCount: fullSyncMessage.tabs.length,
+              activeWindowId: fullSyncMessage.activeWindowId,
+              activeTabId: fullSyncMessage.activeTabId,
+              timestamp: fullSyncMessage.timestamp,
+              payloadType: 'object', // Confirming we are sending an object
+            });
+
+            // 发送前记录消息大小
+            const messageStr = JSON.stringify(fullSyncMessage);
+            console.log('[BionSocketManager] Message size:', {
+              chars: messageStr.length,
+              bytes: new TextEncoder().encode(messageStr).length,
+              kb: (messageStr.length / 1024).toFixed(2) + ' KB',
+            });
+
+            // Debug: Check if client is still connected before emitting
+            console.log('[BionSocketManager] About to emit full_state_sync', {
+              hasClient: !!this.client,
+              socketConnected: this.client?.socket?.connected ?? false,
+              socketId: this.client?.socket?.id ?? 'no-socket',
+            });
+
+            if (!this.client) {
+              console.error('[BionSocketManager] Cannot emit - client is null!');
+              return;
+            }
+
+            if (!this.client.socket.connected) {
+              console.error('[BionSocketManager] Cannot emit - socket is not connected!');
+              return;
+            }
+
+            this.client.emit(fullSyncMessage);
+            console.log('[BionSocketManager] full_state_sync emitted successfully');
+
+            const syncDuration = Date.now() - syncStartTime;
+            console.log('[BionSocketManager] === Full browser state sync completed ===', {
+              duration: `${syncDuration}ms`,
+              messageId: `${fullSyncMessage.type}_${fullSyncMessage.timestamp}`,
+            });
+          } catch (error) {
+            const syncDuration = Date.now() - syncStartTime;
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            const errorStack = error instanceof Error ? error.stack : undefined;
+
+            console.error('[BionSocketManager] === Full browser state sync FAILED ===');
+            console.error('[BionSocketManager] Error:', errorMsg);
+            console.error('[BionSocketManager] Stack:', errorStack);
+            console.error('[BionSocketManager] Duration:', `${syncDuration}ms`);
+            console.error('[BionSocketManager] Full error:', error);
+          }
+        })();
 
         // Also register (HTTP) extensionId <-> clientId binding for server-side lookup/persistence.
         try {

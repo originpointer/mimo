@@ -14,16 +14,16 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "typecheck": "tsc --noEmit"
+    "build": "tsdown",
+    "dev": "tsdown -w",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@bion/protocol": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.17.10",
-    "tsup": "^8.3.5",
-    "typescript": "^5.7.2"
+    "@repo/typescript-config": "workspace:*",
+    "tsdown": "^0.20.0-beta.4",
+    "typescript": "5.9.2"
   }
 }

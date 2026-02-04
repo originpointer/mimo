@@ -5,6 +5,7 @@
 export interface TabState {
   id: number;
   windowId: number;
+  groupId?: number;
   url: string | null;
   title: string | null;
   favIconUrl: string | null;
@@ -33,13 +34,27 @@ export interface WindowState {
 }
 
 /**
+ * Tab Group State
+ */
+export interface TabGroupState {
+  id: number;
+  collapsed: boolean;
+  color: 'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange';
+  title?: string;
+  windowId: number;
+}
+
+/**
  * 浏览器数字孪生状态
  */
 export interface BrowserTwinState {
   windows: Map<number, WindowState>;
   tabs: Map<number, TabState>;
+  groups: Map<number, TabGroupState>;
   activeWindowId: number | null;
   activeTabId: number | null;
+  extensionState: ExtensionState;
+  systemState: SystemState;
   lastUpdated: number;
 }
 
@@ -52,7 +67,11 @@ export type TabEventType =
   | 'tab_activated'
   | 'tab_removed'
   | 'window_created'
-  | 'window_removed';
+  | 'window_removed'
+  | 'tab_group_created'
+  | 'tab_group_updated'
+  | 'tab_group_removed'
+  | 'tab_group_moved';
 
 /**
  * 标签页事件基础接口
@@ -128,7 +147,32 @@ export type TabEvent =
   | TabActivatedEvent
   | TabRemovedEvent
   | WindowCreatedEvent
-  | WindowRemovedEvent;
+  | WindowRemovedEvent
+  | TabGroupCreatedEvent
+  | TabGroupUpdatedEvent
+  | TabGroupRemovedEvent
+  | TabGroupMovedEvent;
+
+// Tab Group Events
+export interface TabGroupCreatedEvent extends TabEventBase {
+  type: 'tab_group_created';
+  tabGroup: TabGroupState;
+}
+
+export interface TabGroupUpdatedEvent extends TabEventBase {
+  type: 'tab_group_updated';
+  tabGroup: TabGroupState;
+}
+
+export interface TabGroupRemovedEvent extends TabEventBase {
+  type: 'tab_group_removed';
+  tabGroupId: number;
+}
+
+export interface TabGroupMovedEvent extends TabEventBase {
+  type: 'tab_group_moved';
+  tabGroup: TabGroupState;
+}
 
 /**
  * Bion 协议中的标签页数据（从插件发送）
@@ -136,6 +180,7 @@ export type TabEvent =
 export interface TabData {
   tabId: number;
   windowId: number;
+  groupId?: number;
   url?: string;
   title?: string;
   favIconUrl?: string;
@@ -175,6 +220,7 @@ export function tabDataToState(data: TabData): TabState {
   return {
     id: data.tabId,
     windowId: data.windowId,
+    groupId: data.groupId,
     url: data.url ?? null,
     title: data.title ?? null,
     favIconUrl: data.favIconUrl ?? null,
@@ -231,6 +277,10 @@ export interface BrowserTwinStoreEvents {
   tab_removed: [tabId: number, windowId: number];
   window_created: [window: WindowState];
   window_removed: [windowId: number];
+  tab_group_created: [group: TabGroupState];
+  tab_group_updated: [group: TabGroupState];
+  tab_group_removed: [groupId: number];
+  tab_group_moved: [group: TabGroupState];
 }
 
 // ============================================
@@ -336,4 +386,46 @@ export interface TabProperties {
   openerTabId: number | null;
   /** 最后更新时间戳 */
   lastUpdated: number;
+}
+
+/**
+ * Extension (Content Script) State
+ */
+export type ExtensionState = 'idle' | 'hidden' | 'ongoing' | 'takeover';
+
+/**
+ * System (Background Session) State
+ */
+export type SystemState = 'running' | 'stopped' | 'takeover' | 'ongoing' | 'completed' | 'waiting' | 'error';
+
+/**
+ * Extension State Change Event
+ */
+export interface ExtensionStateChangeEvent {
+  newState: ExtensionState;
+  oldState: ExtensionState;
+  timestamp: number;
+}
+
+/**
+ * System State Change Event
+ */
+export interface SystemStateChangeEvent {
+  newState: SystemState;
+  oldState: SystemState;
+  timestamp: number;
+}
+
+/**
+ * Extension Manager Events
+ */
+export interface ExtensionManagerEvents {
+  state_changed: [event: ExtensionStateChangeEvent];
+}
+
+/**
+ * System Manager Events
+ */
+export interface SystemManagerEvents {
+  state_changed: [event: SystemStateChangeEvent];
 }

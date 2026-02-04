@@ -8,6 +8,8 @@ export * from './types';
 export * from './store';
 export * from './emitter';
 export * from './tab';
+export * from './extensionManager';
+export * from './systemManager';
 
 import { BrowserTwinStore } from './store';
 import { TabEventEmitter } from './emitter';

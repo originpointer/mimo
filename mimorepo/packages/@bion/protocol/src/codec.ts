@@ -179,8 +179,20 @@ export function encodePluginMessage(message: BionPluginMessage): WirePluginMessa
 }
 
 export function decodePluginMessage(input: unknown): BionPluginMessage | null {
-  const m = input as any;
-  if (!m || typeof m !== 'object') return null;
+  let m = input as any;
+  if (!m) return null;
+
+  // Robustness fix: if input is a string, try to parse it as JSON
+  if (typeof m === 'string') {
+    try {
+      m = JSON.parse(m);
+    } catch {
+      // If parsing fails, treat it as a raw string message if applicable, or return null
+      return null;
+    }
+  }
+
+  if (typeof m !== 'object') return null;
 
   if (m.type === 'browser_action') {
     const decoded: BionBrowserActionMessage = {
