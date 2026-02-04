@@ -2,6 +2,11 @@
  * 标签页状态模型
  */
 
+export enum TabStatus {
+  Loading = 'loading',
+  Complete = 'complete',
+}
+
 export interface TabState {
   id: number;
   windowId: number;
@@ -9,18 +14,33 @@ export interface TabState {
   url: string | null;
   title: string | null;
   favIconUrl: string | null;
-  status: 'loading' | 'complete' | null;
+  status: TabStatus | null;
   active: boolean;
   pinned: boolean;
   hidden: boolean;
   index: number;
+
   openerTabId: number | null;
+  // Navigation State
+  canGoBack: boolean;
+  canGoForward: boolean;
+  // Visual State
+  zoomFactor: number;
+  scrollPosition?: { x: number; y: number };
   lastUpdated: number;
 }
 
 /**
  * 窗口状态模型
  */
+export enum WindowType {
+  Normal = 'normal',
+  Popup = 'popup',
+  Panel = 'panel',
+  App = 'app',
+  Devtools = 'devtools',
+}
+
 export interface WindowState {
   id: number;
   focused: boolean;
@@ -28,7 +48,7 @@ export interface WindowState {
   left: number | null;
   width: number | null;
   height: number | null;
-  type: 'normal' | 'popup' | 'panel' | 'app' | 'devtools';
+  type: WindowType;
   tabIds: number[];
   lastUpdated: number;
 }
@@ -36,13 +56,27 @@ export interface WindowState {
 /**
  * Tab Group State
  */
+export enum TabGroupColor {
+  Grey = 'grey',
+  Blue = 'blue',
+  Red = 'red',
+  Yellow = 'yellow',
+  Green = 'green',
+  Pink = 'pink',
+  Purple = 'purple',
+  Cyan = 'cyan',
+  Orange = 'orange',
+}
+
 export interface TabGroupState {
   id: number;
   collapsed: boolean;
-  color: 'grey' | 'blue' | 'red' | 'yellow' | 'green' | 'pink' | 'purple' | 'cyan' | 'orange';
+  color: TabGroupColor;
   title?: string;
   windowId: number;
 }
+
+
 
 /**
  * 浏览器数字孪生状态
@@ -53,6 +87,8 @@ export interface BrowserTwinState {
   groups: Map<number, TabGroupState>;
   activeWindowId: number | null;
   activeTabId: number | null;
+
+
   extensionState: ExtensionState;
   systemState: SystemState;
   lastUpdated: number;
@@ -61,18 +97,19 @@ export interface BrowserTwinState {
 /**
  * 标签页事件类型
  */
-export type TabEventType =
-  | 'tab_created'
-  | 'tab_updated'
-  | 'tab_activated'
-  | 'tab_removed'
-  | 'window_created'
-  | 'window_removed'
-  | 'tab_group_created'
-  | 'tab_group_updated'
-  | 'tab_group_removed'
-  | 'tab_group_moved'
-  | 'window_focused';
+export enum TabEventType {
+  TabCreated = 'tab_created',
+  TabUpdated = 'tab_updated',
+  TabActivated = 'tab_activated',
+  TabRemoved = 'tab_removed',
+  WindowCreated = 'window_created',
+  WindowRemoved = 'window_removed',
+  TabGroupCreated = 'tab_group_created',
+  TabGroupUpdated = 'tab_group_updated',
+  TabGroupRemoved = 'tab_group_removed',
+  TabGroupMoved = 'tab_group_moved',
+  WindowFocused = 'window_focused',
+}
 
 /**
  * 标签页事件基础接口
@@ -86,7 +123,7 @@ export interface TabEventBase {
  * 标签页创建事件
  */
 export interface TabCreatedEvent extends TabEventBase {
-  type: 'tab_created';
+  type: TabEventType.TabCreated;
   tab: TabState;
 }
 
@@ -94,13 +131,18 @@ export interface TabCreatedEvent extends TabEventBase {
  * 标签页更新事件
  */
 export interface TabUpdatedEvent extends TabEventBase {
-  type: 'tab_updated';
+  type: TabEventType.TabUpdated;
   tab: TabState;
   changes: {
     url?: boolean;
     status?: boolean;
     title?: boolean;
     favIconUrl?: boolean;
+    pinned?: boolean;
+    // New state changes
+    navigation?: boolean; // canGoBack/Forward changed
+    zoom?: boolean;
+    scroll?: boolean;
   };
 }
 
@@ -108,7 +150,7 @@ export interface TabUpdatedEvent extends TabEventBase {
  * 标签页激活事件
  */
 export interface TabActivatedEvent extends TabEventBase {
-  type: 'tab_activated';
+  type: TabEventType.TabActivated;
   tabId: number;
   windowId: number;
   tab?: TabState;
@@ -118,7 +160,7 @@ export interface TabActivatedEvent extends TabEventBase {
  * 标签页移除事件
  */
 export interface TabRemovedEvent extends TabEventBase {
-  type: 'tab_removed';
+  type: TabEventType.TabRemoved;
   tabId: number;
   windowId: number;
 }
@@ -127,7 +169,7 @@ export interface TabRemovedEvent extends TabEventBase {
  * 窗口创建事件
  */
 export interface WindowCreatedEvent extends TabEventBase {
-  type: 'window_created';
+  type: TabEventType.WindowCreated;
   window: WindowState;
 }
 
@@ -135,34 +177,34 @@ export interface WindowCreatedEvent extends TabEventBase {
  * 窗口移除事件
  */
 export interface WindowRemovedEvent extends TabEventBase {
-  type: 'window_removed';
+  type: TabEventType.WindowRemoved;
   windowId: number;
 }
 
 
 // Tab Group Events
 export interface TabGroupCreatedEvent extends TabEventBase {
-  type: 'tab_group_created';
+  type: TabEventType.TabGroupCreated;
   tabGroup: TabGroupState;
 }
 
 export interface TabGroupUpdatedEvent extends TabEventBase {
-  type: 'tab_group_updated';
+  type: TabEventType.TabGroupUpdated;
   tabGroup: TabGroupState;
 }
 
 export interface TabGroupRemovedEvent extends TabEventBase {
-  type: 'tab_group_removed';
+  type: TabEventType.TabGroupRemoved;
   tabGroupId: number;
 }
 
 export interface TabGroupMovedEvent extends TabEventBase {
-  type: 'tab_group_moved';
+  type: TabEventType.TabGroupMoved;
   tabGroup: TabGroupState;
 }
 
 export interface WindowFocusedEvent extends TabEventBase {
-  type: 'window_focused';
+  type: TabEventType.WindowFocused;
   windowId: number;
   focused: boolean;
 }
@@ -193,12 +235,17 @@ export interface TabData {
   url?: string;
   title?: string;
   favIconUrl?: string;
-  status?: 'loading' | 'complete';
+  status?: TabStatus;
   active: boolean;
   pinned: boolean;
   hidden: boolean;
   index: number;
+
   openerTabId?: number;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  zoomFactor?: number;
+  scrollPosition?: { x: number; y: number };
 }
 
 /**
@@ -211,7 +258,7 @@ export interface WindowData {
   left?: number;
   width?: number;
   height?: number;
-  type: 'normal' | 'popup' | 'panel' | 'app' | 'devtools';
+  type: WindowType;
 }
 
 /**
@@ -239,6 +286,10 @@ export function tabDataToState(data: TabData): TabState {
     hidden: data.hidden,
     index: data.index,
     openerTabId: data.openerTabId ?? null,
+    canGoBack: data.canGoBack ?? false,
+    canGoForward: data.canGoForward ?? false,
+    zoomFactor: data.zoomFactor ?? 1,
+    scrollPosition: data.scrollPosition,
     lastUpdated: Date.now(),
   };
 }
@@ -330,15 +381,21 @@ export interface TabEvents {
 export interface TabRawData {
   tabId: number;
   windowId: number;
+  groupId?: number;
   url?: string;
   title?: string;
   favIconUrl?: string;
-  status?: 'loading' | 'complete';
+  status?: TabStatus;
   active: boolean;
   pinned: boolean;
   hidden: boolean;
   index: number;
+
   openerTabId?: number;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  zoomFactor?: number;
+  scrollPosition?: { x: number; y: number };
 }
 
 /**
@@ -377,6 +434,8 @@ export interface TabProperties {
   id: number;
   /** 所属窗口 ID */
   windowId: number;
+  /** 所属标签组 ID */
+  groupId?: number;
   /** 页面 URL */
   url: string | null;
   /** 页面标题 */
@@ -384,7 +443,7 @@ export interface TabProperties {
   /** 网站图标 URL */
   favIconUrl: string | null;
   /** 加载状态 */
-  status: 'loading' | 'complete' | null;
+  status: TabStatus | null;
   /** 是否为当前激活标签 */
   active: boolean;
   /** 是否固定 */
@@ -395,6 +454,14 @@ export interface TabProperties {
   index: number;
   /** 打开此标签的源标签 ID */
   openerTabId: number | null;
+  /** 是否可后退 */
+  canGoBack: boolean;
+  /** 是否可前进 */
+  canGoForward: boolean;
+  /** 页面缩放比例 */
+  zoomFactor: number;
+  /** 滚动位置 */
+  scrollPosition?: { x: number; y: number };
   /** 最后更新时间戳 */
   lastUpdated: number;
 }
@@ -402,12 +469,25 @@ export interface TabProperties {
 /**
  * Extension (Content Script) State
  */
-export type ExtensionState = 'idle' | 'hidden' | 'ongoing' | 'takeover';
+export enum ExtensionState {
+  Idle = 'idle',
+  Hidden = 'hidden',
+  Ongoing = 'ongoing',
+  Takeover = 'takeover',
+}
 
 /**
  * System (Background Session) State
  */
-export type SystemState = 'running' | 'stopped' | 'takeover' | 'ongoing' | 'completed' | 'waiting' | 'error';
+export enum SystemState {
+  Running = 'running',
+  Stopped = 'stopped',
+  Takeover = 'takeover',
+  Ongoing = 'ongoing',
+  Completed = 'completed',
+  Waiting = 'waiting',
+  Error = 'error',
+}
 
 /**
  * Extension State Change Event

@@ -19,7 +19,8 @@
     "check-types": "tsc --noEmit"
   },
   "dependencies": {
-    "@bion/protocol": "workspace:*"
+    "@bion/protocol": "workspace:*",
+    "@bion/browser-tools": "workspace:*"
   },
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",

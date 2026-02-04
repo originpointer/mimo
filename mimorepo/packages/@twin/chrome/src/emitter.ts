@@ -4,6 +4,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { TabEventType } from './types';
 import type { TabEvent, TabData, WindowData, TabEventEmitterEvents } from './types';
 
 /**
@@ -77,49 +78,49 @@ export function createTabEventFromBionMessage(
   const timestamp = Date.now();
 
   switch (eventType) {
-    case 'tab_created':
+    case TabEventType.TabCreated:
       return {
-        type: 'tab_created',
+        type: TabEventType.TabCreated,
         tab: convertToTabState(data.tab!),
         timestamp,
       };
-    case 'tab_updated':
+    case TabEventType.TabUpdated:
       return {
-        type: 'tab_updated',
+        type: TabEventType.TabUpdated,
         tab: convertToTabState(data.tab!),
         changes: {}, // 由调用方填充具体变化
         timestamp,
       };
-    case 'tab_activated':
+    case TabEventType.TabActivated:
       return {
-        type: 'tab_activated',
+        type: TabEventType.TabActivated,
         tabId: data.tabId!,
         windowId: data.windowId!,
         tab: data.tab ? convertToTabState(data.tab) : undefined,
         timestamp,
       };
-    case 'tab_removed':
+    case TabEventType.TabRemoved:
       return {
-        type: 'tab_removed',
+        type: TabEventType.TabRemoved,
         tabId: data.tabId!,
         windowId: data.windowId!,
         timestamp,
       };
-    case 'window_created':
+    case TabEventType.WindowCreated:
       return {
-        type: 'window_created',
+        type: TabEventType.WindowCreated,
         window: convertToWindowState(data.window!),
         timestamp,
       };
-    case 'window_removed':
+    case TabEventType.WindowRemoved:
       return {
-        type: 'window_removed',
+        type: TabEventType.WindowRemoved,
         windowId: data.windowId!,
         timestamp,
       };
     default:
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return { type: 'tab_created', tab: null as any, timestamp } as TabEvent;
+      return { type: TabEventType.TabCreated, tab: null as any, timestamp } as TabEvent;
   }
 }
 

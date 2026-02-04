@@ -1,6 +1,7 @@
 
 import { EventEmitter } from 'events';
-import type { ExtensionState, ExtensionManagerEvents, ExtensionStateChangeEvent } from './types';
+import { ExtensionState } from './types';
+import type { ExtensionManagerEvents, ExtensionStateChangeEvent } from './types';
 
 /**
  * Extension State Manager (Content Script)
@@ -9,7 +10,7 @@ import type { ExtensionState, ExtensionManagerEvents, ExtensionStateChangeEvent 
 export class ExtensionStateManager extends EventEmitter {
     private _currentState: ExtensionState;
 
-    constructor(initialState: ExtensionState = 'idle') {
+    constructor(initialState: ExtensionState = ExtensionState.Idle) {
         super();
         this._currentState = initialState;
     }
@@ -44,28 +45,28 @@ export class ExtensionStateManager extends EventEmitter {
      * Set state to Idle
      */
     setIdle(): void {
-        this.setState('idle');
+        this.setState(ExtensionState.Idle);
     }
 
     /**
      * Set state to Hidden
      */
     setHidden(): void {
-        this.setState('hidden');
+        this.setState(ExtensionState.Hidden);
     }
 
     /**
      * Set state to Ongoing
      */
     setOngoing(): void {
-        this.setState('ongoing');
+        this.setState(ExtensionState.Ongoing);
     }
 
     /**
      * Set state to Takeover
      */
     setTakeover(): void {
-        this.setState('takeover');
+        this.setState(ExtensionState.Takeover);
     }
 
     /**

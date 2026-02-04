@@ -10,6 +10,9 @@ export * from './emitter';
 export * from './tab';
 export * from './extensionManager';
 export * from './systemManager';
+export * from './task';
+export * from './controlCenter';
+export * from './tabGroup';
 
 import { BrowserTwinStore } from './store';
 import { TabEventEmitter } from './emitter';

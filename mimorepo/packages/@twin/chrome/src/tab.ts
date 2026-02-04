@@ -6,6 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { TabStatus } from './types';
 import type {
   TabState,
   TabEvents,
@@ -42,6 +43,7 @@ export class Tab extends EventEmitter {
     return {
       id: data.tabId,
       windowId: data.windowId,
+      groupId: data.groupId,
       url: data.url ?? null,
       title: data.title ?? null,
       favIconUrl: data.favIconUrl ?? null,
@@ -51,6 +53,11 @@ export class Tab extends EventEmitter {
       hidden: data.hidden,
       index: data.index,
       openerTabId: data.openerTabId ?? null,
+
+      canGoBack: data.canGoBack ?? false,
+      canGoForward: data.canGoForward ?? false,
+      zoomFactor: data.zoomFactor ?? 1,
+      scrollPosition: data.scrollPosition,
       lastUpdated: Date.now(),
     };
   }
@@ -81,12 +88,19 @@ export class Tab extends EventEmitter {
     return this._properties.id;
   }
 
-  /** 获取所属窗口 ID */
   get windowId(): number {
     return this._properties.windowId;
   }
   set windowId(value: number) {
     this.updateProperty('windowId', value);
+  }
+
+  /** 获取所属标签组 ID */
+  get groupId(): number | undefined {
+    return this._properties.groupId;
+  }
+  set groupId(value: number | undefined) {
+    this.updateProperty('groupId', value);
   }
 
   /** 获取页面 URL */
@@ -114,10 +128,10 @@ export class Tab extends EventEmitter {
   }
 
   /** 获取加载状态 */
-  get status(): 'loading' | 'complete' | null {
+  get status(): TabStatus | null {
     return this._properties.status;
   }
-  set status(value: 'loading' | 'complete' | null) {
+  set status(value: TabStatus | null) {
     this.updateProperty('status', value);
   }
 
@@ -161,6 +175,39 @@ export class Tab extends EventEmitter {
   /** 最后更新时间戳 */
   get lastUpdated(): number {
     return this._properties.lastUpdated;
+
+  }
+
+  /** 是否可后退 */
+  get canGoBack(): boolean {
+    return this._properties.canGoBack;
+  }
+  set canGoBack(value: boolean) {
+    this.updateProperty('canGoBack', value);
+  }
+
+  /** 是否可前进 */
+  get canGoForward(): boolean {
+    return this._properties.canGoForward;
+  }
+  set canGoForward(value: boolean) {
+    this.updateProperty('canGoForward', value);
+  }
+
+  /** 缩放比例 */
+  get zoomFactor(): number {
+    return this._properties.zoomFactor;
+  }
+  set zoomFactor(value: number) {
+    this.updateProperty('zoomFactor', value);
+  }
+
+  /** 滚动位置 */
+  get scrollPosition(): { x: number; y: number } | undefined {
+    return this._properties.scrollPosition;
+  }
+  set scrollPosition(value: { x: number; y: number } | undefined) {
+    this.updateProperty('scrollPosition', value);
   }
 
   // ========== 扩展属性访问器 ==========
@@ -274,6 +321,7 @@ export class Tab extends EventEmitter {
     if (data.hidden !== undefined) this._properties.hidden = data.hidden;
     if (data.index !== undefined) this._properties.index = data.index;
     if (data.windowId !== undefined) this._properties.windowId = data.windowId;
+    if (data.groupId !== undefined) this._properties.groupId = data.groupId;
     if (data.openerTabId !== undefined) this._properties.openerTabId = data.openerTabId ?? null;
 
     this._properties.lastUpdated = Date.now();
@@ -354,6 +402,7 @@ export class Tab extends EventEmitter {
     return {
       id: this._properties.id,
       windowId: this._properties.windowId,
+      groupId: this._properties.groupId,
       url: this._properties.url,
       title: this._properties.title,
       favIconUrl: this._properties.favIconUrl,
@@ -363,6 +412,11 @@ export class Tab extends EventEmitter {
       hidden: this._properties.hidden,
       index: this._properties.index,
       openerTabId: this._properties.openerTabId,
+
+      canGoBack: this._properties.canGoBack,
+      canGoForward: this._properties.canGoForward,
+      zoomFactor: this._properties.zoomFactor,
+      scrollPosition: this._properties.scrollPosition,
       lastUpdated: this._properties.lastUpdated,
     };
   }
@@ -388,9 +442,9 @@ export class Tab extends EventEmitter {
   checkIsSpecialPage(): boolean {
     if (this._properties.url) {
       return this._properties.url.startsWith('chrome://') ||
-             this._properties.url.startsWith('about:') ||
-             this._properties.url.startsWith('edge://') ||
-             this._properties.url.startsWith('opera://');
+        this._properties.url.startsWith('about:') ||
+        this._properties.url.startsWith('edge://') ||
+        this._properties.url.startsWith('opera://');
     }
     return false;
   }
@@ -427,14 +481,14 @@ export class Tab extends EventEmitter {
    * 检查是否正在加载
    */
   isLoading(): boolean {
-    return this._properties.status === 'loading';
+    return this._properties.status === TabStatus.Loading;
   }
 
   /**
    * 检查是否加载完成
    */
   isLoaded(): boolean {
-    return this._properties.status === 'complete';
+    return this._properties.status === TabStatus.Complete;
   }
 
   /**

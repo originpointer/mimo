@@ -243,6 +243,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
         tab: {
           id: tab.tabId,
           windowId: tab.windowId,
+          groupId: tab.groupId,
           url: tab.url ?? null,
           title: tab.title ?? null,
           favIconUrl: tab.favIconUrl ?? null,
@@ -254,6 +255,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
           openerTabId: tab.openerTabId ?? null,
           lastUpdated: timestamp,
         },
+        timestamp,
       };
 
     case 'tab_updated':
@@ -263,6 +265,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
         tab: {
           id: tab.tabId,
           windowId: tab.windowId,
+          groupId: tab.groupId,
           url: tab.url ?? null,
           title: tab.title ?? null,
           favIconUrl: tab.favIconUrl ?? null,
@@ -280,6 +283,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
           title: tab.title !== undefined,
           favIconUrl: tab.favIconUrl !== undefined,
         },
+        timestamp,
       };
 
     case 'tab_activated':
@@ -290,6 +294,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
         tab: tab ? {
           id: tab.tabId,
           windowId: tab.windowId,
+          groupId: tab.groupId,
           url: tab.url ?? null,
           title: tab.title ?? null,
           favIconUrl: tab.favIconUrl ?? null,
@@ -301,6 +306,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
           openerTabId: tab.openerTabId ?? null,
           lastUpdated: timestamp,
         } : undefined,
+        timestamp,
       };
 
     case 'tab_removed':
@@ -308,6 +314,7 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
         type: 'tab_removed',
         tabId: tabId ?? 0,
         windowId: windowId ?? 0,
+        timestamp,
       };
 
     case 'window_created':
@@ -325,31 +332,115 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
           tabIds: [],
           lastUpdated: timestamp,
         },
+        timestamp,
       };
 
     case 'window_removed':
       return {
         type: 'window_removed',
         windowId: windowId ?? 0,
+        timestamp,
       };
 
     case 'window_focused':
       if (window) {
-        import('@/server/utils/logger').then(({ logger }) => {
-          logger.info(
-            {
-              type: 'window_focused',
-              windowId: window.windowId,
-              focused: window.focused,
-              timestamp,
-            },
-            '[Bion] Window focus changed'
-          );
-        });
+        // Log removed for checking tabGroup sync only
         return {
           type: 'window_focused',
           windowId: window.windowId,
           focused: window.focused,
+          timestamp,
+        };
+      }
+      return null;
+
+    case 'tab_group_created':
+      if (bionEvent.tabGroup) {
+        logger.info(
+          {
+            type: 'tab_group_created',
+            groupId: bionEvent.tabGroup!.id,
+            title: bionEvent.tabGroup!.title,
+            color: bionEvent.tabGroup!.color,
+            timestamp,
+          },
+          '[Bion] Tab Group Created'
+        );
+        return {
+          type: 'tab_group_created',
+          tabGroup: {
+            id: bionEvent.tabGroup.id,
+            collapsed: bionEvent.tabGroup.collapsed,
+            color: bionEvent.tabGroup.color,
+            title: bionEvent.tabGroup.title,
+            windowId: bionEvent.tabGroup.windowId,
+          },
+          timestamp,
+        };
+      }
+      return null;
+
+    case 'tab_group_updated':
+      if (bionEvent.tabGroup) {
+        logger.info(
+          {
+            type: 'tab_group_updated',
+            groupId: bionEvent.tabGroup!.id,
+            title: bionEvent.tabGroup!.title,
+            color: bionEvent.tabGroup!.color,
+            timestamp,
+          },
+          '[Bion] Tab Group Updated'
+        );
+        return {
+          type: 'tab_group_updated',
+          tabGroup: {
+            id: bionEvent.tabGroup.id,
+            collapsed: bionEvent.tabGroup.collapsed,
+            color: bionEvent.tabGroup.color,
+            title: bionEvent.tabGroup.title,
+            windowId: bionEvent.tabGroup.windowId,
+          },
+          timestamp,
+        };
+      }
+      return null;
+
+    case 'tab_group_removed':
+      logger.info(
+        {
+          type: 'tab_group_removed',
+          groupId: bionEvent.tabGroupId,
+          timestamp,
+        },
+        '[Bion] Tab Group Removed'
+      );
+      return {
+        type: 'tab_group_removed',
+        tabGroupId: bionEvent.tabGroupId ?? 0,
+        timestamp,
+      };
+
+    case 'tab_group_moved':
+      if (bionEvent.tabGroup) {
+        logger.info(
+          {
+            type: 'tab_group_moved',
+            groupId: bionEvent.tabGroup!.id,
+            windowId: bionEvent.tabGroup!.windowId,
+            timestamp,
+          },
+          '[Bion] Tab Group Moved'
+        );
+        return {
+          type: 'tab_group_moved',
+          tabGroup: {
+            id: bionEvent.tabGroup.id,
+            collapsed: bionEvent.tabGroup.collapsed,
+            color: bionEvent.tabGroup.color,
+            title: bionEvent.tabGroup.title,
+            windowId: bionEvent.tabGroup.windowId,
+          },
           timestamp,
         };
       }
@@ -662,11 +753,10 @@ export default defineNitroPlugin((nitroApp) => {
   const browserTwin = createBrowserTwin();
 
   // 监听 Twin 内部日志
-  browserTwin.on('log', (message, data) => {
-    import('@/server/utils/logger').then(({ logger }) => {
-      logger.info({ data }, `[TwinStore] ${message}`);
-    });
-  });
+  // 监听 Twin 内部日志 (Removed for cleaner logs)
+  // browserTwin.on('log', (message, data) => {
+  //   logger.info({ data }, `[TwinStore] ${message}`);
+  // });
 
   // Force rebuild timestamp: 2026-02-04_11-30
   const toolDisclosure = new ToolDisclosurePolicy();
@@ -2161,6 +2251,7 @@ export default defineNitroPlugin((nitroApp) => {
                 tabIds: win.tabIds,
                 lastUpdated: fullSyncMsg.timestamp,
               },
+              timestamp: fullSyncMsg.timestamp,
             });
             windowCreatedCount++;
           }
@@ -2177,6 +2268,7 @@ export default defineNitroPlugin((nitroApp) => {
               tab: {
                 id: tab.tabId,
                 windowId: tab.windowId,
+                groupId: tab.groupId,
                 url: tab.url ?? null,
                 title: tab.title ?? null,
                 favIconUrl: tab.favIconUrl ?? null,
@@ -2188,6 +2280,7 @@ export default defineNitroPlugin((nitroApp) => {
                 openerTabId: tab.openerTabId ?? null,
                 lastUpdated: fullSyncMsg.timestamp,
               },
+              timestamp: fullSyncMsg.timestamp,
             });
             tabCreatedCount++;
           }
@@ -2195,6 +2288,30 @@ export default defineNitroPlugin((nitroApp) => {
             count: tabCreatedCount,
             tabIds: fullSyncMsg.tabs.map(t => t.tabId),
           }, '[Bion] Tabs applied');
+
+          // 3.5. 按顺序应用标签组创建事件
+          let groupCreatedCount = 0;
+          // Check if tabGroups exists (it should, but safety first)
+          if (fullSyncMsg.tabGroups && Array.isArray(fullSyncMsg.tabGroups)) {
+            for (const group of fullSyncMsg.tabGroups) {
+              browserTwin.applyEvent({
+                type: 'tab_group_created',
+                tabGroup: {
+                  id: group.id,
+                  collapsed: group.collapsed,
+                  color: group.color,
+                  title: group.title,
+                  windowId: group.windowId,
+                },
+                timestamp: fullSyncMsg.timestamp,
+              });
+              groupCreatedCount++;
+            }
+            logger.info({
+              count: groupCreatedCount,
+              groupIds: fullSyncMsg.tabGroups.map(g => g.id),
+            }, '[Bion] Tab Groups applied');
+          }
 
           // 4. 应用活动状态
           if (fullSyncMsg.activeTabId && fullSyncMsg.activeWindowId) {
@@ -2211,6 +2328,7 @@ export default defineNitroPlugin((nitroApp) => {
               tab: activeTab ? {
                 id: fullSyncMsg.activeTabId,
                 windowId: fullSyncMsg.activeWindowId,
+                groupId: activeTab.groupId,
                 url: activeTab.url ?? null,
                 title: activeTab.title ?? null,
                 favIconUrl: activeTab.favIconUrl ?? null,
@@ -2222,6 +2340,7 @@ export default defineNitroPlugin((nitroApp) => {
                 openerTabId: activeTab.openerTabId ?? null,
                 lastUpdated: fullSyncMsg.timestamp,
               } : undefined,
+              timestamp: fullSyncMsg.timestamp,
             });
           }
 
@@ -2266,32 +2385,19 @@ export default defineNitroPlugin((nitroApp) => {
           // 将 Bion 协议的标签页事件转换为数字孪生事件格式
           const twinEvent = convertBionTabEventToTwinEvent(tabEvent);
           if (twinEvent) {
-            // DEBUG: Inspect types before applying
-            const targetWinId = tabEvent.window?.windowId ?? tabEvent.windowId;
-            const existingKeys = Array.from(browserTwin.snapshot().windows.keys());
-            import('@/server/utils/logger').then(({ logger }) => {
-              logger.info({
-                targetWinId,
-                targetWinIdType: typeof targetWinId,
-                storeKeys: existingKeys,
-                storeKeysType: existingKeys.length > 0 ? typeof existingKeys[0] : 'undefined',
-                matchFound: existingKeys.includes(targetWinId as number), // assuming store uses numbers
-              }, '[Bion] Pre-apply State Check');
-            });
-
             browserTwin.applyEvent(twinEvent);
             const postApplySnapshot = browserTwin.snapshot();
-            const targetWindow = postApplySnapshot.windows.get(tabEvent.window?.windowId ?? tabEvent.windowId);
 
-            import('@/server/utils/logger').then(({ logger }) => {
+            // Log tab event with groupId if present
+            if ((twinEvent.type === 'tab_created' || twinEvent.type === 'tab_updated') && twinEvent.tab && twinEvent.tab.groupId) {
               logger.info({
-                eventType: tabEvent.eventType,
-                tabId: tabEvent.tab?.tabId ?? tabEvent.tabId,
-                windowId: tabEvent.window?.windowId ?? tabEvent.windowId,
-                newActiveWindowId: postApplySnapshot.activeWindowId,
-                targetWindowFocused: targetWindow?.focused,
-              }, '[Bion] tab_event applied - State Updated');
-            });
+                type: twinEvent.type,
+                tabId: twinEvent.tab.id,
+                windowId: twinEvent.tab.windowId,
+                groupId: twinEvent.tab.groupId,
+                title: twinEvent.tab.title
+              }, '[Bion] Tab Event with Group');
+            }
 
             // 广播更新后的 twin 状态到所有 page 客户端
             const twinSnapshot = postApplySnapshot; // Use the snapshot we just took
@@ -2300,6 +2406,7 @@ export default defineNitroPlugin((nitroApp) => {
               state: {
                 windows: Array.from(twinSnapshot.windows.values()),
                 tabs: Array.from(twinSnapshot.tabs.values()),
+                groups: Array.from(twinSnapshot.groups.values()),
                 activeWindowId: twinSnapshot.activeWindowId,
                 activeTabId: twinSnapshot.activeTabId,
                 lastUpdated: twinSnapshot.lastUpdated,

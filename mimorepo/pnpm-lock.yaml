@@ -921,6 +921,9 @@ importers:
 
   packages/@twin/chrome:
     dependencies:
+      '@bion/browser-tools':
+        specifier: workspace:*
+        version: link:../../@bion/browser-tools
       '@bion/protocol':
         specifier: workspace:*
         version: link:../../@bion/protocol
