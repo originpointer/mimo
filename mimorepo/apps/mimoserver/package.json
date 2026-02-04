@@ -18,6 +18,7 @@
     "@mimo/agent-tools": "workspace:*",
     "@mimo/llm": "workspace:*",
     "@mimo/skills": "workspace:*",
+    "@twin/chrome": "workspace:^",
     "nanoid": "^5.0.9",
     "pino": "^9.9.0",
     "socket.io": "^4.8.3",

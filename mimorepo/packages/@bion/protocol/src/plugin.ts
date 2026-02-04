@@ -89,7 +89,8 @@ export type BionTabEventType =
   | 'tab_group_created'
   | 'tab_group_updated'
   | 'tab_group_removed'
-  | 'tab_group_moved';
+  | 'tab_group_moved'
+  | 'window_focused';
 
 /**
  * 标签页数据（对应 chrome.tabs.Tab）

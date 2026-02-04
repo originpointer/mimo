@@ -49,6 +49,9 @@ function TabRow({ tab, isActive, windowTitle, group }: TabRowProps) {
         isActive && "bg-muted/70"
       )}
     >
+      <td className="px-4 py-3 align-middle font-mono text-xs text-muted-foreground/70">
+        {tab.id}
+      </td>
       <td className="px-4 py-3 align-middle">
         <div className="flex items-center gap-2">
           {tab.favIconUrl ? (
@@ -134,6 +137,9 @@ export function TwinTabsList({ tabs, windows, groups, activeTabId, className }: 
           <table className="w-full caption-bottom text-sm">
             <thead className="[&_tr]:border-b bg-muted/40 backdrop-blur-sm sticky top-0 z-10">
               <tr className="border-b border-border/60 transition-colors">
+                <th className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground/80 w-[80px]">
+                  ID
+                </th>
                 <th className="h-11 px-4 text-left align-middle font-semibold text-muted-foreground/80 w-[280px] min-w-[200px]">
                   Title
                 </th>

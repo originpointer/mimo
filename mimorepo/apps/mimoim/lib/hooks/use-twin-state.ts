@@ -126,6 +126,11 @@ export function useTwinState() {
 
         if (payload.type !== 'twin_state_sync') return;
 
+        console.log('[useTwinState] Received sync:', {
+          activeWindowId: payload.state.activeWindowId,
+          windows: payload.state.windows.map(w => ({ id: w.id, focused: w.focused }))
+        });
+
         // 转换为 Map 结构
         const windows = new Map(
           payload.state.windows.map((w) => [w.id, w])

@@ -21,6 +21,7 @@ export class TabEventsHandler {
     windows?: {
       onCreated?: (window: chrome.windows.Window) => void;
       onRemoved?: (windowId: number) => void;
+      onFocusChanged?: (windowId: number) => void;
     };
     groups?: {
       onCreated?: (group: chrome.tabGroups.TabGroup) => void;
@@ -105,6 +106,26 @@ export class TabEventsHandler {
     };
     chrome.windows.onRemoved.addListener(this.listeners.windows.onRemoved);
 
+    // 监听窗口焦点变化
+    this.listeners.windows.onFocusChanged = (windowId: number) => {
+      // 过滤掉开发者工具等特殊窗口引起的焦点变化，以及失焦事件 (WINDOW_ID_NONE)
+      if (windowId === chrome.windows.WINDOW_ID_NONE) {
+        return;
+      }
+
+      chrome.windows.get(windowId, { populate: false }, (window) => {
+        if (chrome.runtime.lastError) {
+          // 窗口可能已经关闭
+          return;
+        }
+        this.sendTabEvent('window_focused', {
+          window: this.toWindowData(window),
+          windowId: window.id,
+        });
+      });
+    };
+    chrome.windows.onFocusChanged.addListener(this.listeners.windows.onFocusChanged);
+
     // 监听标签组事件
     this.listeners.groups = this.listeners.groups || {};
 
@@ -187,6 +208,9 @@ export class TabEventsHandler {
       }
       if (this.listeners.windows.onRemoved) {
         chrome.windows.onRemoved.removeListener(this.listeners.windows.onRemoved);
+      }
+      if (this.listeners.windows.onFocusChanged) {
+        chrome.windows.onFocusChanged.removeListener(this.listeners.windows.onFocusChanged);
       }
     }
 

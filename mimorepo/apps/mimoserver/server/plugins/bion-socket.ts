@@ -333,6 +333,28 @@ function convertBionTabEventToTwinEvent(bionEvent: BionTabEventMessage): import(
         windowId: windowId ?? 0,
       };
 
+    case 'window_focused':
+      if (window) {
+        import('@/server/utils/logger').then(({ logger }) => {
+          logger.info(
+            {
+              type: 'window_focused',
+              windowId: window.windowId,
+              focused: window.focused,
+              timestamp,
+            },
+            '[Bion] Window focus changed'
+          );
+        });
+        return {
+          type: 'window_focused',
+          windowId: window.windowId,
+          focused: window.focused,
+          timestamp,
+        };
+      }
+      return null;
+
     default:
       return null;
   }
@@ -639,6 +661,14 @@ export default defineNitroPlugin((nitroApp) => {
   // 实时同步浏览器标签页和窗口状态
   const browserTwin = createBrowserTwin();
 
+  // 监听 Twin 内部日志
+  browserTwin.on('log', (message, data) => {
+    import('@/server/utils/logger').then(({ logger }) => {
+      logger.info({ data }, `[TwinStore] ${message}`);
+    });
+  });
+
+  // Force rebuild timestamp: 2026-02-04_11-30
   const toolDisclosure = new ToolDisclosurePolicy();
 
   // sessionId -> selected browser extension clientId
@@ -2236,18 +2266,35 @@ export default defineNitroPlugin((nitroApp) => {
           // 将 Bion 协议的标签页事件转换为数字孪生事件格式
           const twinEvent = convertBionTabEventToTwinEvent(tabEvent);
           if (twinEvent) {
+            // DEBUG: Inspect types before applying
+            const targetWinId = tabEvent.window?.windowId ?? tabEvent.windowId;
+            const existingKeys = Array.from(browserTwin.snapshot().windows.keys());
+            import('@/server/utils/logger').then(({ logger }) => {
+              logger.info({
+                targetWinId,
+                targetWinIdType: typeof targetWinId,
+                storeKeys: existingKeys,
+                storeKeysType: existingKeys.length > 0 ? typeof existingKeys[0] : 'undefined',
+                matchFound: existingKeys.includes(targetWinId as number), // assuming store uses numbers
+              }, '[Bion] Pre-apply State Check');
+            });
+
             browserTwin.applyEvent(twinEvent);
-            if (process.env.NODE_ENV === 'development') {
-              // eslint-disable-next-line no-console
-              console.log('[Bion] tab_event applied', {
+            const postApplySnapshot = browserTwin.snapshot();
+            const targetWindow = postApplySnapshot.windows.get(tabEvent.window?.windowId ?? tabEvent.windowId);
+
+            import('@/server/utils/logger').then(({ logger }) => {
+              logger.info({
                 eventType: tabEvent.eventType,
                 tabId: tabEvent.tab?.tabId ?? tabEvent.tabId,
                 windowId: tabEvent.window?.windowId ?? tabEvent.windowId,
-              });
-            }
+                newActiveWindowId: postApplySnapshot.activeWindowId,
+                targetWindowFocused: targetWindow?.focused,
+              }, '[Bion] tab_event applied - State Updated');
+            });
 
             // 广播更新后的 twin 状态到所有 page 客户端
-            const twinSnapshot = browserTwin.snapshot();
+            const twinSnapshot = postApplySnapshot; // Use the snapshot we just took
             nsp.emit(BionSocketEvent.TwinStateSync, {
               type: 'twin_state_sync',
               state: {

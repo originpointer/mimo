@@ -71,7 +71,8 @@ export type TabEventType =
   | 'tab_group_created'
   | 'tab_group_updated'
   | 'tab_group_removed'
-  | 'tab_group_moved';
+  | 'tab_group_moved'
+  | 'window_focused';
 
 /**
  * 标签页事件基础接口
@@ -138,20 +139,6 @@ export interface WindowRemovedEvent extends TabEventBase {
   windowId: number;
 }
 
-/**
- * 所有标签页事件联合类型
- */
-export type TabEvent =
-  | TabCreatedEvent
-  | TabUpdatedEvent
-  | TabActivatedEvent
-  | TabRemovedEvent
-  | WindowCreatedEvent
-  | WindowRemovedEvent
-  | TabGroupCreatedEvent
-  | TabGroupUpdatedEvent
-  | TabGroupRemovedEvent
-  | TabGroupMovedEvent;
 
 // Tab Group Events
 export interface TabGroupCreatedEvent extends TabEventBase {
@@ -173,6 +160,28 @@ export interface TabGroupMovedEvent extends TabEventBase {
   type: 'tab_group_moved';
   tabGroup: TabGroupState;
 }
+
+export interface WindowFocusedEvent extends TabEventBase {
+  type: 'window_focused';
+  windowId: number;
+  focused: boolean;
+}
+
+/**
+ * 所有标签页事件联合类型
+ */
+export type TabEvent =
+  | TabCreatedEvent
+  | TabUpdatedEvent
+  | TabActivatedEvent
+  | TabRemovedEvent
+  | WindowCreatedEvent
+  | WindowRemovedEvent
+  | TabGroupCreatedEvent
+  | TabGroupUpdatedEvent
+  | TabGroupRemovedEvent
+  | TabGroupMovedEvent
+  | WindowFocusedEvent;
 
 /**
  * Bion 协议中的标签页数据（从插件发送）
@@ -271,6 +280,7 @@ export interface TabEventEmitterEvents {
  */
 export interface BrowserTwinStoreEvents {
   state_changed: [event: StateChangeEvent];
+  log: [message: string, data?: any];
   tab_created: [tab: TabState];
   tab_updated: [tab: TabState, changes: TabUpdatedEvent['changes']];
   tab_activated: [tabId: number, windowId: number];
@@ -281,6 +291,7 @@ export interface BrowserTwinStoreEvents {
   tab_group_updated: [group: TabGroupState];
   tab_group_removed: [groupId: number];
   tab_group_moved: [group: TabGroupState];
+  window_focused: [windowId: number, focused: boolean];
 }
 
 // ============================================

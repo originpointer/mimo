@@ -138,6 +138,9 @@ importers:
       '@mimo/skills':
         specifier: workspace:*
         version: link:../../packages/@mimo/skills
+      '@twin/chrome':
+        specifier: workspace:^
+        version: link:../../packages/@twin/chrome
       nanoid:
         specifier: ^5.0.9
         version: 5.1.6

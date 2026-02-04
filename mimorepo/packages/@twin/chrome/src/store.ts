@@ -78,6 +78,9 @@ export class BrowserTwinStore extends EventEmitter {
       case 'tab_group_moved':
         this.applyTabGroupMoved(event);
         break;
+      case 'window_focused':
+        this.applyWindowFocused(event);
+        break;
     }
     this.state.lastUpdated = Date.now();
     this.emit('state_changed', { state: this.snapshot(), event });
@@ -98,68 +101,37 @@ export class BrowserTwinStore extends EventEmitter {
    */
   private applyTabUpdated(event: TabEvent & { type: 'tab_updated' }): void {
     const { tab, changes } = event;
-    const existing = this.state.tabs.get(tab.id);
-
-    if (existing) {
-      if (existing.windowId !== tab.windowId) {
-        this.removeTabFromWindow(existing.windowId, tab.id);
-        this.addTabToWindow(tab.windowId, tab.id);
-      }
-    } else {
-      this.addTabToWindow(tab.windowId, tab.id);
-    }
-
     this.state.tabs.set(tab.id, tab);
-
-    if (tab.active) {
-      this.deactivateOtherTabsInWindow(tab.windowId, tab.id, event.timestamp);
-      this.state.activeTabId = tab.id;
-      this.state.activeWindowId = tab.windowId;
+    // 检查是否有窗口变更（通常不发生，但如果是移动标签页的情况）
+    if (changes && changes.pinned !== undefined) {
+      // Pinned state changed
     }
-
     this.emit('tab_updated', tab, changes);
-  }
-
-  /**
-   * Helper to deactivate other tabs in the same window
-   */
-  private deactivateOtherTabsInWindow(windowId: number, activeTabId: number, timestamp: number): void {
-    const tabIds = this.windowTabIdsMap.get(windowId);
-    if (!tabIds) return;
-
-    for (const id of tabIds) {
-      if (id === activeTabId) continue;
-      const tab = this.state.tabs.get(id);
-      if (tab && tab.active) {
-        tab.active = false;
-        tab.lastUpdated = timestamp;
-        this.emit('tab_updated', tab, { status: false });
-      }
-    }
   }
 
   /**
    * 处理标签页激活
    */
   private applyTabActivated(event: TabEvent & { type: 'tab_activated' }): void {
-    const { tabId, windowId, tab } = event;
+    const { tabId, windowId } = event;
 
-    this.deactivateOtherTabsInWindow(windowId, tabId, event.timestamp);
+    // 更新所有标签页的 active 状态
+    // 注意：Chrome 中每个窗口都有一个 active tab，但通常全局只有一个 active tab
+    // 这里我们简单地将指定 tab 设为 active，同窗口其他 tab 设为 inactive
 
-    this.state.activeTabId = tabId;
-    this.state.activeWindowId = windowId;
-
-    if (tab) {
-      this.state.tabs.set(tabId, tab);
-    } else {
-      const newTab = this.state.tabs.get(tabId);
-      if (newTab) {
-        newTab.active = true;
-        newTab.lastUpdated = event.timestamp;
+    const windowTabs = this.getTabsByWindow(windowId);
+    for (const tab of windowTabs) {
+      if (tab.id === tabId) {
+        tab.active = true;
+      } else {
+        tab.active = false;
       }
     }
 
-    this.emit('tab_activated', tabId, windowId);
+    this.state.activeTabId = tabId;
+    this.state.activeWindowId = windowId; // 激活标签页通常意味着窗口也被激活（或至少是该窗口内的操作）
+
+    this.emit('tab_activated', { tabId, windowId });
   }
 
   /**
@@ -167,15 +139,11 @@ export class BrowserTwinStore extends EventEmitter {
    */
   private applyTabRemoved(event: TabEvent & { type: 'tab_removed' }): void {
     const { tabId, windowId } = event;
-    const tab = this.state.tabs.get(tabId);
+    this.state.tabs.delete(tabId);
+    this.removeTabFromWindow(windowId, tabId);
 
-    if (tab) {
-      this.removeTabFromWindow(tab.windowId, tabId);
-      this.state.tabs.delete(tabId);
-
-      if (this.state.activeTabId === tabId) {
-        this.state.activeTabId = null;
-      }
+    if (this.state.activeTabId === tabId) {
+      this.state.activeTabId = null;
     }
 
     this.emit('tab_removed', tabId, windowId);
@@ -186,8 +154,25 @@ export class BrowserTwinStore extends EventEmitter {
    */
   private applyWindowCreated(event: TabEvent & { type: 'window_created' }): void {
     const { window } = event;
+    // 如果事件中包含了 tabIds，我们需要初始化它们
+    if (window.tabIds && window.tabIds.length > 0) {
+      if (!this.windowTabIdsMap.has(window.id)) {
+        this.windowTabIdsMap.set(window.id, new Set(window.tabIds));
+      } else {
+        const set = this.windowTabIdsMap.get(window.id)!;
+        for (const tid of window.tabIds) set.add(tid);
+      }
+    } else {
+      // 没有任何 tab 的新窗口
+      if (!this.windowTabIdsMap.has(window.id)) {
+        this.windowTabIdsMap.set(window.id, new Set());
+      }
+    }
+
+    // 确保 state 中的 window 对象也是同步的
+    window.tabIds = Array.from(this.windowTabIdsMap.get(window.id)!);
+
     this.state.windows.set(window.id, window);
-    this.windowTabIdsMap.set(window.id, new Set(window.tabIds));
     this.emit('window_created', window);
   }
 
@@ -213,6 +198,72 @@ export class BrowserTwinStore extends EventEmitter {
     }
 
     this.emit('window_removed', windowId);
+  }
+
+  /**
+   * 处理窗口焦点变化
+   */
+  private applyWindowFocused(event: TabEvent & { type: 'window_focused' }): void {
+    const { windowId, focused } = event;
+    const window = this.state.windows.get(windowId);
+
+    // DEBUG LOGGING
+    this.emit('log', '[BrowserTwinStore] applyWindowFocused', {
+      windowId,
+      focused,
+      windowFound: !!window,
+      currentActiveWindowId: this.state.activeWindowId,
+      windowIdType: typeof windowId,
+      mapKeys: Array.from(this.state.windows.keys()).map(k => `${k} (${typeof k})`)
+    });
+
+    if (window) {
+      window.focused = focused;
+      window.lastUpdated = event.timestamp;
+
+      this.emit('log', '[BrowserTwinStore] Window state updated:', {
+        windowId,
+        newFocused: window.focused,
+        timestamp: window.lastUpdated
+      });
+    } else {
+      this.emit('log', '[BrowserTwinStore] Window not found for focus update:', windowId);
+    }
+
+    if (focused) {
+      // Ensure no other windows are focused
+      for (const win of this.state.windows.values()) {
+        if (win.id !== windowId && win.focused) {
+          win.focused = false;
+          // Ideally we update lastUpdated for other windows too, but pure state update is enough for now
+        }
+      }
+      this.state.activeWindowId = windowId;
+
+      // If the window has an active tab, update system active tab state
+      if (window) {
+        // Find the active tab in this window
+        const activeTabId = window.tabIds.find(tid => {
+          const t = this.state.tabs.get(tid);
+          return t && t.active;
+        });
+        if (activeTabId) {
+          this.state.activeTabId = activeTabId;
+        }
+      }
+
+    } else {
+      // If window lost focus and it was the active one, clear activeWindowId
+      if (this.state.activeWindowId === windowId) {
+        this.state.activeWindowId = null;
+        // Should we clear activeTabId too? 
+        // Chrome usually keeps an active tab per window, but "system active tab" implies the one in the focused window.
+        // this.state.activeTabId = null; // Keep active tab ID for continuity if needed, or clear it.
+        // Let's keep it for now unless specific requirement says otherwise.
+      }
+    }
+
+    this.emit('window_focused', windowId, focused);
   }
 
   /**
