@@ -4,7 +4,7 @@ import { defineEventHandler } from "h3";
 import { parse } from "node:url";
 import { Server as Engine } from "engine.io";
 import { Server as SocketIOServer } from "socket.io";
-import { MimoSocketEvent, parseFrontendMessage, parsePluginMessage, type FrontendUserMessage, type FrontendEventEnvelope, type PluginMessage, type ActivateExtensionMessage, type FullStateSyncMessage, type TabEventMessage, type BrowserActionResult } from "mimo-protocol";
+import { MimoSocketEvent, parseFrontendMessage, parsePluginMessage, type FrontendUserMessage, type FrontendEventEnvelope, type PluginMessage, type ActivateExtensionMessage, type FullStateSyncMessage, type TabEventMessage, type DebuggerEventMessage, type BrowserActionResult } from "mimo-protocol";
 import { wrapSocketIO, type BusServer } from "mimo-bus/server";
 import { ExtensionRegistry } from "@/modules/extension-registry";
 import { SnapshotStore } from "@/modules/snapshot-store";
@@ -14,6 +14,7 @@ import { ToolRunner } from "@/agent/tool-runner";
 import { AiGateway } from "@/agent/llm-gateway";
 import { AgentOrchestrator } from "@/agent/orchestrator";
 import { createId } from "@repo/mimo-utils";
+import { debugLogger } from "@/utils/logger";
 
 export type MimoRuntime = {
   bus: BusServer;
@@ -155,6 +156,33 @@ function setupBus(bus: BusServer) {
         return;
       }
 
+      if (msg.type === "debugger_event") {
+        const { eventType, tabId, method, reason, params } = msg as DebuggerEventMessage;
+
+        if (eventType === "detached") {
+          debugLogger.warn({
+            type: "debugger_detached",
+            tabId,
+            reason,
+          }, `Debugger detached from tab ${tabId}, reason: ${reason}`);
+        } else if (eventType === "cdp_event") {
+          debugLogger.debug({
+            type: "debugger_cdp_event",
+            tabId,
+            method,
+            params,
+          }, `Debugger CDP event: ${method} for tab ${tabId}`);
+        } else if (eventType === "attached") {
+          debugLogger.info({
+            type: "debugger_attached",
+            tabId,
+          }, `Debugger attached to tab ${tabId}`);
+        }
+
+        ack?.({ ok: true });
+        return;
+      }
+
       if (msg.type === "browser_action_result") {
         scheduler.handleResult(msg as BrowserActionResult);
         ack?.({ ok: true });
@@ -205,6 +233,7 @@ export default defineNitroPlugin((nitroApp: NitroApp) => {
     },
     websocket: {
       open(peer) {
+        // @ts-expect-error - accessing internal properties for WebSocket integration
         setEngineQuery(peer._internal.nodeReq as any);
         // @ts-expect-error - accessing internal properties for WebSocket integration
         engine.prepare(peer._internal.nodeReq);

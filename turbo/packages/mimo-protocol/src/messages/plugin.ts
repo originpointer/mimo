@@ -106,10 +106,23 @@ export interface BrowserActionResult {
   error?: { code: string; message: string; retryable?: boolean } | { code?: string; message?: string } | unknown;
 }
 
+// Debugger 事件类型
+export interface DebuggerEventMessage {
+  v?: MimoProtocolVersion;
+  type: "debugger_event";
+  eventType: "attached" | "detached" | "cdp_event";
+  tabId: number;
+  method?: string;  // CDP 方法名，如 "Page.loadEventFired"
+  params?: unknown;  // CDP 事件参数
+  reason?: string;  // detach 原因
+  timestamp: number;
+}
+
 export type PluginMessage =
   | ActivateExtensionMessage
   | FullStateSyncMessage
   | TabEventMessage
+  | DebuggerEventMessage
   | BrowserActionMessage
   | BrowserActionResult
   | (Record<string, unknown> & { type: string });

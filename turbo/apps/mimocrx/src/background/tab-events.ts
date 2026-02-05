@@ -1,6 +1,28 @@
 import type { PluginBusClient } from "mimo-bus/client";
 import type { FullStateSyncMessage, TabEventMessage, TabGroupData, TabData, WindowData } from "mimo-protocol";
 
+// Chrome tabs event types (type definition varies across @types/chrome versions)
+type TabChangeInfo = {
+  audible?: boolean;
+  discarded?: boolean;
+  favIconUrl?: string;
+  mutedInfo?: chrome.tabs.MutedInfo;
+  pinned?: boolean;
+  status?: string;
+  title?: string;
+  url?: string;
+};
+
+type TabActiveInfo = {
+  tabId: number;
+  windowId: number;
+};
+
+type TabRemoveInfo = {
+  windowId: number;
+  isWindowClosing: boolean;
+};
+
 type TabEventsHandler = {
   start(): Promise<void>;
   stop(): void;
@@ -164,13 +186,13 @@ export function createTabEventsHandler(client: PluginBusClient): TabEventsHandle
       emitTabEvent({ eventType: "tab_created", tab: payload });
     };
 
-    const onTabUpdated = (_tabId: number, _changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+    const onTabUpdated = (_tabId: number, _changeInfo: TabChangeInfo, tab: chrome.tabs.Tab) => {
       const payload = toTabData(tab);
       if (!payload) return;
       emitTabEvent({ eventType: "tab_updated", tab: payload });
     };
 
-    const onTabActivated = (activeInfo: chrome.tabs.TabActiveInfo) => {
+    const onTabActivated = (activeInfo: TabActiveInfo) => {
       void (async () => {
         const tab = await getTab(activeInfo.tabId);
         if (tab) {
@@ -184,7 +206,7 @@ export function createTabEventsHandler(client: PluginBusClient): TabEventsHandle
       })();
     };
 
-    const onTabRemoved = (tabId: number, removeInfo: chrome.tabs.TabRemoveInfo) => {
+    const onTabRemoved = (tabId: number, removeInfo: TabRemoveInfo) => {
       emitTabEvent({ eventType: "tab_removed", tabId, windowId: removeInfo.windowId });
     };
 

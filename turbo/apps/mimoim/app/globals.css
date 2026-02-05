@@ -1,6 +1,12 @@
 :root {
   color-scheme: light;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --status-created: #6b7280;
+  --status-running: #3b82f6;
+  --status-ongoing: #10b981;
+  --status-takeover: #f59e0b;
+  --status-completed: #6b7280;
+  --status-error: #ef4444;
 }
 
 body {
@@ -9,9 +15,9 @@ body {
   color: #111;
 }
 
-main {
+.container {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 24px;
   padding: 24px;
   min-height: 100vh;
@@ -25,11 +31,18 @@ section {
   box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
 
+section h2 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .chat-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 70vh;
+  max-height: 50vh;
   overflow: auto;
   padding-right: 8px;
 }
@@ -69,4 +82,201 @@ section {
 .snapshot {
   font-size: 14px;
   line-height: 1.5;
+}
+
+/* Task Card Styles */
+.task-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.task-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.status-created { background: #f3f4f6; color: var(--status-created); }
+.status-running { background: #dbeafe; color: var(--status-running); }
+.status-ongoing { background: #d1fae5; color: var(--status-ongoing); }
+.status-takeover { background: #fef3c7; color: var(--status-takeover); }
+.status-completed { background: #f3f4f6; color: var(--status-completed); }
+.status-error { background: #fee2e2; color: var(--status-error); }
+
+.task-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+}
+
+.detail-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.detail-value {
+  color: #111;
+  font-weight: 500;
+  text-align: right;
+}
+
+.detail-url {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tasks List Styles */
+.tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.task-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.task-item:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.task-item.active {
+  border-color: var(--status-running);
+  background: #eff6ff;
+}
+
+.task-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.task-item-title {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.task-item-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.task-item-time {
+  font-size: 11px;
+}
+
+.task-item-url {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Debugger Status Styles */
+.detail-debugger {
+  font-weight: 600;
+}
+
+.detail-debugger.attached {
+  color: #10b981;
+}
+
+.detail-debugger.detached {
+  color: #9ca3af;
+}
+
+.task-item-debugger {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.debugger-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.debugger-indicator.attached {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.debugger-indicator.detached {
+  color: #9ca3af;
+}
+
+/* Detail Value Styles */
+.detail-id {
+  font-family: monospace;
+  font-size: 12px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-client {
+  font-family: monospace;
+  font-size: 11px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6b7280;
+}
+
+.detail-time {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.no-data {
+  color: #9ca3af;
+  text-align: center;
+  padding: 20px;
+}
+
+.error {
+  color: #ef4444;
 }

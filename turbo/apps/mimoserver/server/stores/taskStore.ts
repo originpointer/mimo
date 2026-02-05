@@ -13,6 +13,12 @@ export type TaskRecord = {
   updatedAt: number;
   selectedClientId?: string;
   currentUrl?: string;
+  // Tab Group 关联
+  tabId?: number;
+  groupId?: number;
+  windowId?: number;
+  // Debugger 状态
+  debuggerAttached?: boolean;
 };
 
 export type TaskCreateInput = {
@@ -69,13 +75,18 @@ export async function upsertTask(taskId: string, update: Partial<TaskRecord>): P
 
   const next: TaskRecord = {
     taskId,
-    title: existing?.title ?? "新任务",
-    status: existing?.status ?? "created",
+    title: update.title ?? existing?.title ?? "新任务",
+    status: update.status ?? existing?.status ?? "created",
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-    selectedClientId: existing?.selectedClientId,
-    currentUrl: existing?.currentUrl,
-    ...update,
+    selectedClientId: update.selectedClientId ?? existing?.selectedClientId,
+    currentUrl: update.currentUrl ?? existing?.currentUrl,
+    // Tab Group 关联字段 - 保留现有值或使用新值
+    tabId: update.tabId ?? existing?.tabId,
+    groupId: update.groupId ?? existing?.groupId,
+    windowId: update.windowId ?? existing?.windowId,
+    // Debugger 状态 - 保留现有值或使用新值
+    debuggerAttached: update.debuggerAttached ?? existing?.debuggerAttached,
   };
 
   await storage.setItem(keyByTaskId(taskId), next);
