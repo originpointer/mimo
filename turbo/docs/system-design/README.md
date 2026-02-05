@@ -55,6 +55,7 @@ flowchart LR
 
 - `docs/system-design/contracts.md`：HTTP + Socket 接口与消息协议（Web/Server/Plugin）。
 - `docs/system-design/agent-runtime.md`：状态机、browser_action catalog、LLM 工具调用闭环与时序。
+- `docs/system-design/code-structure.md`：协议到代码结构的落地（Turbo monorepo 目录/模块/命名）。
 
 ## 6. 参考输入（已读并合并进设计）
 
@@ -62,4 +63,3 @@ flowchart LR
 - `docs/extensions/2026-02-04-mimoim-mimoserver-data-interactions.md`
 - `/Users/soda/Documents/solocodes/mimo/docs/dataflow/2026-02-04-mimoim-plasmo-app-data-interactions.md`
 - `/Users/soda/Documents/solocodes/mimo/docs/dataflow/2026-02-04-plasmo-app-analysis.md`
-

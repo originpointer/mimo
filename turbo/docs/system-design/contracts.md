@@ -68,7 +68,7 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 ### 1.2 Transport 选择
 
 - **HTTP**：首屏/查询/落库后的读取（任务列表、任务详情、扩展列表、Twin 快照、Artifact 下载等）。
-- **Socket（Socket.IO）**：实时/流式/控制面（chatDelta、browser_action、twin_state_sync、选择/确认交互）。
+- **Socket（Socket.IO）**：实时/流式/控制面（chatDelta、browser_action、twinSync、选择/确认交互）。
 
 ---
 
@@ -217,17 +217,17 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 > 该桥接来自既有系统实践：Web 通过 `window.postMessage` 让扩展 content-script 代为读取扩展信息，用于“发现/探测在线插件实例”。  
 > **约束**：仅用于探测与诊断；任何 browser_action 执行仍必须走 Server 总线。
 
-请求（Web Page World → content-script）：
+请求（Web Page World → content-script，canonical）：
 
 ```ts
-window.postMessage({ type: "mimoim/get_bion_client_info", requestId }, "*")
+window.postMessage({ type: "mimo/get_plugin_client_info", requestId }, "*")
 ```
 
-响应（content-script → Web Page World）：
+响应（content-script → Web Page World，canonical）：
 
 ```ts
 window.postMessage(
-  { type: "mimoim/get_bion_client_info_result", requestId, payload },
+  { type: "mimo/get_plugin_client_info_result", requestId, payload },
   "*",
 )
 ```
@@ -248,6 +248,9 @@ window.postMessage(
 安全建议：
 - content-script 必须做 `event.origin` 白名单校验（例如仅允许 `http://localhost:3000`）。
 - 禁止桥接触发“执行类能力”（点击/输入/导航等），避免绕过 Server 的确认与审计链路。
+- 兼容旧实现时，可额外接受/返回：
+  - `mimoim/get_bion_client_info`
+  - `mimoim/get_bion_client_info_result`
 
 ### 2.4 Artifact（截图/文件等）
 
@@ -291,10 +294,14 @@ window.postMessage(
 
 - 技术：Socket.IO（建议 `transports: ['websocket']`，插件侧只启 websocket）。
 - namespace：`/mimo`
-- 事件名（兼容旧系统）：
-  - Web ↔ Server：`message`
+- 事件名（canonical，v1）：
+  - Web → Server：`frontend_message`
+  - Server → Web：`frontend_event`
+  - Plugin ↔ Server：`plugin_message`
+- 兼容旧事件名（legacy，可选支持）：
+  - Web ↔ Server：`message`（历史上同名双向复用）
   - Plugin ↔ Server：`my_browser_extension_message`
-  - Server → Web（Twin）：`twin_state_sync`
+  - Twin push：`twin_state_sync`（历史独立事件；新实现推荐合并进 `frontend_event`）
 
 ### 3.2 连接鉴权（建议）
 
@@ -310,9 +317,9 @@ type SocketAuth = {
 
 Server 侧：
 - `clientType=plugin` 时校验 `clientId`，并将 socket 加入 `client:${clientId}` room。
-- `clientType=frontend` 时加入 `frontend` room，并按 session 订阅加入 `session:${sessionId}` room（或通过 message 中的 sessionId 路由）。
+- `clientType=frontend` 时加入 `frontend` room，并按 session 订阅加入 `session:${sessionId}` room（或通过 `frontend_message` 中的 sessionId 路由）。
 
-### 3.3 Web ↔ Server：`message`
+### 3.3 Web → Server：`frontend_message`
 
 #### Web → Server（发送）
 
@@ -329,12 +336,12 @@ Server 侧：
 }
 ```
 
-##### (2) `select_my_browser`
+##### (2) `select_browser_client`（alias：`select_my_browser`）
 
 ```json
 {
   "v": 1,
-  "type": "select_my_browser",
+  "type": "select_browser_client",
   "id": "evt-sel-1",
   "timestamp": 1730000001500,
   "sessionId": "01HR...",
@@ -342,12 +349,12 @@ Server 侧：
 }
 ```
 
-##### (3) `confirm_browser_task`
+##### (3) `confirm_browser_action`（alias：`confirm_browser_task`）
 
 ```json
 {
   "v": 1,
-  "type": "confirm_browser_task",
+  "type": "confirm_browser_action",
   "id": "evt-confirm-1",
   "timestamp": 1730000002000,
   "sessionId": "01HR...",
@@ -356,7 +363,7 @@ Server 侧：
 }
 ```
 
-#### Server → Web（接收：event envelope）
+### 3.4 Server → Web：`frontend_event`（event envelope）
 
 Server 统一用 envelope 推送（便于落库/回放/调试）：
 
@@ -381,11 +388,12 @@ Server 统一用 envelope 推送（便于落库/回放/调试）：
 MVP 必需的 event type：
 
 - `chatDelta`：流式 assistant 文本（`finished=true` 表示结束）。
-- `myBrowserSelection`：提示“等待选择/已选择”，并带候选列表。
-- `browserTaskConfirmationRequested`：请求用户确认（展示 summary + requestId）。
+- `browserSelection`：提示“等待选择/已选择”，并带候选列表（alias：`myBrowserSelection`）。
+- `browserActionConfirmationRequested`：请求用户确认（展示 summary + requestId，alias：`browserTaskConfirmationRequested`）。
 - `structuredOutput`：结构化错误/结果兜底（例如 action 执行失败时 UI 展示）。
+- `twinSync`：Twin 实时同步（alias：`twin_state_sync`）。
 
-### 3.4 Plugin ↔ Server：`my_browser_extension_message`
+### 3.5 Plugin ↔ Server：`plugin_message`（alias：`my_browser_extension_message`）
 
 #### Plugin → Server（注册/同步）
 
@@ -432,7 +440,9 @@ MVP 必需的 event type：
 }
 ```
 
-> Server 侧需要把 full_state_sync/tab_event 规整为自己的 Twin store，然后对 Web 推送 `twin_state_sync`。
+> Server 侧需要把 full_state_sync/tab_event 规整为自己的 Twin store，然后对 Web 推送 `twinSync`（通过 `frontend_event`）。
+>
+> 新实现推荐：通过 `frontend_event` 推送 `event.type = "twinSync"`（并可选桥接为 legacy 的 `twin_state_sync` 独立事件）。
 
 #### Server → Plugin（控制：browser_action）
 
@@ -487,23 +497,35 @@ Server 下发动作给指定 `clientId`，并要求插件 **快速 ack 接收**�
 }
 ```
 
-### 3.5 Server → Web：`twin_state_sync`
+### 3.6 Twin（Server → Web）
 
 用途：实时同步 Twin（Web 直接覆盖/合并）。
 
+推荐方式：作为 `frontend_event` 的一种事件类型（`event.type = "twinSync"`）推送：
+
 ```json
 {
-  "type": "twin_state_sync",
-  "state": {
-    "windows": [],
-    "tabs": [],
-    "tabGroups": [],
-    "activeWindowId": null,
-    "activeTabId": null,
-    "lastUpdated": 1730000006000
+  "type": "event",
+  "id": "env-twin-1",
+  "sessionId": "01HR...",
+  "timestamp": 1730000006000,
+  "event": {
+    "id": "evt-twin-1",
+    "type": "twinSync",
+    "timestamp": 1730000006000,
+    "state": {
+      "windows": [],
+      "tabs": [],
+      "tabGroups": [],
+      "activeWindowId": null,
+      "activeTabId": null,
+      "lastUpdated": 1730000006000
+    }
   }
 }
 ```
+
+兼容方式（legacy，可选）：仍单独 emit `twin_state_sync`（payload 与旧实现一致）。
 
 ---
 

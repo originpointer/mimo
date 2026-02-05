@@ -31,7 +31,7 @@ Server 作为编排器，驱动 LLM 与 Browser Plugin 协作，最终对 Web �
 - `TwinStore`
   - 接收插件 `full_state_sync` / `tab_event`；
   - 维护权威 Twin 状态；
-  - 推送 `twin_state_sync` 给 Web。
+  - 通过 `frontend_event` 推送 `twinSync` 给 Web。
 - `ArtifactService`
   - 提供 presign/upload/download；
   - 管理截图、HTML、readability 文本等大 payload。
@@ -83,7 +83,7 @@ sequenceDiagram
 
   W->>S: GET /api/task/id
   S-->>W: { taskId }
-  W->>S: Socket(message): user_message(sessionId=taskId)
+  W->>S: Socket(frontend_message): user_message(sessionId=taskId)
   S->>L: streamChat(messages)
   L-->>S: delta...
   S-->>W: event(chatDelta...)
@@ -101,22 +101,22 @@ sequenceDiagram
   participant P as Plugin
   participant L as LLM
 
-  W->>S: message: user_message
+  W->>S: frontend_message: user_message
   S->>S: classify task (needs browser?)
   alt no selected client
-    S-->>W: event(myBrowserSelection waiting + candidates)
-    W->>S: message: select_my_browser(targetClientId)
-    S-->>W: event(myBrowserSelection selected)
+    S-->>W: event(browserSelection waiting + candidates)
+    W->>S: frontend_message: select_browser_client(targetClientId)
+    S-->>W: event(browserSelection selected)
   end
 
-  S-->>W: event(browserTaskConfirmationRequested req-123 summary)
-  W->>S: message: confirm_browser_task(req-123, true)
+  S-->>W: event(browserActionConfirmationRequested req-123 summary)
+  W->>S: frontend_message: confirm_browser_action(req-123, true)
 
-  S->>P: my_browser_extension_message: browser_action(session_start/navigate...)
+  S->>P: plugin_message: browser_action(session_start/navigate...)
   P-->>S: ack(ok)
   P-->>S: browser_action_result(success)
 
-  S->>P: browser_action(screenshot + readability)
+  S->>P: plugin_message: browser_action(screenshot + readability)
   P-->>S: ack(ok)
   P-->>S: browser_action_result(success with artifact refs)
 
@@ -218,6 +218,6 @@ export interface LlmGateway {
 事件映射建议：
 
 - `LlmDelta` → Web `chatDelta(delta.content)`；
-- `LlmToolCall(name=browser_action)` → `toolUsed(start)` +（必要时）`browserTaskConfirmationRequested` + 下发 `browser_action`；
+- `LlmToolCall(name=browser_action)` → `toolUsed(start)` +（必要时）`browserActionConfirmationRequested` + 下发 `browser_action`；
 - Tool result 回灌 LLM 后继续 `streamChat`，直到 `done`；
 - 任何不可恢复错误 → Web `structuredOutput(status=error, error=...)` + task.status=`error`。
