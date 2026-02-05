@@ -16,6 +16,7 @@ type TextPart = { type: "text"; text: string };
 export interface UseBionChatOptions {
   id: string; // chatId == bion sessionId
   initialMessages?: ChatMessage[];
+  initialStatus?: ChatStatus;
   generateId?: () => string;
 }
 
@@ -66,7 +67,7 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>(
     options.initialMessages ?? []
   );
-  const [status, setStatus] = useState<ChatStatus>("ready");
+  const [status, setStatus] = useState<ChatStatus>(options.initialStatus ?? "ready");
   const [browserSelection, setBrowserSelection] = useState<
     UseBionChatReturn["browserSelection"]
   >({ status: "idle" });
@@ -78,6 +79,7 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
   const abortedTargetIdsRef = useRef<Set<string>>(new Set());
   const lastSentTargetIdRef = useRef<string | null>(null);
   const lastProcessedEnvelopeIdRef = useRef<string | null>(null);
+  const lastStreamActivityAtRef = useRef<number>(0);
 
   const sessionId = options.id;
   const autoSelectInFlightRef = useRef(false);
@@ -159,6 +161,7 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
 
       try {
         client.send(payload as any);
+        lastStreamActivityAtRef.current = Date.now();
         setStatus("streaming");
       } catch {
         setMessages((prev) =>
@@ -187,6 +190,24 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
     if (targetId) abortedTargetIdsRef.current.add(targetId);
     setStatus("ready");
   }, []);
+
+  // If the backend doesn't send a terminal "finished" event, avoid leaving the UI stuck in a streaming state forever.
+  useEffect(() => {
+    if (status !== "streaming" && status !== "submitted") return;
+
+    if (!lastStreamActivityAtRef.current) {
+      lastStreamActivityAtRef.current = Date.now();
+    }
+
+    const interval = setInterval(() => {
+      const last = lastStreamActivityAtRef.current;
+      if (last && Date.now() - last > 60_000) {
+        setStatus("ready");
+      }
+    }, 5_000);
+
+    return () => clearInterval(interval);
+  }, [status]);
 
   const selectBrowser = useCallback(
     (clientId: string) => {
@@ -281,6 +302,11 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
 
         if (typeof targetEventId !== "string" || targetEventId.length === 0) return;
         if (abortedTargetIdsRef.current.has(targetEventId)) return;
+        lastStreamActivityAtRef.current = Date.now();
+        if (finished !== true) {
+          // A freshly opened tab may start at "ready" even when a stream is in progress.
+          setStatus((prev) => (prev === "ready" ? "streaming" : prev));
+        }
         if (typeof delta === "string" && delta.length > 0) {
           const assistantId = ensureAssistantMessage(targetEventId);
           appendAssistantText(assistantId, delta, { rollback: rollback === true });
@@ -379,4 +405,3 @@ export function useBionChat(options: UseBionChatOptions): UseBionChatReturn {
     ]
   );
 }
-

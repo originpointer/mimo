@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "nitro build",
-    "dev": "rm -rf .data && nitro dev",
+    "dev": "nitro dev",
     "preview": "node .output/server/index.mjs"
   },
   "devDependencies": {

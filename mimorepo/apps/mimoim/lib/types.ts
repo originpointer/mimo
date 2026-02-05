@@ -41,3 +41,12 @@ export interface ChatRequest {
   selectedChatModel?: string;
   selectedVisibilityType?: 'public' | 'private';
 }
+
+export interface TaskRecord {
+  taskId: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  createdAt: number;
+  updatedAt: number;
+  initialMessage?: string;
+}

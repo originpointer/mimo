@@ -37,6 +37,8 @@ import {
   type ToolIntent,
   type ToolTier,
 } from '@/server/utils/tool-disclosure';
+import { createTask, getTask, updateTaskTitle } from '@/server/stores/taskStore';
+import { saveMessage } from '@/server/stores/messageStore';
 
 /**
  * 客户端类型枚举
@@ -1058,8 +1060,40 @@ export default defineNitroPlugin((nitroApp) => {
         history.push({ role: 'user', content: userText, timestamp: Date.now() });
         historyBySessionId.set(sessionId, history);
 
+        // Persist user message
+        await saveMessage(sessionId, {
+          id: userMessageId,
+          role: 'user',
+          content: userText,
+          createdAt: Date.now(),
+          parts: [{ type: 'text', text: userText }],
+        });
+
         const model = defaultModel;
         const llm = llmProvider.getClient(model);
+
+        // Auto-create task and generating title if needed
+        try {
+          let task = await getTask(sessionId);
+          if (!task) {
+            task = await createTask({ message: userText }, sessionId);
+          }
+          // If title is default, try to generate a better one
+          if (task && (task.title === '新任务' || task.title === 'New Task')) {
+            const title = await generateBrowserTaskTitle({
+              llm,
+              model,
+              userText,
+              summary: userText,
+              url: null,
+            });
+            if (title) {
+              await updateTaskTitle(sessionId, title);
+            }
+          }
+        } catch (err) {
+          console.error('[Bion] Task auto-creation/title-gen failed:', err);
+        }
         const temperature = 0.2;
         const maxTokens = 800;
         const startedAt = Date.now();
@@ -1908,6 +1942,15 @@ export default defineNitroPlugin((nitroApp) => {
           // Persist assistant message in history.
           history.push({ role: 'assistant', content: assistantAccum, timestamp: Date.now() });
           historyBySessionId.set(sessionId, history);
+
+          // Persist assistant message to store
+          await saveMessage(sessionId, {
+            id: `assistant:${userMessageId}`,
+            role: 'assistant',
+            content: assistantAccum,
+            createdAt: Date.now(),
+            parts: [{ type: 'text', text: assistantAccum }],
+          });
 
           // Mark stream finished
           emitUiEvent(sessionId, {

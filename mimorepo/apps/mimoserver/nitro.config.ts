@@ -14,12 +14,17 @@ export default defineNitroConfig({
   },
   routeRules: {
     "/api/**": {
-      cors: {
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allowHeaders: ["Content-Type", "Authorization"],
-        credentials: false,
+      cors: true,
+      headers: {
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
       },
     },
   },
+  storage: {
+    data: {
+      driver: 'fs',
+      base: '.data/kv'
+    }
+  }
 });

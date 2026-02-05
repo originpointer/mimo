@@ -1,5 +1,6 @@
 import { eventHandler, getRouterParam } from 'h3';
 import { getTask } from '@/server/stores/taskStore';
+import { getMessages } from '@/server/stores/messageStore';
 
 export default eventHandler(async (event) => {
   const taskId = getRouterParam(event, 'taskId');
@@ -9,9 +10,13 @@ export default eventHandler(async (event) => {
   }
 
   const task = await getTask(taskId);
+  const messages = await getMessages(taskId);
 
   return {
     ok: true,
-    data: task,
+    data: {
+      ...task,
+      messages,
+    },
   };
 });
