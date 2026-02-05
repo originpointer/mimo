@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./server/*"]
+    }
+  },
+  "include": ["server", "nitro.config.ts"],
+  "exclude": ["node_modules", ".output"]
+}

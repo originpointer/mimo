@@ -1,0 +1,30 @@
+{
+  "name": "mimoserver",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_OPTIONS=\"--unhandled-rejections=warn --import ./dev-preload.mjs${NODE_OPTIONS:+ $NODE_OPTIONS}\" CHOKIDAR_USEPOLLING=1 nitro dev",
+    "build": "nitro build",
+    "preview": "node .output/server/index.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^3.0.29",
+    "@repo/mimo-utils": "workspace:*",
+    "ai": "^6.0.62",
+    "engine.io": "^6.6.5",
+    "h3": "^1.15.4",
+    "mimo-bus": "workspace:*",
+    "mimo-protocol": "workspace:*",
+    "nitropack": "2.12.4",
+    "socket.io": "^4.8.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2",
+    "typescript-eslint": "^8.50.0"
+  }
+}

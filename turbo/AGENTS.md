@@ -2,27 +2,21 @@
 
 ## Project Structure & Module Organization
 
-- `apps/web/`: Next.js app (App Router) on port `3000` (`app/`, `public/`).
-- `apps/docs/`: Next.js app on port `3001` (`app/`, `public/`).
-- `packages/ui/`: shared React UI components in `src/` (import as `@repo/ui/<component>`, e.g. `@repo/ui/button`).
-- `packages/eslint-config/`: shared ESLint flat configs (e.g. `@repo/eslint-config/next-js`).
-- `packages/typescript-config/`: shared `tsconfig` presets used across the monorepo.
+- `packages/mimo-utils/`: shared TypeScript utilities (isomorphic, Node + browser).
 
 ## Build, Test, and Development Commands
 
 - Install deps (repo root): `pnpm install`
-- Run all dev tasks: `pnpm dev` (Turbo orchestrates; `web` at `http://localhost:3000`, `docs` at `http://localhost:3001`)
-- Build everything: `pnpm build`
 - Lint all workspaces: `pnpm lint` (fails on warnings)
 - Typecheck all workspaces: `pnpm check-types`
 - Format TS/TSX/MD: `pnpm format`
-- Run a single workspace: `pnpm --filter web dev` (swap `web` for `docs` or `@repo/ui`)
+- Run a single workspace: `pnpm --filter @repo/mimo-utils lint` (swap script as needed)
 
 ## Coding Style & Naming Conventions
 
 - TypeScript is `strict`; keep types explicit at module boundaries.
 - Formatting is enforced with Prettier (run `pnpm format` before pushing).
-- React components use `PascalCase` names; follow existing file patterns (e.g. `packages/ui/src/button.tsx`).
+- Keep public utilities small and composable.
 
 ## Testing Guidelines
 

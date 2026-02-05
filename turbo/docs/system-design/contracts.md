@@ -3,6 +3,11 @@
 本文档定义 **Web / Server / Browser Plugin** 三方在网络层需要实现的接口，以及跨模块的传输约束（ack、超时、幂等、版本化）。
 LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-design/agent-runtime.md`。
 
+在 Turbo 项目结构中：
+- Web = `apps/mimoim`
+- Server = `apps/mimoserver`
+- Browser Plugin = `apps/mimocrx`
+
 ---
 
 ## 0. 约定（所有接口通用）
@@ -10,13 +15,13 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 ### 0.1 命名与版本
 
 - **协议版本**：`v1`（建议在 Socket 消息根字段带 `v: 1`；HTTP 通过 `X-Mimo-Protocol: 1` 标识）。
-- **字段命名**：统一使用 `camelCase`。
-  - 为兼容旧扩展/旧前端，允许少量 `snake_case` 别名（例如 `screenshot_presigned_url`），但新实现应只依赖 `camelCase`。
+- **字段命名**：统一使用 `camelCase`（MVP **不支持** `snake_case` 别名）。
+  - 若未来需要兼容旧端，可在协议层 codec 中做字段映射。
 
 ### 0.2 时间与 ID
 
 - `timestamp`：毫秒级 Unix epoch（`Date.now()`）。
-- `sessionId`：会话/任务 ID（推荐 UUID/ULID）。
+- `taskId`：会话/任务 ID（推荐 UUID/ULID）。
 - `clientId`：插件实例 ID（插件本地持久化；用于多实例选择）。
 - `actionId`：browser_action 的请求 ID（幂等键）。
 - `requestId`：用户确认/交互类请求的 ID。
@@ -45,10 +50,33 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 }
 ```
 
+常用 `error.code` 与 HTTP 状态码（MVP）：
+
+| code | HTTP | 说明 |
+|---|---|---|
+| `BAD_REQUEST` | 400 | 参数缺失/格式错误 |
+| `NOT_FOUND` | 404 | 资源不存在 |
+| `CONFLICT` | 409 | 幂等冲突/状态不一致 |
+| `UNAUTHORIZED` | 401 | 预留（若启用鉴权） |
+| `FORBIDDEN` | 403 | 预留（若启用鉴权） |
+| `RATE_LIMITED` | 429 | 预留（限流/并发过高） |
+| `INTERNAL` | 500 | 服务端内部错误 |
+| `UNAVAILABLE` | 503 | 依赖不可用/插件离线 |
+
+`details` 约定（可选字段）：
+- `retryable?: boolean`：是否建议重试
+- `context?: Record<string, unknown>`：上下文信息（如 `taskId`、`actionId`）
+- `fieldErrors?: Array<{ field: string; message: string }>`：参数级错误
+
 ### 0.4 追踪与日志关联
 
 - HTTP：推荐支持 `X-Trace-Id` 请求头，并在响应回传同值。
 - Socket：推荐在所有消息中附加 `traceId`（可选），Server 负责在转发/落库/LLM 调用时贯穿。
+
+### 0.5 环境变量（Server）
+
+- `MIMO_SNAPSHOT_DEBUG`：Snapshot 变更日志开关（`1`/`true` 开启）。
+- `MIMO_CORS_ORIGIN`：Socket.IO/HTTP CORS 允许的 Origin（逗号分隔，默认 `http://localhost:3000,http://127.0.0.1:3000`）。
 
 ---
 
@@ -67,8 +95,8 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 
 ### 1.2 Transport 选择
 
-- **HTTP**：首屏/查询/落库后的读取（任务列表、任务详情、扩展列表、Twin 快照、Artifact 下载等）。
-- **Socket（Socket.IO）**：实时/流式/控制面（chatDelta、browser_action、twinSync、选择/确认交互）。
+- **HTTP**：首屏/查询/落库后的读取（任务列表、任务详情、扩展列表、Snapshot 数据、Artifact 下载等）。
+- **Socket（Socket.IO）**：实时/流式/控制面（chatDelta、browser_action、snapshotSync）。
 
 ---
 
@@ -80,7 +108,7 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 
 #### `GET /api/task/id`
 
-用途：生成新的 `taskId`（即 `sessionId`）。
+用途：生成新的 `taskId`（即 `taskId`）。
 
 响应：
 
@@ -136,13 +164,20 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
 }
 ```
 
-> 备注：Server 侧需要保证 **幂等创建任务**：收到第一条 `user_message` 时若任务不存在应自动创建。
+> 备注：Server 侧需要保证 **幂等创建任务**：
+> - `taskId` 不存在 → 创建并持久化；
+> - `taskId` 已存在 → 直接复用并追加消息；
+> - `taskId` 非法（非 UUID/ULID）→ 返回 `BAD_REQUEST`。
 
-### 2.2 Twin（数字孪生）
+### 2.2 Snapshot（快照）
 
-#### `GET /api/twin`
+#### `GET /api/snapshot`
 
-用途：首屏拉取 Twin 快照（Socket 未连接/降级时也能展示）。
+用途：首屏拉取 Snapshot（Socket 未连接/降级时也能展示）。
+MVP 约定：
+- **不做 HTTP 缓存**，直接返回 Server 内存中的最新 Snapshot。
+- Web **首屏必拉一次**，并在 Socket **重连后重新拉取**。
+- 若插件离线，或 `ageMs > 30_000`，返回最近一次 Snapshot，并标记 `stale=true`（`connected` 反映当前连接状态）。
 
 响应（精简版）：
 
@@ -155,7 +190,10 @@ LLM 侧接口以 Server 内部 `LLM Gateway` 抽象为主，详见 `docs/system-
     "tabGroups": [],
     "activeWindowId": null,
     "activeTabId": null,
-    "lastUpdated": 1730000000000
+    "lastUpdated": 1730000000000,
+    "connected": true,
+    "ageMs": 1200,
+    "stale": false
   }
 }
 ```
@@ -262,7 +300,7 @@ window.postMessage(
 
 ```json
 {
-  "sessionId": "01HR...",
+  "taskId": "01HR...",
   "kind": "screenshot",
   "contentType": "image/png"
 }
@@ -282,6 +320,13 @@ window.postMessage(
 }
 ```
 
+MVP 建议（本地开发）：
+- `uploadUrl` 默认有效期：**15 分钟**；`downloadUrl` 默认保留：**24 小时**。
+- 过期访问返回 `410 Gone`（或 `404`），并在 `error.code=NOT_FOUND` 中注明过期原因。
+- 存储位置：`./uploads/artifacts/{artifactId}`（可通过环境变量覆盖）。
+- 清理策略：启动时清扫过期文件 + 每 6 小时定时清理一次。
+- 限制：单文件 `maxUploadBytes=25MB`，上传超时 `60s`。
+
 #### `GET /api/artifacts/:artifactId`
 
 用途：下载/渲染 artifact（截图、HTML、日志等）。
@@ -298,10 +343,10 @@ window.postMessage(
   - Web → Server：`frontend_message`
   - Server → Web：`frontend_event`
   - Plugin ↔ Server：`plugin_message`
-- 兼容旧事件名（legacy，可选支持）：
+- 兼容旧事件名（legacy，**非 MVP**，仅保留说明）：
   - Web ↔ Server：`message`（历史上同名双向复用）
   - Plugin ↔ Server：`my_browser_extension_message`
-  - Twin push：`twin_state_sync`（历史独立事件；新实现推荐合并进 `frontend_event`）
+  - Snapshot push：`twin_state_sync`（历史独立事件；新实现推荐合并进 `frontend_event`）
 
 ### 3.2 连接鉴权（建议）
 
@@ -317,9 +362,11 @@ type SocketAuth = {
 
 Server 侧：
 - `clientType=plugin` 时校验 `clientId`，并将 socket 加入 `client:${clientId}` room。
-- `clientType=frontend` 时加入 `frontend` room，并按 session 订阅加入 `session:${sessionId}` room（或通过 `frontend_message` 中的 sessionId 路由）。
+- `clientType=frontend` 时加入 `frontend` room，并按 task 订阅加入 `task:${taskId}` room（或通过 `frontend_message` 中的 taskId 路由）。
 
 ### 3.3 Web → Server：`frontend_message`
+
+说明：本期仅保留 `user_message`。
 
 #### Web → Server（发送）
 
@@ -331,35 +378,8 @@ Server 侧：
   "type": "user_message",
   "id": "evt-user-1",
   "timestamp": 1730000001000,
-  "sessionId": "01HR...",
+  "taskId": "01HR...",
   "content": "帮我打开 xx 并提取 ..."
-}
-```
-
-##### (2) `select_browser_client`（alias：`select_my_browser`）
-
-```json
-{
-  "v": 1,
-  "type": "select_browser_client",
-  "id": "evt-sel-1",
-  "timestamp": 1730000001500,
-  "sessionId": "01HR...",
-  "targetClientId": "plugin-abc"
-}
-```
-
-##### (3) `confirm_browser_action`（alias：`confirm_browser_task`）
-
-```json
-{
-  "v": 1,
-  "type": "confirm_browser_action",
-  "id": "evt-confirm-1",
-  "timestamp": 1730000002000,
-  "sessionId": "01HR...",
-  "requestId": "req-123",
-  "confirmed": true
 }
 ```
 
@@ -371,7 +391,7 @@ Server 统一用 envelope 推送（便于落库/回放/调试）：
 {
   "type": "event",
   "id": "env-1",
-  "sessionId": "01HR...",
+  "taskId": "01HR...",
   "timestamp": 1730000002500,
   "event": {
     "id": "evt-aaa",
@@ -388,10 +408,8 @@ Server 统一用 envelope 推送（便于落库/回放/调试）：
 MVP 必需的 event type：
 
 - `chatDelta`：流式 assistant 文本（`finished=true` 表示结束）。
-- `browserSelection`：提示“等待选择/已选择”，并带候选列表（alias：`myBrowserSelection`）。
-- `browserActionConfirmationRequested`：请求用户确认（展示 summary + requestId，alias：`browserTaskConfirmationRequested`）。
 - `structuredOutput`：结构化错误/结果兜底（例如 action 执行失败时 UI 展示）。
-- `twinSync`：Twin 实时同步（alias：`twin_state_sync`）。
+- `snapshotSync`：Snapshot 实时同步（legacy alias：`twin_state_sync`，非 MVP）。
 
 ### 3.5 Plugin ↔ Server：`plugin_message`（alias：`my_browser_extension_message`）
 
@@ -413,7 +431,7 @@ MVP 必需的 event type：
 }
 ```
 
-##### (2) `full_state_sync`（Twin 全量）
+##### (2) `full_state_sync`（Snapshot 全量）
 
 ```json
 {
@@ -428,7 +446,7 @@ MVP 必需的 event type：
 }
 ```
 
-##### (3) `tab_event`（Twin 增量）
+##### (3) `tab_event`（Snapshot 增量）
 
 ```json
 {
@@ -440,9 +458,9 @@ MVP 必需的 event type：
 }
 ```
 
-> Server 侧需要把 full_state_sync/tab_event 规整为自己的 Twin store，然后对 Web 推送 `twinSync`（通过 `frontend_event`）。
+> Server 侧需要把 full_state_sync/tab_event 规整为自己的 Snapshot store，然后对 Web 推送 `snapshotSync`（通过 `frontend_event`）。
 >
-> 新实现推荐：通过 `frontend_event` 推送 `event.type = "twinSync"`（并可选桥接为 legacy 的 `twin_state_sync` 独立事件）。
+> 新实现推荐：通过 `frontend_event` 推送 `event.type = "snapshotSync"`（桥接 legacy `twin_state_sync` 为非 MVP 选项）。
 
 #### Server → Plugin（控制：browser_action）
 
@@ -455,7 +473,7 @@ Server 下发动作给指定 `clientId`，并要求插件 **快速 ack 接收**�
   "v": 1,
   "type": "browser_action",
   "id": "act-001",
-  "sessionId": "01HR...",
+  "taskId": "01HR...",
   "clientId": "plugin-abc",
   "timestamp": 1730000005000,
   "action": {
@@ -480,12 +498,36 @@ Server 下发动作给指定 `clientId`，并要求插件 **快速 ack 接收**�
   "v": 1,
   "type": "browser_action_result",
   "actionId": "act-001",
-  "sessionId": "01HR...",
+  "taskId": "01HR...",
   "clientId": "plugin-abc",
   "status": "success",
   "result": { "screenshotUploaded": true, "markdown": "" }
 }
 ```
+
+`status` 约定：`"success" | "error" | "partial"`  
+当 `partial` 时，仍可继续执行后续动作，但必须在 `result.warnings` 中说明缺失项。
+
+错误返回（推荐）：
+
+```json
+{
+  "v": 1,
+  "type": "browser_action_result",
+  "actionId": "act-001",
+  "taskId": "01HR...",
+  "clientId": "plugin-abc",
+  "status": "error",
+  "error": { "code": "PLUGIN_TIMEOUT_EXEC", "message": "execution timeout", "retryable": true }
+}
+```
+
+常见 `error.code`（插件侧/调度侧）：
+- `PLUGIN_OFFLINE` / `PLUGIN_TIMEOUT_ACK` / `PLUGIN_TIMEOUT_EXEC`
+- `INVALID_TASK_TAB` / `INVALID_TARGET`
+- `CDP_UNAVAILABLE` / `CDP_PERMISSION_DENIED`
+- `PAGE_PREP_FAILED` / `READABILITY_TOO_LARGE`
+- `ARTIFACT_UPLOAD_FAILED` / `NAVIGATION_TIMEOUT`
 
 兼容旧格式（无 `type`，通过 `actionId + status` 识别）：
 
@@ -497,22 +539,25 @@ Server 下发动作给指定 `clientId`，并要求插件 **快速 ack 接收**�
 }
 ```
 
-### 3.6 Twin（Server → Web）
+### 3.6 Snapshot（Server → Web）
 
-用途：实时同步 Twin（Web 直接覆盖/合并）。
+用途：实时同步 Snapshot（Web 直接覆盖/合并）。
 
-推荐方式：作为 `frontend_event` 的一种事件类型（`event.type = "twinSync"`）推送：
+推荐方式：作为 `frontend_event` 的一种事件类型（`event.type = "snapshotSync"`）推送：
+MVP 约定：Server 始终推送 **全量** Snapshot（`mode = "full"`），Web 直接覆盖。
 
 ```json
 {
   "type": "event",
-  "id": "env-twin-1",
-  "sessionId": "01HR...",
+  "id": "env-snapshot-1",
+  "taskId": "01HR...",
   "timestamp": 1730000006000,
   "event": {
-    "id": "evt-twin-1",
-    "type": "twinSync",
+    "id": "evt-snapshot-1",
+    "type": "snapshotSync",
     "timestamp": 1730000006000,
+    "mode": "full",
+    "seq": 42,
     "state": {
       "windows": [],
       "tabs": [],
@@ -525,7 +570,9 @@ Server 下发动作给指定 `clientId`，并要求插件 **快速 ack 接收**�
 }
 ```
 
-兼容方式（legacy，可选）：仍单独 emit `twin_state_sync`（payload 与旧实现一致）。
+`seq` 为递增序号（单进程内单调递增），Web 侧应忽略旧序号/旧时间戳。
+
+兼容方式（legacy，非 MVP）：仍单独 emit `twin_state_sync`（payload 与旧实现一致）。
 
 ---
 
@@ -538,13 +585,33 @@ Server 下发动作给指定 `clientId`，并要求插件 **快速 ack 接收**�
 - **执行超时**（完成回传）：`T_exec`（按动作类型配置，建议 30–120s）
   - 超时：Server 将 action 标记为 error，并把错误通过 `structuredOutput` 或 `toolUsed` 通知前端。
 
+MVP 默认 `T_exec`（可在 action 参数中覆盖）：
+
+| action | 默认 `T_exec` |
+|---|---|
+| `task_start` | 20s |
+| `browser_debugger_attach` | 5s |
+| `browser_wait_for_loaded` | 20s |
+| `browser_screenshot` | 10s |
+| `browser_readability_extract` | 10s |
+| `browser_dom_index` | 10s |
+| `browser_xpath_scan` | 10s |
+| `browser_click` | 5s |
+| `browser_type` | 10s |
+| `browser_get_html` | 10s |
+| `task_stop` | 5s |
+
+超时后的清理：
+- 取消该 `actionId` 的等待者，标记 `error.code=PLUGIN_TIMEOUT_EXEC`。
+- 若连续 2 次超时，标记插件为 `unhealthy`（需要重新连接）并清理其 in-flight 队列。
+
 ### 4.2 幂等与去重
 
-- `actionId` 必须全局唯一（至少在 `sessionId` 范围内唯一）。
+- `actionId` 必须全局唯一（至少在 `taskId` 范围内唯一）。
 - 插件侧应基于 `actionId` 做去重：收到重复 action 时返回同一结果（或直接返回已完成标记）。
 - Server 侧重试只允许在 **无结果** 且 **确认幂等** 的 action 上进行（例如截图/读取类）。
 
 ### 4.3 顺序性
 
-- 同一 `sessionId` 的 browser_action 推荐 **串行**（避免多 tab 并发导致 Twin/DOM 不一致）。
+- 同一 `taskId` 的 browser_action 推荐 **串行**（避免多 tab 并发导致 Snapshot/DOM 不一致）。
 - 若未来需要并发，必须在协议中增加 `tabId` 与 `executionGroup` 来声明隔离域。

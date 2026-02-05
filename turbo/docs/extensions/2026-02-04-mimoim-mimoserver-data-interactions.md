@@ -9,7 +9,7 @@
 - **两条主链路**：
   1) **HTTP（Nitro）**：任务列表/任务详情/扩展注册列表/数字孪生初始快照等；
   2) **Socket.IO（Bion）**：聊天消息发送与流式回包、浏览器插件选择/确认、数字孪生实时同步。
-- **会话/任务 ID 统一**：mimoim 里 `chatId` 直接作为 Bion `sessionId`；mimoserver 侧在多数逻辑里把 `sessionId` 当作 `taskId` 来持久化（tasks/messages）。
+- **会话/任务 ID 统一**：mimoim 里 `chatId` 直接作为 Bion `taskId`；mimoserver 侧在多数逻辑里把 `taskId` 当作 `taskId` 来持久化（tasks/messages）。
 - **Twin（数字孪生）**：首屏用 `GET /api/twin` 拉一次快照，后续用 `twin_state_sync` 做实时推送。
 - **注意点**：mimoim 有几处用 `NEXT_PUBLIC_BION_URL` 去拼 HTTP `.../api/task/*`；但 mimoserver 的 **HTTP** 与 **Bion Socket** 默认是两个端口（常见 `6006` vs `6007`）。这会导致这些请求在默认配置下“打到 Socket 端口”（可能失败），而 `/api/twin` 因为走了 Next rewrite 反而更稳。
 
@@ -131,7 +131,7 @@
 
 | type | 语义 | 关键字段 |
 | --- | --- | --- |
-| `user_message` | 用户输入 | `id`（userMessageId）、`sessionId`（chatId）、`content` |
+| `user_message` | 用户输入 | `id`（userMessageId）、`taskId`（chatId）、`content` |
 | `select_my_browser` | 选择浏览器插件实例 | `targetClientId` |
 | `confirm_browser_task` | 确认/取消浏览器任务 | `requestId`、`confirmed` |
 
@@ -141,7 +141,7 @@
 
 mimoim 消费位置：`mimorepo/apps/mimoim/lib/hooks/use-bion-chat.ts`（`client.onEnvelope(...)`）
 
-envelope 结构：`{ type:'event', id, sessionId, timestamp, event }`
+envelope 结构：`{ type:'event', id, taskId, timestamp, event }`
 - 定义：`mimorepo/packages/@bion/protocol/src/frontend.ts`
 
 关键 event（mimoim 有显式处理的）：
@@ -167,17 +167,17 @@ mimoserver 发出位置（核心）：`mimorepo/apps/mimoserver/server/plugins/b
 ### 4.1 新建会话（/chat）
 
 1) mimoim 尝试 `GET ${NEXT_PUBLIC_BION_URL}/api/task/id` 拿 `taskId`（2s 超时）
-2) 失败则本地生成 UUID（仍作为 `chatId/sessionId` 使用）
+2) 失败则本地生成 UUID（仍作为 `chatId/taskId` 使用）
 3) 进入 ChatPageClient，建立 Bion Socket 连接（若 `NEXT_PUBLIC_BION_ENABLED=true`）
 
 调用：`mimorepo/apps/mimoim/app/chat/page.tsx`、`mimorepo/apps/mimoim/lib/hooks/use-bion.ts`
 
 ### 4.2 发送消息与流式回包（核心聊天）
 
-1) mimoim `message` → `user_message(sessionId, id, content)`
+1) mimoim `message` → `user_message(taskId, id, content)`
 2) mimoserver：
-   - 持久化 user message：`saveMessage(sessionId, { id, role:'user', ... })`
-   - 确保 task 存在：不存在则 `createTask(..., sessionId)`（并可更新 title）
+   - 持久化 user message：`saveMessage(taskId, { id, role:'user', ... })`
+   - 确保 task 存在：不存在则 `createTask(..., taskId)`（并可更新 title）
    - LLM stream：持续发送 envelope `chatDelta(delta.content, targetEventId=id)`
    - 结束：`chatDelta(finished=true)`；持久化 assistant message（`id=assistant:${userMessageId}`）
 
@@ -219,12 +219,12 @@ mimoserver 发出位置（核心）：`mimorepo/apps/mimoserver/server/plugins/b
   - key：`extensionId:${extensionId}`（以及按 name 的 `extension:${extensionName}`）
   - 代码：`mimorepo/apps/mimoserver/server/stores/extensionConfigStore.ts`
 
-### 5.2 sessionId == taskId 的耦合点
+### 5.2 taskId == taskId 的耦合点
 
-- mimoserver 在 `user_message` 分支里用 `sessionId` 去读写 task/messages：
-  - `getTask(sessionId)` / `createTask(..., sessionId)`
-  - `saveMessage(sessionId, ...)`
-- 结果：mimoim 的 `chatId`（sessionId）天然可用作 taskId（无额外映射表）
+- mimoserver 在 `user_message` 分支里用 `taskId` 去读写 task/messages：
+  - `getTask(taskId)` / `createTask(..., taskId)`
+  - `saveMessage(taskId, ...)`
+- 结果：mimoim 的 `chatId`（taskId）天然可用作 taskId（无额外映射表）
 
 ---
 
