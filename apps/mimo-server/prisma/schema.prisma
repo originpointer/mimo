@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// 价格快照表
+model Price {
+  id        Int      @id @default(autoincrement())
+  value     Float
+  currency  String   @default("USD")
+  source    String
+  timestamp BigInt
+
+  createdAt DateTime @default(now())
+
+  @@index([timestamp])
+  @@index([source])
+}
+
+/// 价格提醒表
+model PriceAlert {
+  id             String   @id @default(uuid())
+  userId         String?
+  type           String   // 'above' | 'below'
+  targetPrice    Float
+  enabled        Boolean  @default(true)
+  triggeredAt    BigInt?
+  triggeredPrice Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled, type])
+}
+
+/// 策略配置表
+model Strategy {
+  id        String   @id
+  version   String
+  name      String
+  config    String
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
